@@ -1,0 +1,165 @@
+{
+  "name": "one_primary_one_backup_strategy",
+  "version": "1.2",
+  "principle": "Run one primary tool by default. Use the backup tool only for sampling, blind-spot coverage, or confirmation. Do not run two active tools full-scope by default.",
+  "defaults": {
+    "backup_mode": "sample_or_confirm",
+    "sample_ratio": 0.1,
+    "max_backup_targets": 20,
+    "full_scope_dual_tool_allowed": false
+  },
+  "phases": {
+    "scope": {
+      "primary": "runner_allowlist",
+      "backup": "manual_review",
+      "backup_mode": "on_mismatch",
+      "notes": "Classification and scope decisions must have one source of truth."
+    },
+    "subdomain": {
+      "primary": "subdomain_bruteforce_controlled.py",
+      "backup": "oneforall_or_certificate_transparency",
+      "backup_mode": "controlled_discovery_then_scope_confirmation",
+      "notes": "Run low-rate DNS discovery in the full one-click flow, then feed resolved hosts through scope confirmation before HTTP probing."
+    },
+    "alive_probe": {
+      "primary": "runner_http_probe",
+      "backup": "httpx",
+      "backup_mode": "sample_failures_and_edge_cases",
+      "notes": "Do not run two liveness probes full-scope unless the first output is incomplete."
+    },
+    "fingerprint": {
+      "primary": "tool_fingerprint_httpx.py",
+      "backup": "runner_rules_or_ehole_tidefinger_sample",
+      "backup_mode": "rate_controlled_tool_first",
+      "notes": "Use httpx technology detection one target at a time with an outer delay; keep runner rules as fallback categories."
+    },
+    "product_aware_triage": {
+      "primary": "product_triage.py",
+      "backup": "oa-exptool_or_dddd/nuclei_template_inventory",
+      "backup_mode": "offline_map_then_manual_confirm",
+      "notes": "Identify the specific OA/ERP/CMS/framework/middleware product offline, then map it to a bounded tool branch. Never launch product exploit templates automatically."
+    },
+    "fingerprint_deepening": {
+      "primary": "fingerprint_deepening.py",
+      "backup": "manual_template_review",
+      "backup_mode": "offline_plan_then_single_target_manual_followup",
+      "notes": "Map detected products/frameworks to safe follow-up checks, local tool/template candidates, command previews, and approval gates. Do not execute tools automatically."
+    },
+    "crawl_api_js": {
+      "primary": "api_discovery.py_plus_katana",
+      "backup": "packerfuzzer_or_manual_proxy",
+      "backup_mode": "controlled_crawl_then_builtin_parser",
+      "notes": "One-click enables Katana with depth=2, concurrency=1, parallelism=1, rate-limit=1, and delay; built-in parsing still normalizes candidates."
+    },
+    "wechat_miniapp_discovery": {
+      "primary": "wechat_miniapp_discovery.py",
+      "backup": "manual_wechat_or_search_review",
+      "backup_mode": "confirm_candidates_and_scope",
+      "notes": "Generate mini-program, official-account, QR-code, and search-dork clues. Feed only authorized source domains from wechat_subdomain_scan_targets.txt back into subdomain/alive scanning; keep WeChat platform and third-party links pending review."
+    },
+    "api_endpoint_confirm": {
+      "primary": "api_endpoint_confirm.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_interesting_json_only",
+      "notes": "Confirm bounded GET-like API candidates only. Skip risky verbs such as upload, import, export, download, delete, update, save, pay, password, and file."
+    },
+    "xss_candidate_screening": {
+      "primary": "xss_candidate_triage.py",
+      "backup": "nuclei_or_dalfox_or_xsstrike",
+      "backup_mode": "single_candidate_manual_validation_only",
+      "notes": "Build XSS candidates from discovered parameterized URLs and optionally send one inert GET marker per safe parameter. Stored/blind/script-payload validation and full-scope external scanners are not default automation."
+    },
+    "authenticated_session_review": {
+      "primary": "authenticated_session_review.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "confirm_high_value_authenticated_candidates",
+      "notes": "The runner creates a manual login/registration queue. After the operator supplies a valid local session file, review same-host JS and bounded GET-like APIs. Never persist cookies, response values, or downloaded files."
+    },
+    "healthcare_privacy_triage": {
+      "primary": "healthcare_privacy_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "schema_only_then_single_endpoint_review",
+      "notes": "Prioritize patient identity, encounter, diagnosis, prescription, LIS/PACS, billing, insurance, follow-up, and mental-health field names. Store endpoint paths, parameter names, field names, counts, and hashes only; never retain patient values, bodies, reports, or images."
+    },
+    "high_value_paths": {
+      "primary": "runner_high_value_path_set",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "manual_confirm_only",
+      "notes": "Keep the path set small and deterministic."
+    },
+    "truth_verify": {
+      "primary": "runner_truth_verification",
+      "backup": "manual_review",
+      "backup_mode": "review_borderline_scores",
+      "notes": "Use one consistent scoring algorithm to avoid inconsistent claims."
+    },
+    "template_validation": {
+      "primary": "nuclei",
+      "backup": "afrog",
+      "backup_mode": "confirm_verified_candidates",
+      "notes": "Use the pinned managed Nuclei engine and reviewed templates as the general core; use afrog mainly for confirmed Chinese OA products. Filter by technology, severity, and intrusiveness, and never run approval-gated templates automatically."
+    },
+    "shiro_candidate_screening": {
+      "primary": "shiro_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Detect Shiro rememberMe behavior with baseline GET plus invalid rememberMe cookie only. Do not brute force keys or send serialized payloads in the default flow."
+    },
+    "shiro_validation": {
+      "primary": "ShiroAttack2",
+      "backup": "manual_request_review",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "Use only on one authorized candidate target at a time for key/rememberMe verification. Command execution, memory shell, upload, and persistence features are approval-gated and disabled by default."
+    },
+    "sqli_candidate_screening": {
+      "primary": "sqli_triage.py",
+      "backup": "vuln_sqli_pure.py_or_manual_request_diff_review",
+      "backup_mode": "review_positive_and_borderline_candidates",
+      "notes": "Retain the shallow SQLi check but do not launch broad or proactive SQL injection scanning. Test only already-discovered parameterized GET URLs with strict per-host, parameter, request, delay, and stop limits. Never enumerate databases or retrieve data; 500/status deltas are candidates, not proof."
+    },
+    "sqli_validation": {
+      "primary": "sqlmap",
+      "backup": "manual_request_diff_review",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "Use only on one high-probability or operator-approved candidate URL at a time with risk=1, level=1, technique BE, delay, request caps, and no database dumping or destructive options."
+    },
+    "custom_probe_policy": {
+      "primary": "mature_tool_or_manual_review_for_validation",
+      "backup": "custom_scripts_for_candidate_screening",
+      "backup_mode": "candidate_screening_only",
+      "notes": "Custom scripts such as vuln_sqli_pure.py, vuln_lfi.py, vuln_rce.py, vuln_ssti.py, weak_passwd_scanner.py, and upload/RCE helpers are not authoritative validators by default. Use them as low-rate candidate screeners or wrappers, then validate with a mature tool, manual request review, or explicit approval-gated minimal proof."
+    },
+    "directory_fuzz": {
+      "primary": "dirsearch_or_ffuf",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "important_targets_only",
+      "notes": "Use small curated wordlists and low rate. Avoid broad recursion by default."
+    },
+    "report": {
+      "primary": "result_prioritizer_and_evidence_builder",
+      "backup": "manual_review",
+      "backup_mode": "human_quality_check",
+      "notes": "Review priority_targets.json and run_health.json before report drafting."
+    }
+  },
+  "approval_gated_phases": {
+    "credential_testing": {
+      "primary": "manual_minimal_check",
+      "backup": "weak_passwd_scanner.py_or_hydra_only_when_approved",
+      "backup_mode": "disabled",
+      "notes": "Credential spraying and brute force remain approval-gated. Custom credential scripts are helpers only; they are not default validators and must use tiny dictionaries, low rate, and lockout-safe limits."
+    },
+    "exploitability": {
+      "primary": "manual_minimal_validation",
+      "backup": "specialized_mature_tool_or_custom_helper_when_approved",
+      "backup_mode": "disabled",
+      "notes": "Stop once permission or impact is proven. Custom exploit helpers must not be used full-scope and should only assist one approved candidate at a time."
+    },
+    "post_exploitation": {
+      "primary": "none_by_default",
+      "backup": "none_by_default",
+      "backup_mode": "disabled",
+      "notes": "Webshell, C2, tunnels, internal scanning, and persistence are not default workflow tools."
+    }
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "label": "gx_gov",
+  "tianhu_base": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0",
+  "python": "{tianhu}/python3/python.exe",
+  "java": "{tianhu}/Java_path/Java_11_win/bin/java.exe",
+  "workflow": "gov_exercise_workflow.json",
+  "tool_strategy": "tool_strategy.json",
+  "reporting": {
+    "team_name": "观叶识微",
+    "attack_result_template": "D:/Desktop/claude projects/attack and defend test/攻击成果模版/攻击成果.docx",
+    "auto_generate_attack_report": true,
+    "screenshot_policy": "insert_existing_or_mark_needed"
+  },
+  "max_targets": 500,
+  "default_delay_seconds": 2.0,
+  "probe_timeout_seconds": 8,
+  "rate_control": {
+    "default_delay_seconds": 2.0,
+    "jitter_ratio": 0.25,
+    "per_host_min_interval_seconds": 2.0,
+    "backoff_status_codes": [
+      429,
+      500,
+      502,
+      503,
+      504
+    ],
+    "backoff_seconds": 10,
+    "max_concurrency_default": 1,
+    "stop_on_repeated_errors_per_host": 5
+  },
+  "allowed_modes": [
+    "check",
+    "probe"
+  ],
+  "blocked_actions": [
+    "password_spray",
+    "bruteforce",
+    "webshell",
+    "c2",
+    "tunnel",
+    "data_export",
+    "destructive_write",
+    "ddos",
+    "social_engineering",
+    "near_field"
+  ],
+  "tools": {
+    "afrog": [
+      "{base}/tools/managed/afrog/3.5.3/afrog.exe",
+      "{base}/tools/afrog.exe",
+      "{tianhu}/tools/gui_other/afrog/afrog.exe"
+    ],
+    "ehole": [
+      "{base}/tools/ehole.exe",
+      "{tianhu}/tools/gui_scan/ehole/EHole_windows_amd64.exe"
+    ],
+    "xray": [
+      "{base}/tools/xray.exe",
+      "{tianhu}/tools/gui_other/xray/xray_windows_amd64.exe"
+    ],
+    "weekpasswd": [
+      "{base}/tools/weekpasswd.exe",
+      "{tianhu}/tools/gui_scan/weekpasswd/JUBILANT-WOLF-V2.0.1.exe"
+    ],
+    "oneforall": [
+      "{base}/tools/oneforall/oneforall.py",
+      "{tianhu}/tools/gui_shouji/oneforall/oneforall.py"
+    ],
+    "ksubdomain": [
+      "{base}/tools/ksubdomain_bin/ksubdomain.exe",
+      "{tianhu}/tools/gui_shouji/ksubdomain/ksubdomain.exe"
+    ],
+    "dirsearch": [
+      "{tianhu}/tools/gui_scan/dirsearch/dirsearch.py"
+    ],
+    "sqlmap": [
+      "{tianhu}/tools/gui_scan/sqlmap/sqlmap.py",
+      "{base}/sqlmap/sqlmap.py"
+    ],
+    "shiro_attack": [
+      "{base}/tools/managed/shiroattack2/5.1.1/shiro_attack-5.1.1-zulu-8-jfx.jar",
+      "{base}/tools/shiro/shiro/shiro_attack-4.7.0-SNAPSHOT-all.jar",
+      "{tianhu}/tools/gui_scan/shiro/shiro/shiro_attack-4.7.0-SNAPSHOT-all.jar"
+    ],
+    "shiro_loader": [
+      "{base}/tools/shiro/shiro/ShiroLoader.bat"
+    ],
+    "nuclei": [
+      "{base}/tools/managed/nuclei/3.8.0/nuclei.exe",
+      "{tianhu}/tools/gui_scan/nuclei/nuclei.exe"
+    ],
+    "httpx": [
+      "{base}/tools/managed/httpx/1.9.0/httpx.exe",
+      "{tianhu}/tools/gui_scan/fcke/httpx.exe"
+    ],
+    "katana": [
+      "{base}/tools/managed/katana/1.6.1/katana.exe"
+    ],
+    "packerfuzzer": [
+      "{tianhu}/tools/gui_scan/webpackscan/PackerFuzzer.py"
+    ],
+    "api_tool": [
+      "{tianhu}/tools/gui_scan/apitool/API-T00L_v1.2.jar"
+    ],
+    "api_explorer": [
+      "{tianhu}/tools/gui_scan/apitool/API-Explorer_v1.0.1.exe"
+    ],
+    "tidefinger": [
+      "{tianhu}/tools/gui_shouji/tide/TideFinger_windows_amd64_v3.2.3.exe"
+    ]
+  }
+}

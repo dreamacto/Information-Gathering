@@ -1,0 +1,2 @@
+usage: vuln_ssti.py [-h] [--project PROJECT]
+vuln_ssti.py: error: unrecognized arguments: --url http://127.0.0.1/DVWA/vulnerabilities/sqli/?id=1&Submit=Submit --cookie security=low; PHPSESSID=5e5vs065522g4d25d6josg36os

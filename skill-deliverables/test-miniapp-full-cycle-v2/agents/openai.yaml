@@ -1,0 +1,4 @@
+interface:
+  display_name: "小程序完整授权测试"
+  short_description: "从任意小程序输入完成客户端、后端、业务验证、取证和报告闭环"
+  default_prompt: "Use $test-miniapp-full-cycle-v2 to take one authorized mini-program from identity or artifact intake through complete client and backend testing, evidence, cleanup, and reporting."

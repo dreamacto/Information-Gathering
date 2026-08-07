@@ -1,0 +1,4 @@
+interface:
+  display_name: "网站完整授权测试"
+  short_description: "从单个网站完成范围确认、全面测试、验证取证和最终报告闭环"
+  default_prompt: "Use $test-website-full-cycle to take one authorized website from target intake through complete testing, evidence, cleanup, and reporting."

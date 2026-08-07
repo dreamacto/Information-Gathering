@@ -1,0 +1,543 @@
+{
+  "name": "gx_gov_exercise_workflow",
+  "version": "2.0",
+  "default_rate_limit": {
+    "requests_per_second": 0.5,
+    "delay_seconds": 2.0
+  },
+  "phases": [
+    {
+      "id": "scope",
+      "title": "范围校验",
+      "risk": "none",
+      "auto": true,
+      "outputs": [
+        "targets.csv",
+        "targets.json",
+        "new_assets_pending_apply.txt"
+      ],
+      "rules": [
+        "只处理授权目标表内资产",
+        "被动发现的新资产先进入额外靶标申请队列"
+      ]
+    },
+    {
+      "id": "subdomain",
+      "title": "低速子域名发现",
+      "risk": "low",
+      "auto": true,
+      "tools": [
+        "subdomain_bruteforce_controlled.py",
+        "controlled DNS brute-force",
+        "OneForAll",
+        "certificate transparency",
+        "historical project results"
+      ],
+      "outputs": [
+        "subdomains_raw.txt",
+        "subdomains_dedup.txt",
+        "subdomains_resolved.jsonl",
+        "subdomains_for_scope_confirmation.txt",
+        "subdomains_for_next_run.txt"
+      ],
+      "rules": [
+        "完整一键流程默认低速 DNS 发现，单线程、带 delay",
+        "新子域名未确认范围前只入待确认和下一轮回流清单",
+        "需要把 subdomains_for_next_run.txt 作为输入再次运行，或在确认授权后纳入后续探活"
+      ]
+    },
+    {
+      "id": "alive_probe",
+      "title": "存活探测",
+      "risk": "low",
+      "auto": true,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 2.0,
+        "jitter_ratio": 0.25,
+        "per_host_min_interval_seconds": 2.0
+      },
+      "tools": [
+        "HTTP/HTTPS GET",
+        "httpx when available"
+      ],
+      "outputs": [
+        "probe_results.jsonl"
+      ],
+      "rules": [
+        "默认低速探测",
+        "记录状态码、标题、Server、Content-Type、跳转、长度、首页hash"
+      ]
+    },
+    {
+      "id": "fingerprint",
+      "title": "指纹识别",
+      "risk": "none",
+      "auto": true,
+      "tools": [
+        "tool_fingerprint_httpx.py",
+        "httpx technology detection",
+        "runner fallback rules"
+      ],
+      "outputs": [
+        "fingerprints.jsonl",
+        "tool_fingerprints.jsonl",
+        "tool_fingerprints.csv",
+        "cat_java.txt",
+        "cat_net.txt",
+        "cat_php.txt",
+        "cat_oa.txt",
+        "cat_ai.txt",
+        "cat_bigscreen.txt",
+        "cat_login.txt",
+        "cat_api.txt",
+        "cat_other.txt"
+      ]
+    },
+    {
+      "id": "product_aware_triage",
+      "title": "Offline product/OA-specific triage",
+      "risk": "none",
+      "auto": true,
+      "tools": [
+        "product_triage.py",
+        "Nuclei 3.8.0 plus nuclei-templates 10.4.4 as maintained core",
+        "afrog 3.5.3 for confirmed Chinese OA products",
+        "OA-EXPTOOL and dddd as legacy offline template references"
+      ],
+      "outputs": [
+        "product_fingerprints.jsonl",
+        "product_triage_queue.csv",
+        "product_vuln_candidates.jsonl",
+        "product_vuln_candidate_queue.csv",
+        "product_triage_summary.json",
+        "reports/product_triage.md",
+        "reports/product_vuln_candidate_queue.md"
+      ],
+      "rules": [
+        "This phase is offline and sends no requests.",
+        "Identify specific OA/ERP/CMS/framework/middleware products from existing evidence.",
+        "Build a product vulnerability candidate queue for Fastjson, Log4j, Struts2, Spring Boot, Nacos, ThinkPHP, Shiro, and common domestic OA/ERP products.",
+        "Map each product to one primary and one sampled backup tool branch.",
+        "Classify upload, RCE, SQL injection, deserialization, auth bypass, default-login, and similar templates as approval-required.",
+        "Default action is queue_only; no product-specific exploit tool is launched automatically."
+      ]
+    },
+    {
+      "id": "shiro_triage",
+      "title": "Apache Shiro rememberMe triage",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 3.0,
+        "request_budget_per_target": 2
+      },
+      "tools": [
+        "shiro_triage.py",
+        "curl",
+        "ShiroAttack2 for later single-target manual verification"
+      ],
+      "outputs": [
+        "shiro_triage_manifest.json",
+        "shiro_triage_results.jsonl",
+        "shiro_candidates.jsonl",
+        "shiro_detected.txt",
+        "shiro_manual_queue.csv"
+      ],
+      "rules": [
+        "Default seeds are Java/login/OA fingerprint targets; use --shiro-include-all only when needed.",
+        "Only send baseline GET and an invalid rememberMe cookie probe.",
+        "Do not brute force keys, send serialized payloads, execute commands, upload files, or install memory shells in the default flow.",
+        "Queue medium/high confidence targets for manual ShiroAttack2 single-target verification under authorization."
+      ]
+    },
+    {
+      "id": "crawl_api_js",
+      "title": "JS/API 深挖",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 2.0,
+        "jitter_ratio": 0.25,
+        "per_host_min_interval_seconds": 2.0,
+        "max_js_per_target": 20
+      },
+      "tools": [
+        "api_discovery.py",
+        "katana",
+        "PackerFuzzer",
+        "API-Explorer"
+      ],
+      "outputs": [
+        "api_discovery_manifest.json",
+        "api_discovery.jsonl",
+        "api_candidates.jsonl",
+        "impact_candidates.jsonl",
+        "katana_urls.txt"
+      ],
+      "rules": [
+        "只做同站点只读抓取和接口线索提取",
+        "一键流程默认启用 Katana，但强制 depth=2、concurrency=1、parallelism=1、rate-limit=1，并设置请求 delay",
+        "优先识别 OpenAPI/Swagger、JS source map、上传/导出/下载/查询/管理类接口",
+        "不提交写入型 payload，不导出敏感数据"
+      ]
+    },
+    {
+      "id": "wechat_miniapp_discovery",
+      "title": "微信小程序与公众号线索发现",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 2.0,
+        "jitter_ratio": 0.25,
+        "per_host_min_interval_seconds": 2.0,
+        "max_js_per_target": 3
+      },
+      "tools": [
+        "wechat_miniapp_discovery.py",
+        "搜索引擎 dork",
+        "人工扫码/微信内确认"
+      ],
+      "outputs": [
+        "wechat_unit_keyword_seeds.csv",
+        "wechat_search_dorks.txt",
+        "wechat_search_dorks.csv",
+        "wechat_miniapp_candidates.jsonl",
+        "wechat_home_checks.jsonl",
+        "wechat_js_checks.jsonl",
+        "wechat_subdomain_scan_targets.txt",
+        "wechat_pending_extra_assets.txt",
+        "wechat_auth_domains.json",
+        "wechat_auth_domains.csv",
+        "wechat_auth_domains.txt",
+        "wechat_auth_sessions.template.json",
+        "reports/wechat_auth_domains.md"
+      ],
+      "rules": [
+        "默认从 targets.csv 与 probe_results.jsonl 离线生成单位关键词和搜索 dork",
+        "--wechat-miniapp 不再隐式启动 HTTP 探测；只有显式 --probe 或 --wechat-live 才会访问目标",
+        "只有显式启用 --wechat-live 时才低速读取首页和同站 JS",
+        "发现的小程序/公众号/二维码线索先人工确认主体与授权范围",
+        "wechat_subdomain_scan_targets.txt 可作为后续子域名/存活探测输入",
+        "微信平台域名和未确认第三方域名进入 wechat_pending_extra_assets.txt，不直接扫描",
+        "从同站页面和 JavaScript 中提取后端 API、登录、注册、OAuth、Token 和 Session 线索",
+        "需要认证的域名写入 wechat_auth_domains.csv，提醒操作员手工登录并将 Cookie 仅保存到本地 auth_sessions.local.json",
+        "新发现域名必须先确认归属和目标审批；不会因为域名看似属于广西单位就自动扫描"
+      ]
+    },
+    {
+      "id": "api_endpoint_confirm",
+      "title": "API 端点只读确认",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 2.0,
+        "max_per_target": 8
+      },
+      "tools": [
+        "api_endpoint_confirm.py",
+        "curl"
+      ],
+      "outputs": [
+        "api_confirm_manifest.json",
+        "api_confirmed.jsonl",
+        "api_interesting.jsonl",
+        "api_confirm_skips.jsonl"
+      ],
+      "rules": [
+        "只确认高优先级 GET 风格端点",
+        "跳过 upload/import/export/download/delete/update/save/pay/password/file 等风险关键词",
+        "只记录状态、类型、长度、hash、标题和 JSON 结构，不保存响应正文"
+      ]
+    },
+    {
+      "id": "xss_candidate_triage",
+      "title": "XSS 候选与安全反射检查",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 3.0,
+        "max_per_host": 3,
+        "max_params_per_url": 2,
+        "request_budget_per_param": 1
+      },
+      "tools": [
+        "xss_candidate_triage.py",
+        "curl",
+        "nuclei/dalfox/xsstrike for later single-candidate manual validation"
+      ],
+      "outputs": [
+        "xss_triage_manifest.json",
+        "xss_candidates.jsonl",
+        "xss_reflection_checks.jsonl",
+        "xss_reflection_candidates.txt",
+        "xss_manual_review.md"
+      ],
+      "rules": [
+        "Only consume discovered parameterized URLs from API/JS/Katana/miniapp outputs.",
+        "Automatic mode sends one random inert marker in a GET parameter and checks whether it is reflected.",
+        "Do not submit stored locations such as comments, feedback, nickname/profile, tickets, announcements, or articles automatically.",
+        "Do not send script tags, event handlers, blind-XSS callbacks, POST bodies, cookie/token capture, or response-body persistence.",
+        "Marker reflection is a candidate signal only; executable XSS proof requires manual single-candidate review."
+      ]
+    },
+    {
+      "id": "sqli_triage",
+      "title": "SQL injection low-impact triage",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 3.0,
+        "max_per_host": 3,
+        "max_params_per_url": 2,
+        "request_budget_per_param": 5
+      },
+      "tools": [
+        "sqli_triage.py",
+        "curl",
+        "sqlmap for later single-candidate validation"
+      ],
+      "outputs": [
+        "sqli_triage_manifest.json",
+        "sqli_triage_results.jsonl",
+        "sqli_candidates.jsonl",
+        "sqli_high_probability.jsonl",
+        "sqli_high_probability.txt",
+        "sqli_500_or_error_anomalies.txt"
+      ],
+      "rules": [
+        "This is retained shallow SQL injection triage, not proactive or broad SQL injection scanning.",
+        "Only test discovered parameterized GET URLs from JS/API discovery, API confirmation, katana output, or scoped target CSV.",
+        "Do not use time-based payloads, UNION extraction, stacked queries, database enumeration, dump options, or write payloads.",
+        "Treat HTTP 500/status changes as triage anomalies only; do not call them confirmed vulnerabilities by themselves.",
+        "Mark high probability only when DB error signatures appear after payloads or a stable boolean true/false differential is observed.",
+        "Run sqlmap only later on one approved candidate URL at a time with risk=1, level=1, technique BE, delay, and no dump/destructive options."
+      ]
+    },
+    {
+      "id": "authenticated_session_review",
+      "title": "人工登录交接与认证态 API 深挖",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 3.0,
+        "max_js_per_session": 20,
+        "max_endpoints_per_session": 30
+      },
+      "requires": [
+        "authorized target",
+        "operator-created account or approved test account",
+        "operator-provided session cookie"
+      ],
+      "tools": [
+        "authenticated_session_review.py",
+        "browser developer tools or approved proxy"
+      ],
+      "outputs": [
+        "manual_auth_queue.json",
+        "manual_auth_queue.csv",
+        "auth_sessions.template.json",
+        "authenticated_review_manifest.json",
+        "authenticated_api_results.jsonl",
+        "authenticated_impact_candidates.jsonl",
+        "authenticated_review_skips.jsonl",
+        "authenticated_new_assets_pending.txt"
+      ],
+      "rules": [
+        "主流程自动生成登录和可注册入口清单，但不自动注册、不爆破、不绕过认证",
+        "Cookie 或 Authorization 只从本地会话文件读取，不写入日志和扫描结果",
+        "只访问同一授权主机的入口、同站 JS 和少量 GET 型查询接口",
+        "JS 中发现的新域名或新子域名只写入待确认资产清单，不直接访问",
+        "下载、导出、上传、删除、修改和账号操作只列入人工候选，不自动触发",
+        "只保存状态、长度、hash、JSON 字段名和风险标签，不保存响应值或敏感文件"
+      ]
+    },
+    {
+      "id": "weak_credential_review",
+      "title": "显式弱口令复核（默认不运行）",
+      "risk": "medium",
+      "auto": false,
+      "requires": [
+        "explicit --weak-credential-review",
+        "operator confirms exercise rules allow weak-credential checks",
+        "optional --weak-credential-auto-auth-review for transient authenticated read-only follow-up"
+      ],
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 3.0,
+        "max_targets_default": 10,
+        "max_pairs_per_target_default": 5
+      },
+      "tools": [
+        "weak_credential_review.py"
+      ],
+      "outputs": [
+        "weak_credential_manifest.json",
+        "weak_credential_attempts.jsonl",
+        "weak_credential_successes.jsonl",
+        "weak_credential_skips.jsonl",
+        "weak_auto_authenticated_review_manifest.json",
+        "weak_auto_auth_errors.jsonl",
+        "authenticated_api_results.jsonl",
+        "authenticated_impact_candidates.jsonl",
+        "weak_credential_success_sessions.local.template.json",
+        "00_重要_人工复核入口/06_弱口令显式复核命令.md"
+      ],
+      "rules": [
+        "Never runs in the default flow; operator must add --weak-credential-review.",
+        "Transient authenticated read-only follow-up also requires --weak-credential-auto-auth-review.",
+        "Use at most five product-aware common credential pairs per target.",
+        "Stop on CAPTCHA, lockout, rate-limit, warning prompts, or first success.",
+        "If auto-auth follow-up is enabled, use only cookies/tokens returned by that successful login response, keep them in memory, and never scrape browser tokens.",
+        "Do not persist raw passwords, cookies, tokens, or response bodies.",
+        "Do not continue to data export, lateral movement, password change, or account modification."
+      ]
+    },
+    {
+      "id": "healthcare_privacy_triage",
+      "title": "Healthcare patient-information exposure triage",
+      "risk": "none",
+      "auto": false,
+      "tools": [
+        "health_scope_import.py",
+        "healthcare_privacy_triage.py",
+        "manual browser or approved proxy for later single-endpoint confirmation"
+      ],
+      "outputs": [
+        "healthcare_privacy/healthcare_sensitive_schema_candidates.jsonl",
+        "healthcare_privacy/healthcare_manual_review_queue.csv",
+        "healthcare_privacy/healthcare_privacy_summary.json"
+      ],
+      "rules": [
+        "Enable with --healthcare-profile; live request delay is never below 3 seconds.",
+        "Prioritize patient identity, encounters, diagnoses, prescriptions, LIS/PACS, billing, insurance, follow-up, and mental-health schema indicators.",
+        "Process existing run outputs offline and retain only endpoint paths, parameter names, field names, categories, counts, and hashes.",
+        "Never retain patient values, response bodies, reports, images, exports, tokens, cookies, or downloaded files.",
+        "Database, PACS, VPN, network-device, and internal-service endpoints remain separate manual or approval-gated queues."
+      ]
+    },
+    {
+      "id": "high_value_paths",
+      "title": "高价值路径发现",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 2.0,
+        "jitter_ratio": 0.25,
+        "per_host_min_interval_seconds": 2.0,
+        "stop_on_repeated_errors_per_host": 5
+      },
+      "outputs": [
+        "candidate_exposures.jsonl"
+      ],
+      "rules": [
+        "只看存在性和元信息",
+        "不提交写入型 payload",
+        "不下载敏感数据"
+      ]
+    },
+    {
+      "id": "truth_verify",
+      "title": "真伪验证",
+      "risk": "low",
+      "auto": true,
+      "outputs": [
+        "verified_exposures.jsonl",
+        "false_positive_exposures.jsonl"
+      ],
+      "rules": [
+        "对比首页 hash 和候选路径 hash",
+        "检查响应长度、Content-Type、状态、标题和语义关键词差异",
+        "识别 SPA 首页、统一错误页、登录跳转页",
+        "候选需要结构差异和语义证据同时满足",
+        "记录复核理由"
+      ]
+    },
+    {
+      "id": "approval_gate",
+      "title": "风险分级与审批闸门",
+      "risk": "none",
+      "auto": true,
+      "outputs": [
+        "approval_required.md",
+        "score_mapping.json"
+      ],
+      "rules": [
+        "弱口令、命令执行、文件上传、数据库访问、webshell、内网扫描必须审批",
+        "未审批时不进入可利用性测试"
+      ]
+    },
+    {
+      "id": "minimal_validation",
+      "title": "最小化漏洞验证",
+      "risk": "medium",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 5.0,
+        "jitter_ratio": 0.3
+      },
+      "requires": [
+        "authorized target",
+        "screen recording",
+        "operator review"
+      ],
+      "outputs": [
+        "validation_results.jsonl"
+      ],
+      "rules": [
+        "只证明存在",
+        "不扩大影响",
+        "不导出、不下载、不留存敏感数据"
+      ]
+    },
+    {
+      "id": "exploitability",
+      "title": "高风险可利用性测试",
+      "risk": "high",
+      "auto": false,
+      "requires": [
+        "platform approval",
+        "reported attack resource",
+        "screen recording",
+        "manual trigger"
+      ],
+      "outputs": [
+        "manual_exploitability_notes.md"
+      ],
+      "rules": [
+        "默认禁用",
+        "能证明权限或影响即停止",
+        "禁止改密码、删改数据、上传持久化后门"
+      ]
+    },
+    {
+      "id": "report",
+      "title": "证据链与评分报告",
+      "risk": "none",
+      "auto": true,
+      "outputs": [
+        "reports/daily_report_draft.md",
+        "reports/evidence_index.md",
+        "reports/platform_submission_template.json",
+        "priority_targets.json",
+        "reports/priority_review.md",
+        "run_health.json",
+        "reports/run_health.md",
+        "00_重要_人工复核入口/README_先看这里.md",
+        "00_重要_人工复核入口/01_需要你登录拿Cookie.md",
+        "00_重要_人工复核入口/02_业务API只读复核队列.md",
+        "00_重要_人工复核入口/03_弱口令人工确认队列_不自动跑.md",
+        "00_重要_人工复核入口/04_可报告候选_TOP.md"
+      ]
+    }
+  ]
+}
