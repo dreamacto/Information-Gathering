@@ -693,6 +693,7 @@ def write_empty_workflow_outputs(run_dir: Path) -> None:
         "candidate_exposures.jsonl": "",
         "verified_exposures.jsonl": "",
         "false_positive_exposures.jsonl": "",
+        "git_exposure_domains.txt": "",
         "api_discovery.jsonl": "",
         "api_candidates.jsonl": "",
         "impact_candidates.jsonl": "",
@@ -780,6 +781,47 @@ def count_named_jsonl(root: Path, filename: str) -> int:
         for path in root.glob(f"*/{filename}"):
             total += len(read_jsonl(path))
     return total
+
+
+def write_git_exposure_reminder(run_dir: Path) -> list[str]:
+    verified_rows = [r for r in read_jsonl(run_dir / "verified_exposures.jsonl") if r.get("kind") == "git_exposure"]
+    candidate_rows = [r for r in read_jsonl(run_dir / "candidate_exposures.jsonl") if r.get("kind") == "git_exposure"]
+    rows = verified_rows + candidate_rows
+    domains: dict[str, dict] = {}
+    for row in rows:
+        base = (row.get("base_url") or row.get("url") or "").rstrip("/")
+        if not base:
+            continue
+        entry = domains.setdefault(base, {
+            "base": base,
+            "host": row.get("host") or "",
+            "name": row.get("name") or "",
+            "paths": set(),
+            "verified_paths": set(),
+            "score": 0,
+        })
+        entry["paths"].add(row.get("path") or "")
+        if row.get("verification_score"):
+            entry["verified_paths"].add(row.get("path") or "")
+            entry["score"] = max(entry["score"], int(row.get("verification_score") or 0))
+        if row.get("host"):
+            entry["host"] = row["host"]
+    lines = [
+        "# Git 泄露提醒 (git_exposure)",
+        "",
+        "以下域名在 /.git/HEAD 或 /.git/config 命中 git 特征，存在 .git 目录泄露风险。",
+        "注意：能访问 /.git/HEAD 只代表目录存在，是否可还原源码取决于 index / logs / objects 是否可下载，需人工单点验证（授权范围内）。",
+        "",
+        "| 域名 | 主机 | 命中路径 | 已验证路径 | 最高评分 |",
+        "| --- | --- | --- | --- | --- |",
+    ]
+    for entry in sorted(domains.values(), key=lambda e: (-e["score"], e["base"])):
+        paths = ", ".join(sorted(p for p in entry["paths"] if p))
+        verified = ", ".join(sorted(p for p in entry["verified_paths"] if p)) or "-"
+        lines.append(f"| {entry['base']} | {entry['host']} | {paths} | {verified} | {entry['score']} |")
+    lines.append("")
+    (run_dir / "git_exposure_domains.txt").write_text("\n".join(lines), encoding="utf-8")
+    return sorted({d for d in domains})
 
 
 def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: argparse.Namespace) -> None:
@@ -894,6 +936,7 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
             "checked_at": now_iso(),
             "error": str(exc)[:300],
         })
+    git_exposure_domain_count = len(write_git_exposure_reminder(run_dir))
     operator_action_hub = {}
     try:
         operator_action_hub = build_operator_action_hub(run_dir)
@@ -916,6 +959,7 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
         "api_discovery": bool(args.api_discovery),
         "candidate_exposures": candidate_count,
         "verified_exposures": verified_count,
+        "git_exposure_domains": git_exposure_domain_count,
         "api_candidates": api_candidate_count,
         "impact_candidates": impact_candidate_count,
         "api_confirmed": api_confirmed_count,
@@ -999,6 +1043,11 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
             "Review reports/daily_report_draft.md and reports/evidence_index.md before platform submission.",
         ],
     }
+    if git_exposure_domain_count:
+        summary["next_steps"].insert(
+            0,
+            "Review git_exposure_domains.txt; validate whether .git objects/index are downloadable before claiming source recovery (authorized scope only).",
+        )
     write_json(run_dir / "run_summary.json", summary)
 
 
@@ -1040,6 +1089,11 @@ def parse_args() -> argparse.Namespace:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Build offline post-fingerprint deepening queues and approval-gated tool plan (enabled by default)",
+    )
+    parser.add_argument(
+        "--no-asset-fingerprint-lib",
+        action="store_true",
+        help="Skip merging this run's fingerprints into the cumulative asset_fingerprint_lib.jsonl",
     )
     parser.add_argument(
         "--healthcare-profile",
@@ -1399,6 +1453,31 @@ def run_shiro_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float
         proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
     if proc.returncode != 0:
         append_jsonl(run_dir / "shiro_triage_errors.jsonl", {
+            "checked_at": now_iso(),
+            "returncode": proc.returncode,
+            "cmd": cmd,
+        })
+
+
+def run_asset_fingerprint_ingest(run_dir: Path) -> None:
+    """Merge this run's fingerprints into the cross-run cumulative library.
+
+    Reads product_fingerprints.jsonl / tool_fingerprints.jsonl /
+    shiro_candidates.jsonl if present, updates asset_fingerprint_lib.jsonl,
+    and regenerates per-product views.  Offline, read-only, idempotent.
+    """
+    cmd = [
+        sys.executable,
+        str(BASE_DIR / "asset_fingerprint_ingest.py"),
+        "--run-dir",
+        str(run_dir),
+    ]
+    with (run_dir / "asset_fingerprint_ingest.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
+        run_dir / "asset_fingerprint_ingest.err.log"
+    ).open("w", encoding="utf-8", errors="ignore") as err:
+        proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
+    if proc.returncode != 0:
+        append_jsonl(run_dir / "asset_fingerprint_ingest_errors.jsonl", {
             "checked_at": now_iso(),
             "returncode": proc.returncode,
             "cmd": cmd,
@@ -1833,6 +1912,9 @@ def main() -> int:
         run_second_pass_triage_stage(run_dir, args, float(delay))
     if args.review_intelligence:
         run_review_intelligence_stage(run_dir)
+
+    if not args.no_asset_fingerprint_lib:
+        run_asset_fingerprint_ingest(run_dir)
 
     write_summary(run_dir, targets, runtime, cfg, args)
     if not args.no_evidence_build:

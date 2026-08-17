@@ -44,6 +44,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-xss", action="store_true", help="跳过 XSS 安全反射检查")
     parser.add_argument("--no-second-pass", action="store_true", help="跳过二次轻量复测")
     parser.add_argument("--no-review-intelligence", action="store_true", help="跳过离线 P0-P3 总表和目标画像")
+    parser.add_argument("--fingerprint-deepening", action="store_true", default=False, help=argparse.SUPPRESS)
     parser.add_argument("--no-fingerprint-deepening", action="store_true", help="跳过指纹识别后的深入分支计划")
     parser.add_argument("--no-subdomain", action="store_true", help="完整流程中跳过低速子域名发现")
     parser.add_argument("--no-tool-fingerprint", action="store_true", help="跳过 httpx 工具指纹增强")
@@ -81,8 +82,6 @@ def runner_command(args: argparse.Namespace) -> list[str]:
         cmd.append("--review-intelligence")
     if args.no_fingerprint_deepening:
         cmd.append("--no-fingerprint-deepening")
-    else:
-        cmd.append("--fingerprint-deepening")
     if args.mode == "full" and not args.no_subdomain:
         cmd.extend([
             "--subdomain-bruteforce",

@@ -27,7 +27,8 @@ from api_discovery import append_jsonl, now_iso, title_of
 USER_AGENT = "Authorized-Shiro-Triage/1.0"
 SHIRO_HINT_RE = re.compile(r"(apache shiro|org\.apache\.shiro|shiro)", re.I)
 REMEMBER_ME_RE = re.compile(r"rememberme\s*=", re.I)
-DELETE_ME_RE = re.compile(r"rememberme\s*=\s*deleteme", re.I)
+DELETE_ME_RE = re.compile(r"[^;=\s]+\s*=\s*deleteme\s*(?:;|$)", re.I)
+REMEMBER_ME_COOKIE_NAMES = ["rememberMe", "rememberme", "remember_me", "remember-me", "shiroRememberMe", "rm", "sid", "JSESSIONID", "remember"]
 
 
 @dataclass
@@ -144,6 +145,29 @@ def read_jsonl(path: Path) -> list[dict]:
     return rows
 
 
+LOGIN_PATH_RE = re.compile(r"(login|logon|signin|portal|admin|sso|oauth|auth|member|manage)", re.I)
+
+
+def api_login_seed_urls(run_dir: Path) -> set[str]:
+    """URLs surfaced by api_discovery whose path looks like a login/auth entry.
+
+    Deep-path login pages (e.g. ``/portal/nndwyw/login.html``) often never reach
+    ``cat_java/cat_login/cat_oa`` or the fingerprint classification, so they are
+    fed to the triage seed set directly to close that gap.
+    """
+    urls: set[str] = set()
+    for name in ("api_candidates.jsonl", "api_discovery.jsonl"):
+        for row in read_jsonl(run_dir / name):
+            url = str(row.get("url") or "").strip().rstrip("/")
+            if not url.startswith(("http://", "https://")):
+                continue
+            tags = set(row.get("tags") or [])
+            path = urlparse(url).path or ""
+            if LOGIN_PATH_RE.search(path) or "auth_or_login" in tags:
+                urls.add(url)
+    return urls
+
+
 def load_seed_urls(run_dir: Path, include_all: bool, force: bool) -> list[str]:
     seeds: set[str] = set()
     priority_files = ["cat_java.txt", "cat_login.txt", "cat_oa.txt"]
@@ -158,6 +182,7 @@ def load_seed_urls(run_dir: Path, include_all: bool, force: bool) -> list[str]:
         cats = set(row.get("categories") or [])
         if cats.intersection({"java", "login", "oa"}) and row.get("url"):
             seeds.add(str(row["url"]).rstrip("/"))
+    seeds.update(api_login_seed_urls(run_dir))
     if include_all or not seeds:
         targets = run_dir / "targets.csv"
         if targets.exists():
@@ -190,25 +215,44 @@ def analyze_target(url: str, run_dir: Path, timeout: int, delay: float) -> dict:
     baseline = fetch_headers(url, run_dir, timeout)
     if delay > 0:
         time.sleep(delay)
-    invalid_cookie = fetch_headers(url, run_dir, timeout, cookie="rememberMe=1")
+    probes: list[dict] = []
+    probe_fetches: list[HeaderFetch] = []
+    for cookie_name in REMEMBER_ME_COOKIE_NAMES:
+        probe = fetch_headers(url, run_dir, timeout, cookie=f"{cookie_name}=1")
+        probe_fetches.append(probe)
+        probes.append({"cookie_name": cookie_name, **compact_fetch(probe)})
+        if delay > 0:
+            time.sleep(delay)
 
     baseline_cookie_blob = "\n".join(baseline.set_cookies)
-    invalid_cookie_blob = "\n".join(invalid_cookie.set_cookies)
-    header_blob = baseline.headers_raw + "\n" + invalid_cookie.headers_raw
-    body_blob = baseline.text[:20000] + "\n" + invalid_cookie.text[:20000]
+    baseline_blob = baseline_cookie_blob + "\n" + baseline.headers_raw + "\n" + baseline.text[:20000]
+    baseline_has_delete_me = bool(DELETE_ME_RE.search(baseline_blob))
 
     signals: list[str] = []
     confidence = "none"
     manual_check = False
-    if DELETE_ME_RE.search(invalid_cookie_blob):
+
+    delete_me_cookies: list[str] = []
+    for cookie_name, probe in zip(REMEMBER_ME_COOKIE_NAMES, probe_fetches):
+        blob = "\n".join(probe.set_cookies) + "\n" + probe.headers_raw + "\n" + probe.text[:20000]
+        if DELETE_ME_RE.search(blob):
+            delete_me_cookies.append(cookie_name)
+
+    if delete_me_cookies and not baseline_has_delete_me:
         signals.append("invalid_rememberme_deleted")
         confidence = "high"
+        manual_check = True
+    elif delete_me_cookies:
+        signals.append("delete_me_present_in_baseline_and_probe")
+        confidence = "medium" if confidence == "none" else confidence
         manual_check = True
     if REMEMBER_ME_RE.search(baseline_cookie_blob):
         signals.append("rememberme_set_cookie_present")
         confidence = "medium" if confidence == "none" else confidence
         manual_check = True
-    if SHIRO_HINT_RE.search(header_blob) or SHIRO_HINT_RE.search(body_blob):
+    all_headers = baseline.headers_raw + "\n" + "\n".join(p.headers_raw for p in probe_fetches)
+    all_bodies = baseline.text[:20000] + "\n" + "\n".join(p.text[:20000] for p in probe_fetches)
+    if SHIRO_HINT_RE.search(all_headers) or SHIRO_HINT_RE.search(all_bodies):
         signals.append("shiro_keyword")
         confidence = "medium" if confidence == "none" else confidence
         manual_check = True
@@ -222,7 +266,9 @@ def analyze_target(url: str, run_dir: Path, timeout: int, delay: float) -> dict:
         "manual_check_recommended": manual_check,
         "notes": "Triage only. It does not brute force Shiro keys or send serialized payloads.",
         "baseline": compact_fetch(baseline),
-        "invalid_rememberme_probe": compact_fetch(invalid_cookie),
+        "rememberme_probes": probes,
+        "delete_me_cookie_names": sorted(set(delete_me_cookies)),
+        "baseline_has_delete_me": baseline_has_delete_me,
     }
 
 
@@ -263,7 +309,7 @@ def main() -> int:
         "delay": args.delay,
         "timeout": args.timeout,
         "include_all": bool(args.include_all),
-        "request_budget_per_target": 2,
+        "request_budget_per_target": 1 + len(REMEMBER_ME_COOKIE_NAMES),
         "disabled_actions": ["key_bruteforce", "serialized_payloads", "command_execution", "memory_shell", "file_upload"],
     }
     (args.run_dir / "shiro_triage_manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")

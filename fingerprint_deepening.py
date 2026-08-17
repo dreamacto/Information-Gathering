@@ -61,8 +61,8 @@ PRODUCT_DEEPENING: dict[str, dict] = {
             "只记录 endpoint、状态、字段名、hash，不保存 env/heapdump/logfile 内容",
         ],
         "approval_checks": ["heapdump download", "env secret extraction", "logfile download", "actuator exploit chain"],
-        "tool_preference": ["runner_high_value_paths", "nuclei", "manual_browser"],
-        "runner_followup": "high_value_paths",
+        "tool_preference": ["springboot_triage.py", "SpringBoot-Scan.py", "nuclei springboot actuator templates", "manual_browser"],
+        "runner_followup": "springboot_triage",
     },
     "druid": {
         "safe_checks": [
@@ -89,8 +89,8 @@ PRODUCT_DEEPENING: dict[str, dict] = {
             "只做状态、标题、公开元数据复核，不拉取配置内容",
         ],
         "approval_checks": ["config retrieval", "auth bypass", "default token tricks", "namespace changes"],
-        "tool_preference": ["nuclei", "manual_browser"],
-        "runner_followup": "manual_single_target",
+        "tool_preference": ["nacos_triage.py", "nuclei nacos templates", "manual_request_review"],
+        "runner_followup": "nacos_triage",
     },
     "tomcat": {
         "safe_checks": [
@@ -98,8 +98,8 @@ PRODUCT_DEEPENING: dict[str, dict] = {
             "不尝试默认口令，不上传 WAR",
         ],
         "approval_checks": ["default credential check", "WAR upload", "manager command execution"],
-        "tool_preference": ["runner_high_value_paths", "nuclei", "manual_browser"],
-        "runner_followup": "high_value_paths",
+        "tool_preference": ["tomcat_triage.py", "nuclei weblogic/tomcat templates", "manual_request_review"],
+        "runner_followup": "tomcat_triage",
     },
     "weblogic": {
         "safe_checks": [
@@ -107,8 +107,17 @@ PRODUCT_DEEPENING: dict[str, dict] = {
             "只做公开页面、响应头、版本线索复核",
         ],
         "approval_checks": ["T3/RCE exploit", "deserialization payload", "console credential testing"],
-        "tool_preference": ["nuclei", "afrog", "manual_browser"],
-        "runner_followup": "manual_single_target",
+        "tool_preference": ["tomcat_triage.py", "nuclei weblogic/tomcat templates", "manual_request_review"],
+        "runner_followup": "tomcat_triage",
+    },
+    "redis": {
+        "safe_checks": [
+            "只发送 PING / TCP connect / GET / 做无凭据可达性判断",
+            "绝不执行 config/set/save、写 ssh 公钥或 crontab、读取 ES 索引",
+        ],
+        "approval_checks": ["redis command execution", "ssh-key/crontab write", "slaveof", "ES index data read"],
+        "tool_preference": ["redis_triage.py", "nuclei redis/es templates", "redis-cli manual (approval only)"],
+        "runner_followup": "redis_triage",
     },
     "fastjson": {
         "safe_checks": [
@@ -116,8 +125,8 @@ PRODUCT_DEEPENING: dict[str, dict] = {
             "只把 Fastjson 作为候选组件，不直接发送反序列化 payload",
         ],
         "approval_checks": ["deserialization payload", "JNDI/DNSLog/callback", "command execution"],
-        "tool_preference": ["nuclei", "afrog", "manual_request_review"],
-        "runner_followup": "product_queue_only",
+        "tool_preference": ["fastjson_triage.py", "FastjsonScan.exe", "nuclei fastjson templates", "manual_request_review"],
+        "runner_followup": "fastjson_triage",
     },
     "log4j": {
         "safe_checks": [
@@ -134,8 +143,8 @@ PRODUCT_DEEPENING: dict[str, dict] = {
             "只确认框架存在和版本/路由特征",
         ],
         "approval_checks": ["OGNL payload", "RCE validation", "content-type exploit probes"],
-        "tool_preference": ["nuclei", "afrog", "manual_browser"],
-        "runner_followup": "product_queue_only",
+        "tool_preference": ["struts2_triage.py", "Struts2Scan.py", "nuclei struts cves", "manual_request_review"],
+        "runner_followup": "struts2_triage",
     },
     "thinkphp": {
         "safe_checks": [

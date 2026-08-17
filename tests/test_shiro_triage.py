@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from shiro_triage import HeaderFetch, analyze_target, load_seed_urls, refresh_outputs
+from shiro_triage import HeaderFetch, analyze_target, api_login_seed_urls, load_seed_urls, refresh_outputs
 
 
 def sample(url, status=200, headers="", cookies=None, text="home"):
@@ -28,12 +28,65 @@ class ShiroTriageTests(unittest.TestCase):
             responses = [
                 sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
                 sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
             ]
             with patch("shiro_triage.fetch_headers", side_effect=responses), patch("shiro_triage.time.sleep", return_value=None):
                 record = analyze_target("https://example.test", run_dir, timeout=10, delay=0)
             self.assertTrue(record["manual_check_recommended"])
             self.assertEqual(record["confidence"], "high")
             self.assertIn("invalid_rememberme_deleted", record["signals"])
+            self.assertEqual(record["delete_me_cookie_names"], ["rememberMe"])
+
+    def test_delete_me_already_in_baseline_is_demoted(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            responses = [
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["rememberMe=deleteMe; Path=/; Max-Age=0"]),
+            ]
+            with patch("shiro_triage.fetch_headers", side_effect=responses), patch("shiro_triage.time.sleep", return_value=None):
+                record = analyze_target("https://example.test", run_dir, timeout=10, delay=0)
+            self.assertTrue(record["baseline_has_delete_me"])
+            self.assertNotIn("invalid_rememberme_deleted", record["signals"])
+            self.assertIn("delete_me_present_in_baseline_and_probe", record["signals"])
+            self.assertEqual(record["confidence"], "medium")
+
+    def test_custom_cookie_name_hits_delete_me(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            responses = [
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["rm=deleteMe; Path=/; Max-Age=0"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+                sample("https://example.test", cookies=["JSESSIONID=abc; Path=/"]),
+            ]
+            with patch("shiro_triage.fetch_headers", side_effect=responses), patch("shiro_triage.time.sleep", return_value=None):
+                record = analyze_target("https://example.test", run_dir, timeout=10, delay=0)
+            self.assertEqual(record["confidence"], "high")
+            self.assertIn("invalid_rememberme_deleted", record["signals"])
+            self.assertEqual(record["delete_me_cookie_names"], ["rm"])
 
     def test_load_seed_urls_prefers_java_login_oa(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -50,6 +103,31 @@ class ShiroTriageTests(unittest.TestCase):
             )
             self.assertEqual(load_seed_urls(run_dir, include_all=False, force=False), ["https://java.example.test"])
             self.assertIn("https://all.example.test", load_seed_urls(run_dir, include_all=True, force=False))
+
+    def test_api_login_seed_urls_filters_login_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "api_candidates.jsonl").write_text(
+                json.dumps({"url": "http://x.gov.cn/portal/nndwyw/login.html", "tags": []}) + "\n"
+                + json.dumps({"url": "http://x.gov.cn/plain/api", "tags": []}) + "\n"
+                + json.dumps({"url": "http://y.gov.cn/sso/login", "tags": []}) + "\n"
+                + json.dumps({"url": "http://z.gov.cn/admin", "tags": []}) + "\n",
+                encoding="utf-8",
+            )
+            urls = api_login_seed_urls(run_dir)
+            self.assertIn("http://x.gov.cn/portal/nndwyw/login.html", urls)
+            self.assertIn("http://y.gov.cn/sso/login", urls)
+            self.assertIn("http://z.gov.cn/admin", urls)
+            self.assertNotIn("http://x.gov.cn/plain/api", urls)
+
+    def test_load_seed_urls_includes_api_login_paths(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            run_dir = Path(tmp)
+            (run_dir / "api_candidates.jsonl").write_text(
+                json.dumps({"url": "https://deep.gov.cn/portal/nndwyw/login.html", "tags": []}) + "\n",
+                encoding="utf-8",
+            )
+            self.assertIn("https://deep.gov.cn/portal/nndwyw/login.html", load_seed_urls(run_dir, include_all=False, force=False))
 
     def test_refresh_outputs_writes_manual_queue(self):
         with tempfile.TemporaryDirectory() as tmp:

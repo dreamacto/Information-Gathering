@@ -123,6 +123,78 @@
       "backup_mode": "confirm_single_candidate_only",
       "notes": "Use only on one high-probability or operator-approved candidate URL at a time with risk=1, level=1, technique BE, delay, request caps, and no database dumping or destructive options."
     },
+    "springboot_candidate_screening": {
+      "primary": "springboot_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Read-only fingerprint plus actuator endpoint probes (env/heapdump only as status-code existence checks). Do not download heapdump files or dump memory in the default flow."
+    },
+    "springboot_validation": {
+      "primary": "SpringBoot-Scan.py",
+      "backup": "nuclei_templates_springboot_actuator_full",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "CLI: python tools/managed/springbootscan/SpringBoot-Scan-main/SpringBoot-Scan.py -u <url> (GitHub AabyssZG v2.7.2; needs Defender exclusion for its inc/poc.py which is flagged Exploit:Python/SpringShell.SGA!MSR - verified enabled on this host). Headless use: pipe an empty/0 line to answer the interactive delay prompt (e.g. echo '0' | python SpringBoot-Scan.py -u <url>). -v/-d exploit and heapdump-download modes are approval-gated. Nuclei springboot actuator set is the backup: detection-only downloads (heapdump/env/logfile content-feature checks, never archived). Verified on local sim: 8 actuator infoleak URLs found; nuclei heapdump critical hit."
+    },
+    "fastjson_candidate_screening": {
+      "primary": "fastjson_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Read-only deformatter checks only (type error, syntax error, nested parse). No RCE payloads or DNS lookups in the default flow."
+    },
+    "fastjson_validation": {
+      "primary": "FastjsonScan.exe",
+      "backup": "nuclei_templates_fastjson_1_2_24_68_rce",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "CLI only: FastjsonScan.exe -u <url> [-o result.txt]. Detects version ranges (1.2.48/1.2.68/1.2.80), autoType status, dependency library, and error/DNS/latency probes. Any real RCE/out-of-band exploitation beyond probes is approval-gated. Use on one authorized candidate at a time."
+    },
+    "struts2_candidate_screening": {
+      "primary": "struts2_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Read-only fingerprint probes only: default action suffix, showcase, devMode, OGNL error markers. No exploitation or OGNL evaluation in the default flow."
+    },
+    "struts2_validation": {
+      "primary": "Struts2Scan.py",
+      "backup": "nuclei_templates_struts_cves_5638_11776_17530_31805",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "CLI only: python tools/managed/struts2scan/Struts2-Scan-master/Struts2Scan.py -u <url> for S2-001-S2-057 plus devMode (local copy patched: -n name check uses s2_dict instead of class list to fix always-unsupported bug). Nuclei backup covers S2-045/S2-057/S2-061/S2-062 and executes payloads (cat /etc/passwd matcher) - intrusive, approval-gated. Verified end-to-end on local sim: 4/4 struts CVE templates hit."
+    },
+    "tomcat_weblogic_candidate_screening": {
+      "primary": "tomcat_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Read-only probes: TCP connect checks for ajp 8009, t3 7001, http 8080 plus version/manager/console existence markers. No payloads."
+    },
+    "tomcat_weblogic_validation": {
+      "primary": "nuclei",
+      "backup": "manual_request_review",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "Pinned managed Nuclei engine with reviewed templates only: ghostcat CVE-2020-1938 (network), weblogic CVE-2019-2725/CVE-2020-14882/CVE-2018-2894/CVE-2023-21839, tomcat manager/default-login/jolokia-creds-leak. Verified end-to-end on local sim: ghostcat critical hit; CVE-2020-14882 critical hit and CVE-2023-21839 high hit via self-hosted interactsh (public oast.pro unreachable from this network). Local OOB stack: interactsh-server -d 127.0.0.1 -http-port 8000 -dns-port 30053 -lip 127.0.0.1 -sa (domain MUST equal the nuclei server IP form, i.e. -d 127.0.0.1, else DNS callbacks are not matched), then nuclei -iserver http://127.0.0.1:8000. Independent CLI for 21839: tools\\managed\\weblogic21839\\POC_CVE-2023-21839\\CVE-2023-21839.py -ip <t> -p 7001 -l ldap://<oast>/x (pure T3/IIOP handshake, verified 7/7 steps on sim). Approval-gated RCE templates never auto-run; per-host template caps apply."
+    },
+    "nacos_candidate_screening": {
+      "primary": "nacos_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Read-only probe of a small set of admin/console endpoints; record status codes and key-value existence only, never contents of sensitive configuration."
+    },
+    "nacos_validation": {
+      "primary": "nuclei",
+      "backup": "manual_request_review",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "Pinned managed Nuclei templates only: nacos-auth-bypass, nacos-authentication-bypass, nacos-info-leak, nacos-create-user, nacos-default-login. Do not create users or mutate configuration in the default flow; those require explicit approval."
+    },
+    "redis_es_zk_candidate_screening": {
+      "primary": "redis_triage.py",
+      "backup": "manual_browser_or_proxy",
+      "backup_mode": "review_positive_candidates",
+      "notes": "Read-only probes: Redis PING/INFO banner, Elasticsearch GET / status, ZooKeeper connect + ruok. No command execution, no data reads beyond banners."
+    },
+    "redis_es_zk_validation": {
+      "primary": "nuclei",
+      "backup": "manual_request_review",
+      "backup_mode": "confirm_single_candidate_only",
+      "notes": "Pinned managed Nuclei templates only: exposed-redis/redis-config/redis-info, elasticsearch detect and known info-leak templates. Actual key/value reads or config writes require explicit approval."
+    },
     "custom_probe_policy": {
       "primary": "mature_tool_or_manual_review_for_validation",
       "backup": "custom_scripts_for_candidate_screening",

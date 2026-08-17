@@ -51,6 +51,9 @@ cleanup_manifests/
 doc_backups/
 *.docx
 
+# Archived legacy/experimental scripts (keep locally, never re-import into main flow)
+_archived_old_scripts/
+
 # Target scope, extracted app/web artifacts, and binary payload material
 targets*.txt
 defense_targets.txt
@@ -102,3 +105,13 @@ payload_*.py
 vuln_*.py
 waf403_bypass.py
 waf_advanced_bypass.py
+
+# 运行期目标/平台数据（不进仓库）
+subdomain_results*/
+unpacked/
+scan_targets.txt
+defense_units_scan.txt
+device_points_all.json
+schedule_all.json
+nn-cc_platform_report.md
+*.bak_2runs
