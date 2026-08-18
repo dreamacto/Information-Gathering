@@ -296,7 +296,7 @@
         "delay_seconds": 3.0,
         "max_per_host": 3,
         "max_params_per_url": 2,
-        "request_budget_per_param": 5
+        "request_budget_per_param": 16
       },
       "tools": [
         "sqli_triage.py",

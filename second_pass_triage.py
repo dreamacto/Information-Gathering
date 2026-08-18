@@ -87,7 +87,7 @@ def run_sql_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
     completed = set()
     if not force:
         completed = {
-            f"{row.get('url')}#{row.get('param')}"
+            f"{row.get('url')}#{row.get('param')}{'@POST' if (row.get('method') or 'GET').upper() == 'POST' else ''}"
             for row in read_jsonl(run_dir / "second_pass_results.jsonl")
             if row.get("family") == "sqli"
         }
@@ -96,7 +96,7 @@ def run_sql_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
     for row in source_rows:
         url = str(row.get("url") or "")
         param = str(row.get("param") or "")
-        if not url or not param or f"{url}#{param}" in completed:
+        if not url or not param or f"{url}#{param}{'@POST' if (row.get('method') or 'GET').upper() == 'POST' else ''}" in completed:
             continue
         tested += 1
         try:
@@ -107,6 +107,8 @@ def run_sql_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
                     base_url=str(row.get("base_url") or ""),
                     source="second_pass",
                     priority_score=int(row.get("source_priority_score") or 0),
+                    method=str(row.get("method") or "GET").upper(),
+                    body=str(row.get("body") or ""),
                 ),
                 run_dir,
                 timeout,
@@ -307,6 +309,82 @@ def run_api_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
     return tested, confirmed
 
 
+def header_key(row: dict) -> str:
+    return f"{row.get('host', '')}#{row.get('header', '')}#{row.get('cookie_key') or ''}"
+
+
+def run_header_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, force: bool,
+                           login_data: str | None = None) -> tuple[int, int]:
+    from header_reflection_probe import run_probe
+    source = [
+        row for row in read_jsonl(run_dir / "header_reflection_candidates.jsonl")
+        if row.get("url") and row.get("header")
+    ]
+    if limit:
+        source = source[:limit]
+    completed: set[str] = set()
+    if not force:
+        completed = {
+            str(row.get("source_key_sha256"))
+            for row in read_jsonl(run_dir / "second_pass_results.jsonl")
+            if row.get("family") == "header_sqli"
+        }
+    tested = 0
+    confirmed = 0
+    for index, row in enumerate(source, 1):
+        key = header_key(row)
+        if key in completed:
+            continue
+        tested += 1
+        marker = f"hxmk2_{uuid.uuid4().hex[:10]}"
+        try:
+            second = run_probe(
+                str(row.get("url") or ""),
+                str(row.get("header") or ""),
+                row.get("cookie_key"),
+                marker,
+                timeout,
+                delay,
+                run_dir,
+                set(),
+                login_data,
+            )
+        except Exception as exc:  # noqa: BLE001
+            second = None
+            error = str(exc)[:300]
+        else:
+            error = ""
+        stable = bool(second and second.get("reflection_count"))
+        score = 86 if stable else 45
+        if stable:
+            confirmed += 1
+        result = {
+            "checked_at": now_iso(),
+            "family": "header_sqli",
+            "source_key_sha256": key,
+            "host": str(row.get("host") or ""),
+            "url": str(row.get("url") or ""),
+            "header": str(row.get("header") or ""),
+            "cookie_key": row.get("cookie_key"),
+            "stable": stable,
+            "priority": confidence_tier(score),
+            "score": score,
+            "first_reflection_count": row.get("reflection_count"),
+            "second_reflection_count": second.get("reflection_count") if second else 0,
+            "marker": marker,
+            "context_snippet": second.get("context_snippet") if second else "",
+            "signals": ["header_marker_reflected"] if stable else ["header_marker_not_restable"],
+            "notes": "Second pass sent a fresh inert marker in the same header. Stable reflection remains a manual-review lead for header-context SQLi.",
+            "suggest_command": row.get("suggest_command", ""),
+        }
+        if error:
+            result["error"] = error
+        append_jsonl(run_dir / "second_pass_results.jsonl", result)
+        if stable:
+            append_jsonl(run_dir / "second_pass_confirmed.jsonl", result)
+    return tested, confirmed
+
+
 def refresh_markdown(run_dir: Path) -> Path:
     rows = read_jsonl(run_dir / "second_pass_results.jsonl")
     confirmed = [row for row in rows if row.get("stable")]
@@ -349,6 +427,8 @@ def main() -> int:
     parser.add_argument("--sql-limit", type=int, default=10)
     parser.add_argument("--xss-limit", type=int, default=20)
     parser.add_argument("--api-limit", type=int, default=20)
+    parser.add_argument("--header-limit", type=int, default=20)
+    parser.add_argument("--header-login-data", default=None)
     parser.add_argument("--force", action="store_true")
     args = parser.parse_args()
 
@@ -362,6 +442,9 @@ def main() -> int:
     sql_tested, sql_confirmed = run_sql_second_pass(args.run_dir, args.delay, args.timeout, args.sql_limit, args.force)
     xss_tested, xss_confirmed = run_xss_second_pass(args.run_dir, args.delay, args.timeout, args.xss_limit, args.force)
     api_tested, api_confirmed = run_api_second_pass(args.run_dir, args.delay, args.timeout, args.api_limit, args.force)
+    header_tested, header_confirmed = run_header_second_pass(
+        args.run_dir, args.delay, args.timeout, args.header_limit, args.force, args.header_login_data
+    )
     report = refresh_markdown(args.run_dir)
     manifest = {
         "created_at": now_iso(),
@@ -373,6 +456,8 @@ def main() -> int:
         "xss_stable": xss_confirmed,
         "api_tested": api_tested,
         "api_stable": api_confirmed,
+        "header_sqli_tested": header_tested,
+        "header_sqli_stable": header_confirmed,
         "report": str(report),
         "disabled_actions": [
             "sqlmap",

@@ -257,6 +257,26 @@ def build_candidates(run_dir: Path) -> list[dict]:
                 manual_next_step="用单 URL、单参数在 Repeater 里复核差异；不跑批量 SQLMap、不导库、不做延时/写入验证。",
             )
 
+    for row in read_jsonl(run_dir / "header_reflection_candidates.jsonl"):
+        header = str(row.get("header") or "")
+        cookie_key = str(row.get("cookie_key") or "")
+        add_candidate(
+            items,
+            family="sql_injection",
+            target=str(row.get("url") or ""),
+            host=str(row.get("host") or ""),
+            base_url=str(row.get("url") or "").split("?")[0],
+            param=f"{header}{('.' + cookie_key) if cookie_key else ''}",
+            score=86,
+            confidence="header_reflection",
+            reasons=[f"header_reflected_count={row.get('reflection_count', '')}",
+                     f"context={str(row.get('context_snippet') or '')[:120]}"],
+            evidence=str(row.get("suggest_command") or ""),
+            source="header_reflection_candidates.jsonl",
+            manual_next_step="只读探测确认该 Header 值被服务端读取回显；用建议命令在 Repeater 中复核注入差异，"
+                             "不跑批量 SQLMap、不导库、不做延时/写入验证。",
+        )
+
     for row in read_jsonl(run_dir / "xss_reflection_checks.jsonl"):
         if not row.get("marker_reflected"):
             continue

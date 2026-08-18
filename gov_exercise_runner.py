@@ -704,6 +704,8 @@ def write_empty_workflow_outputs(run_dir: Path) -> None:
         "sqli_high_probability.jsonl": "",
         "sqli_high_probability.txt": "",
         "sqli_500_or_error_anomalies.txt": "",
+        "header_reflection_candidates.jsonl": "",
+        "header_reflection_candidates.txt": "",
         "second_pass_results.jsonl": "",
         "second_pass_confirmed.jsonl": "",
         "second_pass_manifest.json": "",
@@ -834,8 +836,10 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
     api_interesting_count = len(read_jsonl(run_dir / "api_interesting.jsonl"))
     sqli_candidate_count = len(read_jsonl(run_dir / "sqli_candidates.jsonl"))
     sqli_high_probability_count = len(read_jsonl(run_dir / "sqli_high_probability.jsonl"))
+    header_sqli_candidate_count = len(read_jsonl(run_dir / "header_reflection_candidates.jsonl"))
     second_pass_results = read_jsonl(run_dir / "second_pass_results.jsonl")
     second_pass_confirmed_count = len(read_jsonl(run_dir / "second_pass_confirmed.jsonl"))
+    header_second_pass_stable_count = len([row for row in second_pass_results if row.get("family") == "header_sqli" and row.get("stable")])
     xss_candidate_count = len(read_jsonl(run_dir / "xss_candidates.jsonl"))
     xss_reflection_checks = read_jsonl(run_dir / "xss_reflection_checks.jsonl")
     xss_reflection_count = sum(1 for row in xss_reflection_checks if row.get("marker_reflected"))
@@ -967,9 +971,12 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
         "sqli_triage": bool(args.sqli_triage),
         "sqli_candidates": sqli_candidate_count,
         "sqli_high_probability": sqli_high_probability_count,
+        "header_sqli_triage": bool(args.header_sqli_triage),
+        "header_sqli_candidates": header_sqli_candidate_count,
         "second_pass_triage": bool(args.second_pass_triage),
         "second_pass_results": len(second_pass_results),
         "second_pass_stable_candidates": second_pass_confirmed_count,
+        "header_second_pass_stable": header_second_pass_stable_count,
         "xss_triage": bool(args.xss_triage),
         "xss_reflect_check": bool(args.xss_reflect_check),
         "xss_candidates": xss_candidate_count,
@@ -1113,13 +1120,26 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--xss-max-params-per-url", type=int, default=2, help="Max XSS parameters to queue per parameterized URL")
     parser.add_argument("--xss-limit", type=int, default=0, help="Limit total XSS candidate params")
     parser.add_argument("--sqli-triage", action="store_true", help="Run low-impact SQL injection triage on discovered parameterized URLs")
+    parser.add_argument("--sqli-triage-delay", type=float, default=3.0,
+                        help="Minimum per-request delay for SQLi triage stage (real-env rate floor; actual delay is max(global --delay, this), default 3.0s)")
+    parser.add_argument("--sqli-prefill", action="store_true",
+                        help="Enable admin-prefilled user-field probe for password fields (sends login-style requests; OFF by default to avoid account lockout/rate-limit risk)")
     parser.add_argument("--sqli-max-per-host", type=int, default=3, help="Max SQLi parameter probes per host")
     parser.add_argument("--sqli-max-params-per-url", type=int, default=2, help="Max parameters to test per parameterized URL")
     parser.add_argument("--sqli-limit", type=int, default=0, help="Limit total SQLi parameter probes")
+    parser.add_argument("--header-sqli-triage", action="store_true",
+                        help="Run read-only header reflection probes (UA/Referer/XFF/Origin/Cookie) for SQLi candidate queue")
+    parser.add_argument("--header-sqli-limit", type=int, default=20, help="Limit total header probe URLs")
+    parser.add_argument("--header-sqli-max-per-host", type=int, default=5, help="Max header probe URLs per host")
+    parser.add_argument("--header-sqli-login-data", default=None,
+                        help="URL-encoded login form data; probe sends POST login + marker header (covers login-request header injection)")
     parser.add_argument("--second-pass-triage", action="store_true", help="Repeat a tiny bounded check for top SQLi/XSS/API candidates to reduce manual noise")
     parser.add_argument("--second-pass-sql-limit", type=int, default=10, help="Max SQLi candidates for second-pass lightweight retest")
     parser.add_argument("--second-pass-xss-limit", type=int, default=20, help="Max XSS reflected candidates for second-pass inert-marker retest")
     parser.add_argument("--second-pass-api-limit", type=int, default=20, help="Max API endpoints for second-pass metadata/schema refetch")
+    parser.add_argument("--second-pass-header-limit", type=int, default=20, help="Max header-reflection candidates for second-pass inert-marker retest")
+    parser.add_argument("--second-pass-header-login-data", default=None,
+                        help="URL-encoded login form data; second pass sends POST login + marker header for header-injection candidates")
     parser.add_argument(
         "--review-intelligence",
         action=argparse.BooleanOptionalAction,
@@ -1373,7 +1393,7 @@ def run_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float)
         "--run-dir",
         str(run_dir),
         "--delay",
-        str(delay),
+        str(max(delay, args.sqli_triage_delay)),
         "--timeout",
         "10",
         "--max-per-host",
@@ -1383,6 +1403,8 @@ def run_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float)
     ]
     if args.sqli_limit:
         cmd.extend(["--limit", str(args.sqli_limit)])
+    if args.sqli_prefill:
+        cmd.append("--enable-prefill")
     if args.force:
         cmd.append("--force")
     with (run_dir / "sqli_triage.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
@@ -1391,6 +1413,35 @@ def run_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float)
         proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
     if proc.returncode != 0:
         append_jsonl(run_dir / "sqli_triage_errors.jsonl", {
+            "checked_at": now_iso(),
+            "returncode": proc.returncode,
+            "cmd": cmd,
+        })
+
+
+def run_header_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
+    cmd = [
+        sys.executable,
+        str(BASE_DIR / "header_reflection_probe.py"),
+        "--run-dir",
+        str(run_dir),
+        "--delay",
+        str(max(delay, 0.4)),
+        "--url-timeout",
+        "10",
+        "--max-per-host",
+        str(args.header_sqli_max_per_host),
+        "--limit",
+        str(args.header_sqli_limit),
+    ]
+    if args.header_sqli_login_data:
+        cmd.extend(["--login-data", args.header_sqli_login_data])
+    with (run_dir / "header_sqli_triage.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
+        run_dir / "header_sqli_triage.err.log"
+    ).open("w", encoding="utf-8", errors="ignore") as err:
+        proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
+    if proc.returncode != 0:
+        append_jsonl(run_dir / "header_sqli_triage_errors.jsonl", {
             "checked_at": now_iso(),
             "returncode": proc.returncode,
             "cmd": cmd,
@@ -1707,7 +1758,12 @@ def run_second_pass_triage_stage(run_dir: Path, args: argparse.Namespace, delay:
         str(args.second_pass_xss_limit),
         "--api-limit",
         str(args.second_pass_api_limit),
+        "--header-limit",
+        str(args.second_pass_header_limit),
     ]
+    if args.second_pass_header_login_data:
+        cmd.append("--header-login-data")
+        cmd.append(str(args.second_pass_header_login_data))
     if args.force:
         cmd.append("--force")
     with (run_dir / "second_pass_triage.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
@@ -1883,6 +1939,8 @@ def main() -> int:
             })
         else:
             run_sqli_triage_stage(run_dir, args, float(delay))
+    if args.header_sqli_triage:
+        run_header_sqli_triage_stage(run_dir, args, float(delay))
     if args.shiro_triage:
         if not args.probe and not (run_dir / "fingerprints.jsonl").exists():
             run_probe(run_dir, targets, cfg, args.limit or None, float(delay), force=args.force)

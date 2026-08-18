@@ -35,6 +35,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weak-max-targets", type=int, default=10, help="弱口令复核最多登录入口数")
     parser.add_argument("--weak-max-pairs", type=int, default=5, help="每个入口最多弱口令组合数")
     parser.add_argument("--sqli-limit", type=int, default=50, help="SQLi 低影响线索最多探测次数")
+    parser.add_argument("--header-sqli-limit", type=int, default=20, help="Header 回显探测（UA/Referer/XFF/Origin/Cookie）最多 URL 数")
+    parser.add_argument("--header-sqli-login-data", default=None,
+                        help="URL 编码的登录表单数据；探测时以 POST 登录请求携带 marker Header，覆盖登录请求内注入场景")
     parser.add_argument("--xss-limit", type=int, default=80, help="XSS 候选最多处理参数数")
     parser.add_argument("--shiro-limit", type=int, default=30, help="Shiro 线索最多探测种子数")
     parser.add_argument("--second-pass-sql-limit", type=int, default=10, help="二次复测 SQLi 候选上限")
@@ -70,12 +73,17 @@ def runner_command(args: argparse.Namespace) -> list[str]:
         "--sqli-triage",
         "--sqli-limit",
         str(args.sqli_limit),
+        "--header-sqli-triage",
+        "--header-sqli-limit",
+        str(args.header_sqli_limit),
         "--shiro-triage",
         "--shiro-limit",
         str(args.shiro_limit),
         "--delay",
         str(args.delay),
     ]
+    if args.header_sqli_login_data:
+        cmd.extend(["--header-sqli-login-data", args.header_sqli_login_data])
     if args.no_review_intelligence:
         cmd.append("--no-review-intelligence")
     else:

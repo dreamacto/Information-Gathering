@@ -144,7 +144,8 @@ def parse_headers(raw: str) -> dict[str, str]:
     return headers
 
 
-def fetch(url: str, timeout: int, connect_timeout: int, tmp_dir: Path) -> FetchResult:
+def fetch(url: str, timeout: int, connect_timeout: int, tmp_dir: Path,
+          extra_headers: dict | None = None) -> FetchResult:
     curl = shutil.which("curl.exe") or shutil.which("curl")
     result = FetchResult(url=url, final_url=url)
     if not curl:
@@ -156,6 +157,8 @@ def fetch(url: str, timeout: int, connect_timeout: int, tmp_dir: Path) -> FetchR
     ) as header_f:
         body_path = Path(body_f.name)
         header_path = Path(header_f.name)
+    extra = dict(extra_headers or {})
+    ua = extra.pop("user-agent", None) or extra.pop("User-Agent", None)
     cmd = [
         curl,
         "-k",
@@ -169,15 +172,17 @@ def fetch(url: str, timeout: int, connect_timeout: int, tmp_dir: Path) -> FetchR
         "--range",
         "0-1048575",
         "-A",
-        USER_AGENT,
+        ua if ua else USER_AGENT,
         "-D",
         str(header_path),
         "-o",
         str(body_path),
         "-w",
         "%{http_code} %{url_effective} %{time_total}",
-        url,
     ]
+    for name, value in extra.items():
+        cmd.extend(["-H", f"{name}: {value}"])
+    cmd.append(url)
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 3, check=False)
         parts = proc.stdout.strip().split(" ", 2)
