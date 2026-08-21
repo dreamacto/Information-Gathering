@@ -1,0 +1,4 @@
+interface:
+  display_name: "一键流程复核"
+  short_description: "从一键流程 runs 输出提取所有有价值目标并逐个复核"
+  default_prompt: "Use $fh to review the latest one-click workflow run outputs under D:\\PythonSource\\PythonProjects\\PythonProject4\\runs, create a target-by-target review workspace, and review every valuable target in order."
