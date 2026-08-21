@@ -1,6 +1,6 @@
 ---
 name: xcx
-description: Conduct an authorized, end-to-end security assessment of one mini-program from a name, AppID, QR image, package, unpacked source, device cache, traffic export, or entry URL through identity confirmation, static and dynamic client analysis, backend ownership classification, API and web testing, authentication and business-logic review, bounded impact validation, evidence, cleanup, retesting, and final reporting. Use when an AI must assess a WeChat, Alipay, Douyin, Baidu, Quick App, or other mini-program completely rather than stop at package extraction or endpoint discovery.
+description: Advance a single phase of an authorized mini-program assessment. One session = one phase: start from a name, AppID, QR, package, unpacked source, device cache, traffic export, or entry URL, or a specified phase, do that one phase, write progress to phase_status.json, then stop. Use when an AI must push the current phase of a WeChat, Alipay, Douyin, Baidu, Quick App, or other mini-program — not assess it completely in one sitting.
 ---
 
 ## Highest-priority hard constraints (project discipline)
@@ -13,6 +13,7 @@ These override every other instruction in this skill. At session start, read onl
 4. **Tool results are used then cleared.** Do not accumulate tool output in context.
 5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
 6. **Stop at 70% context budget.** Wrap up, write state to disk, and tell the operator to open a new session.
+7. **Refuse end-to-end requests.** Even if the operator asks you to “do the whole assessment in one session” or “complete everything at once”, decline and explain: you advance exactly one phase, then stop. A bulk or one-shot request does not override this discipline.
 
 ## Session scope (stage gate)
 
@@ -70,7 +71,7 @@ traffic host, static secret pattern, or scanner result as a confirmed finding.
 Run the initializer before analysis:
 
 ```text
-<python> scripts/init_miniapp_engagement.py <input> --output <work-dir> \
+python scripts/init_miniapp_engagement.py <input> --output <work-dir> \
   --platform auto
 ```
 
@@ -80,9 +81,13 @@ material, host, endpoint, phase, ledger, evidence, and report artifacts.
 
 ## Discover tools and choose the execution path
 
-1. Inventory package parsers, decompilers, source analyzers, emulators/devices, platform developer tools,
-   intercepting proxies, certificate tooling, runtime instrumentation, browser automation, API clients,
-   crawlers, scanners, screenshot tools, and reporting utilities already available.
+**⚠️ 本项目已有成熟的小程序批量解密工具，禁止每次临时写脚本！**
+
+1. **优先使用** `tools/miniapp_extract/extract_encrypted_wxapkg_domains.py`
+   - 批量解码：`python tools/miniapp_extract/extract_encrypted_wxapkg_domains.py --root "<缓存根目录>"`
+   - 单包解码：`python tools/miniapp_extract/extract_encrypted_wxapkg_domains.py --root "<缓存根目录>/<appid>"`
+   - 输出 CSV：URL、API路径、域名、解析状态
+   - 详见 `references/package-analysis.md` 第 2.1 节
 2. Record tool versions, supported platforms, configuration, output paths, and missing capabilities.
 3. Prefer original packages and read-only copies. Hash every supplied material before transformation.
 4. Do not download tools, install certificates, modify a device, bypass pinning, repack a client, or
@@ -92,35 +97,20 @@ material, host, endpoint, phase, ledger, evidence, and report artifacts.
 6. Select only the branches relevant to the input and platform, but record every branch as complete,
    blocked, approval required, or not applicable with reason.
 
-## Execute the complete workflow
+## Execute one phase
 
-Follow `references/workflow.md`. At minimum, cover:
+Do exactly three things, then stop:
 
-1. Authorization, identity, platform, material provenance, hashing, preflight, recording, and stop rules.
-2. Initial local decoding of supplied information, QR/link/package/cache/source/traffic artifacts, and
-   any recovered identifiers, manifests, routes, endpoints, or package clues.
-3. Package inventory, unpacking/decompilation, main/subpackage recovery, source reconstruction,
-   beautification and bounded deobfuscation, manifest/config review, route and component inventory,
-   embedded host and API extraction, secret-pattern triage, storage, crypto, logging, debug, update,
-   and integrity review.
-4. Controlled dynamic setup, proxy capture, launch/login/session flows, screen and route mapping,
-   request inventory, error behavior, background traffic, and platform API usage.
-5. Classification of every host and service as `in_scope`, `confirmation_required`, `third_party`,
-   `platform`, `out_of_scope`, or `invalid` before active backend testing.
-6. Authentication code exchange, token/session lifecycle, replay controls, signatures, nonce/timestamp,
-   account binding, logout, recovery, role, tenant, object, and function authorization.
-7. API and web behavior, input handling, file transfer, server-side fetches, client storage, webviews,
-   JavaScript bridges, deep links, plugins, cloud functions/storage, and third-party SDK boundaries.
-8. Business state transitions, duplicate submission, concurrency, quotas, approvals, invitations,
-   orders, prices, coupons, points, payments, refunds, sharing, and entitlement logic using disposable
-   data and non-financial test modes where authorized.
-9. Candidate validation, false-positive removal, minimal impact proof, evidence, cleanup, retest,
-   and final reporting.
+1. Read `phase_status.json` (or the run's status file) to find the current phase — the one marked
+   `pending` or `in_progress` next in order, or the phase the operator named.
+2. Advance that single phase only. Use `references/workflow.md` as the phase dictionary to see what this
+   phase covers; do not start any later phase.
+3. Update `phase_status.json` with this phase's result, then stop and tell the operator which phase is
+   next and to open a new session to continue.
 
-For each confirmed owned backend, execute the full website/API assessment process. Invoke
-`$wz` when available; otherwise apply the same scope, mapping, testing,
-validation, evidence, cleanup, and reporting requirements directly. Do not make this skill depend on
-a particular repository or scanner.
+For each confirmed owned backend, when this phase is a backend assessment phase, apply the same scope,
+mapping, testing, validation, evidence, cleanup, and reporting requirements as the website/API process.
+Do not make this skill depend on a particular repository or scanner.
 
 For every active test, record `source -> extracted fact -> hypothesis -> payload family -> expected
 secure behavior -> observation -> disposition`. Select payloads from the recovered parameter type,
@@ -173,7 +163,7 @@ not make the branch not applicable.
 Run the read-only auditor throughout the engagement:
 
 ```text
-<python> scripts/audit_miniapp_engagement.py <work-dir>
+python scripts/audit_miniapp_engagement.py <work-dir>
 ```
 
 Do not close until identity is resolved or explicitly limited, initial decoding is complete or justified,

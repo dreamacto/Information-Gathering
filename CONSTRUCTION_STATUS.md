@@ -11,7 +11,7 @@
 | W2 | 交战规则 | 已落地 | ROE.md | 授权前提/速率红线/动作分级(免批・审批门・禁止)/凭证纪律/证据分级/停止条件 |
 | W3 | 机器可读工具清单 | 已落地 | AGENT_MANIFEST.md + scripts/gen_agent_manifest.py | 幂等生成器，勿手改 manifest |
 | W4 | 会话配方 | 已落地 | prompts/ 配方A-F + tools/copy_prompt.py + 桌面 AI配方_一键复制.bat | 含 skill 注册（.opencode/.claude/.agents 三目录） |
-| W5 | 三 skill 硬约束改造 | 已落地 | .claude/.opencode/.agents/skill-deliverables 四目录 {wz,xcx,fh} SKILL.md 顶部硬约束块 + fh 批次复核门（已重打 wz/xcx/fh.zip） | wz/xcx 插 6 条硬约束+阶段门声明；fh 插硬约束+第4步改批次复核(verdicts/<order>.json, 游标=已完成批次)，W6 聚合器未建前用连续 range 续作；**fh 真源=skill-deliverables/fh**，改完须同步 .claude/.opencode/.agents 三处运行时目录（wz/xcx 同理保持四地一致） |
+| W5 | 三 skill 硬约束改造 | 已落地 | .claude/.opencode/.agents/skill-deliverables 四目录 {wz,xcx,fh} SKILL.md 顶部硬约束块 + fh 批次复核门（已重打 wz/xcx/fh.zip） | wz/xcx 插 6 条硬约束+阶段门声明；fh 插硬约束+第4步改批次复核(verdicts/<order>.json, 游标=已完成批次)，W6 聚合器未建前用连续 range 续作；**fh 真源=skill-deliverables/fh**，改完须同步 .claude/.opencode/.agents 三处运行时目录（wz/xcx 同理保持四地一致）；**W5b强化(对抗越界指令)**：wz/xcx 的 description 去掉 end-to-end/complete assessment 改写为"每会话一阶段、推完即停"；`## Execute the complete workflow` 整段替换为 `## Execute one phase`（只读 phase_status.json→推一阶段→写状态即停）；硬约束块加第7条"Refuse end-to-end requests"（即使用户要求端到端一次做完也只推一阶段并解释）；`references/workflow.md` 保留作阶段字典不改动 |
 | W6 | fh 复核子代理编排 | 未施工 | fh_review_dispatch.py + tests/test_fh_review_dispatch.py | --prepare 切批(默认8) / --aggregate 回写 findings_ledger + fp_memory + TOP_人工复核.md；verdict schema 与配方A一致；零网络 |
 | W7 | IDOR 水平越权差分 L0 | 未施工 | idor_triage.py + labs/idor_lab_server.py + tests + 桌面 bat | 基线/B重放/匿名三请求差分；unauth_access / idor_horizontal_candidate 判据；delay≥3s 只读 GET |
 | W8 | 竞态双投 L0 | 未施工 | race_triage.py + labs/race_lab_server.py + tests + 桌面 2 bat | h2_single_packet(仅.venv) / h1_last_byte / barrier 三模式；write_risk_ack 审批门 |

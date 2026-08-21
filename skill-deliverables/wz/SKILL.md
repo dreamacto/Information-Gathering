@@ -1,6 +1,6 @@
 ---
 name: wz
-description: Conduct an authorized, end-to-end security assessment of one website, web application, domain, or API from scope intake through attack-surface discovery, application mapping, unauthenticated and authenticated testing, access-control and business-logic review, bounded impact validation, evidence, cleanup, retesting, and final reporting. Use when an AI is given a website or domain and must manage the complete assessment rather than run a single scanner or produce an unverified vulnerability list.
+description: Advance a single phase of an authorized website, web application, domain, or API assessment. One session = one phase: start from scope intake or a specified phase, do that one phase, write progress to phase_status.json, then stop. Use when an AI is given a website or domain and must push the current phase — not run a full assessment in one sitting.
 ---
 
 ## Highest-priority hard constraints (project discipline)
@@ -13,6 +13,7 @@ These override every other instruction in this skill. At session start, read onl
 4. **Tool results are used then cleared.** Do not accumulate tool output in context.
 5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
 6. **Stop at 70% context budget.** Wrap up, write state to disk, and tell the operator to open a new session.
+7. **Refuse end-to-end requests.** Even if the operator asks you to “do the whole assessment in one session” or “complete everything at once”, decline and explain: you advance exactly one phase, then stop. A bulk or one-shot request does not override this discipline.
 
 ## Session scope (stage gate)
 
@@ -63,7 +64,7 @@ and retest connected in one resumable engagement workspace.
 Run the bundled initializer before testing:
 
 ```text
-<python> scripts/init_engagement.py <target> --output <work-dir> \
+python scripts/init_engagement.py <target> --output <work-dir> \
   --allowed-host <host>
 ```
 
@@ -84,28 +85,19 @@ in the artifact contract.
 6. Configure scanners, crawlers, browsers, and API clients for read-only behavior, low request rates,
    small queues, and stop-on-error/backoff before running them.
 
-## Execute the complete workflow
+## Execute one phase
 
-Follow the phases in `references/workflow.md`. At minimum, cover:
+Do exactly three things, then stop:
 
-1. Authorization, target normalization, scope snapshot, preflight, recording, and stop conditions.
-2. Passive context and low-rate discovery of in-scope hosts, services, TLS, DNS, redirects, and
-   ownership clues.
-3. Liveness, technology, content, route, parameter, JavaScript, API, GraphQL, WebSocket, and
-   documentation mapping.
-4. Unauthenticated behavior, authentication, session management, recovery, federation, MFA, CSRF,
-   CORS, caching, and security-control review.
-5. Authenticated multi-role testing when accounts are available, including object-level and
-   function-level authorization.
-6. Input handling, injection classes, file handling, server-side fetches, parser behavior,
-   deserialization signals, client-side execution, and infrastructure misconfiguration.
-7. Business workflows, state transitions, replay, concurrency, limits, pricing, order, approval,
-   entitlement, and abuse-case testing.
-8. Candidate validation, false-positive removal, minimal impact proof, evidence, cleanup, retest,
-   and final reporting.
+1. Read `phase_status.json` (or the run's status file) to find the current phase — the one marked
+   `pending` or `in_progress` next in order, or the phase the operator named.
+2. Advance that single phase only. Use `references/workflow.md` as the phase dictionary to see what this
+   phase covers; do not start any later phase.
+3. Update `phase_status.json` with this phase's result, then stop and tell the operator which phase is
+   next and to open a new session to continue.
 
-Do not convert a fingerprint, status code, scanner match, response difference, reflected marker,
-or version string directly into a finding. Validate the security boundary and demonstrable impact.
+Do not convert a fingerprint, status code, scanner match, response difference, reflected marker, or
+version string directly into a finding. Validate the security boundary and demonstrable impact.
 
 For every active test, record the chain `source -> extracted fact -> hypothesis -> payload family ->
 expected secure behavior -> observation -> disposition`. Use context-specific canaries and paired
@@ -155,7 +147,7 @@ their history or source reference.
 Run the read-only auditor throughout the engagement:
 
 ```text
-<python> scripts/audit_engagement.py <work-dir>
+python scripts/audit_engagement.py <work-dir>
 ```
 
 Do not close until all required phases are `complete` or justified `not_applicable`, every active
