@@ -3,6 +3,21 @@ name: xcx
 description: Conduct an authorized, end-to-end security assessment of one mini-program from a name, AppID, QR image, package, unpacked source, device cache, traffic export, or entry URL through identity confirmation, static and dynamic client analysis, backend ownership classification, API and web testing, authentication and business-logic review, bounded impact validation, evidence, cleanup, retesting, and final reporting. Use when an AI must assess a WeChat, Alipay, Douyin, Baidu, Quick App, or other mini-program completely rather than stop at package extraction or endpoint discovery.
 ---
 
+## Highest-priority hard constraints (project discipline)
+
+These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
+
+1. **One session, one stage.** Advance exactly one phase, then stop and write progress to `phase_status.json` (or the run's status file). Do not chain further phases.
+2. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
+3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
+4. **Tool results are used then cleared.** Do not accumulate tool output in context.
+5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
+6. **Stop at 70% context budget.** Wrap up, write state to disk, and tell the operator to open a new session.
+
+## Session scope (stage gate)
+
+This skill is one stage of a larger engagement. Treat each session as advancing one phase: read the current contract, do the work, update the status file, then stop. References are loaded on demand, not all at once.
+
 # Test One Mini-Program from Intake to Closure
 
 Take one authorized mini-program from any practical starting artifact to a defensible final report.

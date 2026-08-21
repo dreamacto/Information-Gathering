@@ -3,6 +3,17 @@ name: fh
 description: Review and close the outputs produced by the authorized one-click web assessment workflows in D:\PythonSource\PythonProjects\PythonProject4\runs after running 一键完整流程_含弱口令.bat, 一键已有子域名后流程_含弱口令.bat, or 一键保守全流程_尽量多信息_避WAF.bat. Use when an AI must extract every valuable target from run_summary, run_health, P0-P3 candidate confidence, target dossiers, fingerprint deepening queues, 00_重要_人工复核入口 queues, weak-credential queues, API/product/SQLi/XSS/Shiro candidates, mini-program extraction outputs, evidence queues, approval gates, and final report material, then review targets one by one without sampling or rerunning unsafe active tests.
 ---
 
+## Highest-priority hard constraints (project discipline)
+
+These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
+
+1. **One session, one batch.** Review one batch of targets, then stop and record where you stopped. Do not try to clear the entire queue in one sitting.
+2. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
+3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
+4. **Tool results are used then cleared.** Do not accumulate tool output in context.
+5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
+6. **Stop at 70% context budget.** Wrap up, write state to disk, and tell the operator to open a new session.
+
 # fh: One-Click Workflow Post-Run Review
 
 Use this skill after the operator has run one of these local workflows:
@@ -143,7 +154,7 @@ When present, start with `00_重要_人工复核入口/README_先看这里.md`, 
 1. Open `run_summary.json`, `run_health`, `00_重要_人工复核入口/README_先看这里.md`, `candidate_confidence.*`, and `target_dossiers/index.md`.
 2. Check target count, valuable-target count, probe success, missing tools, repeated-error backoff, failed stages, empty outputs, P0/P1/P2/P3 counts, and second-pass stable counts.
 3. Review P0/P1 targets first, but still use target-by-target discipline. Do not convert P0/P1 into confirmed findings without manual validation.
-4. Review every row in `target_review_queue.csv` if a review workspace exists. If not, build a working queue from `candidate_confidence.csv` and `target_dossiers/index.md`.
+4. Review in batches instead of all at once. Each session reviews one batch (5-10 contiguous targets by `review_order`); write each verdict to `verdicts/<review_order>.json`; the completed batch is the resume cursor. If the queue is longer than one sitting, stop at a specific `target_id` and record the next target to resume. (Batch files that self-contain the verdict schema are produced by `fh_review_dispatch.py` once W6 lands; until then, pick a contiguous `review_order` range and stop where you stopped.) If no review workspace exists, build a working queue from `candidate_confidence.csv` and `target_dossiers/index.md` first.
 5. For each target, open its matching target dossier or generated `target_reviews/<order>_<host>.md` and complete: scope, source files, category-specific signals, safe read-only plan, approval gates, evidence, disposition, cleanup, and retest notes.
 6. Confirm scope using `targets.csv`, `targets.json`, `new_assets_pending_apply.txt`, `subdomains_for_scope_confirmation.txt`, `authenticated_new_assets_pending.txt`, `miniapp_source_new_assets_pending.txt`, and `wechat_pending_extra_assets.txt`.
 7. Review priority/reportable candidates: `04_可报告候选_TOP.*`, `reports/priority_review.md`, `priority_targets.json`, `verified_exposures.*`, `impact_candidates.jsonl`, and `candidate_exposures.jsonl`.
