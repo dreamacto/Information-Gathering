@@ -7,7 +7,7 @@ description: Advance a single phase of an authorized website, web application, d
 
 These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
 
-1. **One session, one stage.** Advance exactly one phase, then stop and write progress to `phase_status.json` (or the run's status file). Do not chain further phases.
+1. **Session window: advance until a stop point.** You may advance multiple lightweight phases in one session (scope → subdomain → alive_probe → fingerprint style), but you MUST update the phase cursor on disk after EVERY phase, so progress survives any crash. Stop the session when you hit, whichever comes first: (a) an approval-gated phase (credential_testing / exploitability / approval_gate), (b) a heavy phase (authenticated_session_review / weak_credential_review / report), or (c) 70% context budget. Never run past a stop point.
 2. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
 3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
 4. **Tool results are used then cleared.** Do not accumulate tool output in context.

@@ -1,6 +1,6 @@
 # AGENT_MANIFEST.md — 机器可读工具清单
 
-> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-20 17:26）
+> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-21 23:25）
 
 > 用法：AI 选工具前先查本清单；所有新工具/新 phase 由生成器登记，不手写本文件。
 
@@ -29,12 +29,23 @@
 | SQLi会话探测.bat | SQLi 三合一探测（请求预算 16/参数、基线差分、marker 确认）；浏览器登录后粘贴 cURL 的会话探测 | 只读探测 | `SQLi会话探测.bat （交互：粘贴 cURL）` |
 | 小程序Burp导入到最近一次流程.bat | 把小程序的 Burp 导出导入到最近一次 run 流程（miniapp_burp_import_latest.py） | 离线导入 | `小程序Burp导入到最近一次流程.bat` |
 | 无影TscanPlus.bat | 本地 GUI 扫描器入口（手动页面操作，非命令行） | 手动工具，按需 | `无影TscanPlus.bat` |
+| 一键IDOR差分_只读.bat | 交互输入 run 目录/会话文件/端点文件，跑 idor_triage.py 只读差分（.venv） | 只读差分 | `一键IDOR差分_只读.bat` |
+| 一键竞态靶场.bat | 本地起 race_lab_server.py（8892）：/claim 漏洞真值 /claim_safe 负例 /transfer 超扣；判据校准教学用 | 本地靶场，零外联 | `一键竞态靶场.bat` |
+| 一键竞态测试_授权目标.bat | 读配方D 产出的 race_config.json 对授权目标执行竞态；开场强制 YES 确认；必须 .venv | 审批门：写端点需 write_risk_ack | `一键竞态测试_授权目标.bat` |
 | AI配方_一键复制.bat | 菜单选 1-6 把 prompts/ 配方A-F 全文复制到剪贴板，粘贴给任意 AI 启动对应会话（copy_prompt.py） | 离线复制，零网络请求 | `AI配方_一键复制.bat` |
 
-## 根目录核心脚本（36 个）
+## 根目录核心脚本（44 个）
 
 | 工具 | 路径 | 用途 | 输入 | 输出 | 风险 | 示例 |
 |---|---|---|---|---|---|---|
+| fh_review_dispatch.py | `D:\PythonSource\PythonProjects\PythonProject4\fh_review_dispatch.py` | W6 复核编排：把 postrun_review 工作区切成子代理批次(batch md 自包含) + 聚合 verdict 回台账；零网络 | 见 --help | postrun_review/review_batches/*.md、verdicts/*.json、findings_ledger.csv、fp_memory.jsonl、TOP_人工复核.md | 离线编排 | `python fh_review_dispatch.py --run-dir runs/<ts> --prepare --batch-size 8` |
+| idor_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\idor_triage.py` | W7 IDOR 水平越权差分：基线A/B重放/匿名三请求对比结构指纹与 Jaccard，只读 GET/HEAD | 见 --help | <run_dir>/idor_candidates.jsonl、idor_manual_review.md | 只读（需≥2凭证、delay≥3s、每host≤5端点） | `python idor_triage.py --run-dir runs/<ts> --sessions sessions.jsonl --requests api_confirmed.jsonl` |
+| metrics_weekly.py | `D:\PythonSource\PythonProjects\PythonProject4\metrics_weekly.py` | W10 周度度量：扫 runs/*/ 聚五指标（候选数/确认率/FP率/假设命中率），出周报+history | 见 --help | reports/metrics_YYYYMMDD.md、metrics_history.jsonl | 纯离线 | `python metrics_weekly.py --days 7` |
+| oob_listener.py | `D:\PythonSource\PythonProjects\PythonProject4\oob_listener.py` | W11 OOB 回调监听（默认8899）：每请求记 {token,src_ip,ts} 到 oob_hits.jsonl；--pull 拉 VPS 命中 | 见 --help | oob_hits.jsonl | 本地监听；VPS 部署需随机前缀 | `python oob_listener.py --port 8899 --prefix ab12cd` |
+| race_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\race_triage.py` | W8 竞态执行器：三模式(h2单包/last-byte/barrier)测 check-then-act；矩阵判据只出 limit_overrun 布尔 | 见 --help | race_results.jsonl（基线vs并发矩阵） | 必须 .venv；写端点需 write_risk_ack==true；并发≤30 | `python race_triage.py --config race_config.json` |
+| ssrf_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\ssrf_triage.py` | W11 SSRF 探测：可疑参数筛出后 OOB token 注入 + 时间盲双路；POST 只静态候选不自动发 | 见 --help | <run_dir>/ssrf_candidates.jsonl | 只读 GET；delay≥3s；每host≤5端点 | `python ssrf_triage.py --run-dir runs/<ts> --endpoints api_confirmed.jsonl --oob http://vps:8899/xx` |
+| whitebox_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\whitebox_triage.py` | W13 白盒 sink 流水线：sink_lib(62条) 正则扫 .js/.wxml/.json，出命中±3行上下文供配方F研判 | 见 --help | sink_findings.jsonl、whitebox_review.md | 纯离线 | `python whitebox_triage.py --source-dir unpacked/<appid> --out-dir <dir> --scan` |
+| xss_verify_headless.py | `D:\PythonSource\PythonProjects\PythonProject4\xss_verify_headless.py` | W12 XSS 执行确认：读反射候选，dalfox→playwright→stdlib 三级引擎判 executable/context_safe | 见 --help | <run_dir>/xss_verified.jsonl | 只验证 GET 反射；marker 唯一；403连续即停 | `python xss_verify_headless.py --run-dir runs/<ts>` |
 | gov_exercise_runner.py | `D:\PythonSource\PythonProjects\PythonProject4\gov_exercise_runner.py` | 主编排器：73 个 CLI 参数、30+ phase 编排、--resume-run-dir 断点续跑；所有新 phase 的挂载点 | 见 --help | runs/<ts>/ 全套（run_summary.json、00_重要_人工复核入口/、各 *_candidates.jsonl） | 只读编排（含审批门 phase 的显式参数） | `python gov_exercise_runner.py --targets targets.txt --probe --fingerprint --sqli-triage` |
 | one_click_workflow.py | `D:\PythonSource\PythonProjects\PythonProject4\one_click_workflow.py` | 一键完整流程 bat 的调用对象：子域→活性→指纹→triage→弱口令复核→证据；--no-subdomain 可跳过子域爆破 | 见 --help | runs/<ts>/ 全套 | 只读（弱口令复核阶段内有人工门） | `python one_click_workflow.py --mode full --targets 目标文件.txt --second-pass-sql-limit 10` |
 | sqli_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\sqli_triage.py` | SQLi 三合一探测：请求预算 16/参数、基线差分、marker 确认；只对发现的参数化 GET URL 低影响探测 | 见 --help | sqli_candidates.jsonl / sqli_reflection_checks.jsonl | 只读探测（禁时间盲注/UNION/堆叠/dump） | `python sqli_triage.py --run-dir runs/<ts>` |
@@ -134,6 +145,12 @@
 - primary：`authenticated_session_review.py`；backup：`manual_browser_or_proxy`（mode=confirm_high_value_authenticated_candidates）
 - 说明：The runner creates a manual login/registration queue. After the operator supplies a valid local session file, review same-host JS and bounded GET-like APIs. Never persist cookies, response values, or downloaded files.
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### idor_diff
+- primary：`idor_triage.py`；backup：`manual_curl_differential`（mode=None）
+- 说明：IDOR 水平越权差分：基线A/B重放/匿名三请求，结构指纹+Jaccard 判据；只读 GET/HEAD；需同host≥2凭证（sessions.jsonl）；delay≥3s、每host≤5端点；A凭证401/302即停该host
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+- backup：`manual_curl_differential`（风险级 **只读**）；路径：—
 
 ### healthcare_privacy_triage
 - primary：`healthcare_privacy_triage.py`；backup：`manual_browser_or_proxy`（mode=schema_only_then_single_endpoint_review）

@@ -7,7 +7,7 @@
 2. 先重建状态机：按时间序梳理"步骤 → 状态转移"，标出校验发生在哪一步（身份/金额/数量/状态字段）。
 3. 产出参数语义表：每参数分四类——判据字段（if 判定用）/ 动作字段（写入用）/ 状态字段（流转用）/ 身份字段（owner/role）。四类混用 = 逻辑漏洞温床。
 4. 竞态假设优先 check-then-act 模式（先读后写、先校验后入账）；每条必带 negative_control（正常串行请求不该出现的信号）。
-5. 对获批准的假设产出 race_config.json 交给 race_triage.py（W8 提供，施工前尚不存在——本配方只产出假设与 config，不执行），你本人不创建并发请求。
+5. 对获批准的假设产出 race_config.json 交给 race_triage.py（W8 已落地：`python race_triage.py --config <run_dir>/race_config.json`，必须 .venv 运行），你本人不创建并发请求。
 6. 写操作与并发测试属于审批门：race_config.json 的 write_risk_ack 必须为 false，等人工批准后方可由 L0 引擎改成 true 执行。
 7. 上下文预算 70% 立即收尾写盘。
 

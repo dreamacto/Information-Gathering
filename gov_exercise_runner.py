@@ -1149,6 +1149,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--shiro-triage", action="store_true", help="Run low-impact Apache Shiro rememberMe feature triage")
     parser.add_argument("--shiro-limit", type=int, default=0, help="Limit Shiro triage seed count")
     parser.add_argument("--shiro-include-all", action="store_true", help="Run Shiro triage on all scoped targets instead of Java/login/OA seeds")
+    parser.add_argument("--idor-triage", action="store_true", help="Run IDOR horizontal-privilege differential on read-only endpoints (requires sessions)")
+    parser.add_argument("--idor-delay", type=float, default=3.0, help="IDOR triage delay seconds")
+    parser.add_argument("--idor-max-per-host", type=int, default=5, help="IDOR triage max endpoints per host")
+    parser.add_argument("--idor-sessions", type=Path, default=None, help="sessions.jsonl for IDOR differential")
+    parser.add_argument("--idor-requests", type=Path, default=None, help="endpoint file (api_confirmed.jsonl or replay) for IDOR")
     parser.add_argument("--auth-review", action="store_true", help="Run bounded authenticated JS/API review using an operator-provided session file")
     parser.add_argument("--auth-cookie-file", type=Path, default=None, help="Local JSON session file; cookies are never written to run outputs")
     parser.add_argument("--auth-max-js", type=int, default=20, help="Max authenticated same-host JavaScript files per session")
@@ -1946,6 +1951,23 @@ def main() -> int:
             run_probe(run_dir, targets, cfg, args.limit or None, float(delay), force=args.force)
             run_fingerprint(run_dir)
         run_shiro_triage_stage(run_dir, args, float(delay))
+
+    if args.idor_triage:
+        cmd = [
+            sys.executable,
+            str(BASE_DIR / "idor_triage.py"),
+            "--run-dir", str(run_dir),
+            "--delay", str(args.idor_delay),
+            "--max-per-host", str(args.idor_max_per_host),
+        ]
+        if args.idor_sessions:
+            cmd.extend(["--sessions", str(args.idor_sessions)])
+        if args.idor_requests:
+            cmd.extend(["--requests", str(args.idor_requests)])
+        proc = subprocess.run(cmd, cwd=str(BASE_DIR))
+        if proc.returncode != 0:
+            append_jsonl(run_dir / "phase_errors.jsonl", {"checked_at": now_iso(), "phase": "idor_diff", "returncode": proc.returncode})
+
     if args.wechat_miniapp:
         # Mini-program clue generation is offline by default.  Do not silently
         # turn it into an HTTP probe; network access requires --probe or the

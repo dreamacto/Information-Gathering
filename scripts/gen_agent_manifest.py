@@ -48,6 +48,18 @@ DESKTOP_SCRIPTS = {
         "scene": "本地 GUI 扫描器入口（手动页面操作，非命令行）",
         "risk": "手动工具，按需", "example": "无影TscanPlus.bat",
     },
+    "一键IDOR差分_只读.bat": {
+        "scene": "交互输入 run 目录/会话文件/端点文件，跑 idor_triage.py 只读差分（.venv）",
+        "risk": "只读差分", "example": "一键IDOR差分_只读.bat",
+    },
+    "一键竞态靶场.bat": {
+        "scene": "本地起 race_lab_server.py（8892）：/claim 漏洞真值 /claim_safe 负例 /transfer 超扣；判据校准教学用",
+        "risk": "本地靶场，零外联", "example": "一键竞态靶场.bat",
+    },
+    "一键竞态测试_授权目标.bat": {
+        "scene": "读配方D 产出的 race_config.json 对授权目标执行竞态；开场强制 YES 确认；必须 .venv",
+        "risk": "审批门：写端点需 write_risk_ack", "example": "一键竞态测试_授权目标.bat",
+    },
     "AI配方_一键复制.bat": {
         "scene": "菜单选 1-6 把 prompts/ 配方A-F 全文复制到剪贴板，粘贴给任意 AI 启动对应会话（copy_prompt.py）",
         "risk": "离线复制，零网络请求", "example": "AI配方_一键复制.bat",
@@ -56,6 +68,54 @@ DESKTOP_SCRIPTS = {
 
 # 根目录核心脚本（用途/输出/示例命令；缺省字段自动从 docstring/argparse 提取）
 ROOT_SCRIPTS = {
+    "fh_review_dispatch.py": {
+        "scene": "W6 复核编排：把 postrun_review 工作区切成子代理批次(batch md 自包含) + 聚合 verdict 回台账；零网络",
+        "outputs": "postrun_review/review_batches/*.md、verdicts/*.json、findings_ledger.csv、fp_memory.jsonl、TOP_人工复核.md",
+        "example": "python fh_review_dispatch.py --run-dir runs/<ts> --prepare --batch-size 8",
+        "risk": "离线编排",
+    },
+    "idor_triage.py": {
+        "scene": "W7 IDOR 水平越权差分：基线A/B重放/匿名三请求对比结构指纹与 Jaccard，只读 GET/HEAD",
+        "outputs": "<run_dir>/idor_candidates.jsonl、idor_manual_review.md",
+        "example": "python idor_triage.py --run-dir runs/<ts> --sessions sessions.jsonl --requests api_confirmed.jsonl",
+        "risk": "只读（需≥2凭证、delay≥3s、每host≤5端点）",
+    },
+    "metrics_weekly.py": {
+        "scene": "W10 周度度量：扫 runs/*/ 聚五指标（候选数/确认率/FP率/假设命中率），出周报+history",
+        "outputs": "reports/metrics_YYYYMMDD.md、metrics_history.jsonl",
+        "example": "python metrics_weekly.py --days 7",
+        "risk": "纯离线",
+    },
+    "oob_listener.py": {
+        "scene": "W11 OOB 回调监听（默认8899）：每请求记 {token,src_ip,ts} 到 oob_hits.jsonl；--pull 拉 VPS 命中",
+        "outputs": "oob_hits.jsonl",
+        "example": "python oob_listener.py --port 8899 --prefix ab12cd",
+        "risk": "本地监听；VPS 部署需随机前缀",
+    },
+    "race_triage.py": {
+        "scene": "W8 竞态执行器：三模式(h2单包/last-byte/barrier)测 check-then-act；矩阵判据只出 limit_overrun 布尔",
+        "outputs": "race_results.jsonl（基线vs并发矩阵）",
+        "example": "python race_triage.py --config race_config.json",
+        "risk": "必须 .venv；写端点需 write_risk_ack==true；并发≤30",
+    },
+    "ssrf_triage.py": {
+        "scene": "W11 SSRF 探测：可疑参数筛出后 OOB token 注入 + 时间盲双路；POST 只静态候选不自动发",
+        "outputs": "<run_dir>/ssrf_candidates.jsonl",
+        "example": "python ssrf_triage.py --run-dir runs/<ts> --endpoints api_confirmed.jsonl --oob http://vps:8899/xx",
+        "risk": "只读 GET；delay≥3s；每host≤5端点",
+    },
+    "whitebox_triage.py": {
+        "scene": "W13 白盒 sink 流水线：sink_lib(62条) 正则扫 .js/.wxml/.json，出命中±3行上下文供配方F研判",
+        "outputs": "sink_findings.jsonl、whitebox_review.md",
+        "example": "python whitebox_triage.py --source-dir unpacked/<appid> --out-dir <dir> --scan",
+        "risk": "纯离线",
+    },
+    "xss_verify_headless.py": {
+        "scene": "W12 XSS 执行确认：读反射候选，dalfox→playwright→stdlib 三级引擎判 executable/context_safe",
+        "outputs": "<run_dir>/xss_verified.jsonl",
+        "example": "python xss_verify_headless.py --run-dir runs/<ts>",
+        "risk": "只验证 GET 反射；marker 唯一；403连续即停",
+    },
     "gov_exercise_runner.py": {
         "scene": "主编排器：73 个 CLI 参数、30+ phase 编排、--resume-run-dir 断点续跑；所有新 phase 的挂载点",
         "outputs": "runs/<ts>/ 全套（run_summary.json、00_重要_人工复核入口/、各 *_candidates.jsonl）",

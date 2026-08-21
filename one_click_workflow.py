@@ -79,6 +79,7 @@ def runner_command(args: argparse.Namespace) -> list[str]:
         "--shiro-triage",
         "--shiro-limit",
         str(args.shiro_limit),
+        "--idor-triage",
         "--delay",
         str(args.delay),
     ]

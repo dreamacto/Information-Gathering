@@ -22,13 +22,16 @@
 | D:\Desktop\一键保守全流程_尽量多信息_避WAF.bat | 保守模式：低速、尽量避开 WAF 触发 |
 | D:\Desktop\SQLi会话探测.bat | SQLi 三合一探测（预算 16/参数、基线差分、marker） |
 | D:\Desktop\AI配方_一键复制.bat | 菜单 1-6 复制 prompts/ 配方全文到剪贴板，粘贴给任意 AI 启动对应会话 |
+| D:\Desktop\一键IDOR差分_只读.bat | 越权差分：输入 run 目录/会话文件/端点文件，跑 idor_triage.py（只读） |
+| D:\Desktop\一键竞态靶场.bat | 本地起竞态靶场（8892）：/claim 漏洞真值 /claim_safe 负例，判据校准教学 |
+| D:\Desktop\一键竞态测试_授权目标.bat | 读 race_config.json 对授权目标跑竞态（开场 YES 确认；写端点需 ack） |
 | gov_exercise_runner.py --resume-run-dir <run目录> | 断点续跑已有 run（73 个 CLI 参数） |
 | runs\last_one_click_run.txt | 记录最近一次一键流程的 run 目录 |
 | runs\<ts>\00_重要_人工复核入口\README_先看这里.md | 跑完第一步：读队列说明（01_重要_Cookie、02_业务API只读确认项、04C_XSS反射候选 等编号队列） |
 
 ## 上下文纪律（6 条硬约束）
 
-1. 单会话单阶段：一个会话只推进一个阶段，做完即停并更新状态文件。
+1. 会话预算窗口：一个会话可连续推进多个轻量阶段（脚本级阶段连做，如 scope→subdomain→alive_probe→fingerprint），但**每个阶段完成后立即更新游标写盘**；撞到停点即止——审批门阶段（弱口令/漏洞利用/审批门）、重量级阶段（认证态复核/报告生成）或 70% 上下文预算，三者先到先停。
 2. 只读任务明确列出的文件；references 按需加载，不预读。
 3. 原始响应/HAR/JS 不进对话，只引用文件路径 + 行号。
 4. 工具结果即用即清，不累积在上下文里。

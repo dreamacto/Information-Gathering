@@ -1,0 +1,62 @@
+{"category": "sqli", "lang": "js", "pattern": "wx\\.request\\(\\{[^}]*url[^}]*\\+[^}]*\\}", "severity": "high", "note": "小程序请求 URL 拼接（可能注入 SQL/路径）"}
+{"category": "sqli", "lang": "js", "pattern": "\\$\\.(?:get|post|ajax)\\(\\s*[\\\"'][^\\\"']*[\\\"']\\s*\\+", "severity": "high", "note": "jQuery 请求 URL 拼接"}
+{"category": "sqli", "lang": "js", "pattern": "(?:query|execute|sql)[\\\"']?\\s*[:=]\\s*[\\\"'][^\\\"']*SELECT[^\\\"']*[\\\"']\\s*\\+", "severity": "high", "note": "SQL 字符串拼接（前端构造）"}
+{"category": "sqli", "lang": "js", "pattern": "querySql\\s*\\(|runSql\\s*\\(|execSql\\s*\\(", "severity": "high", "note": "直接执行 SQL 的封装调用"}
+{"category": "sqli", "lang": "js", "pattern": "\\$\\{[^}]*\\}\\s*(?:SELECT|INSERT|UPDATE|DELETE|WHERE)", "severity": "high", "note": "模板字符串拼 SQL"}
+{"category": "sqli", "lang": "js", "pattern": "where.*\\+.*(?:id|uid|userId)", "severity": "medium", "note": "WHERE 条件拼接 id"}
+{"category": "sqli", "lang": "js", "pattern": "order\\s*by\\s*[\\\"']?\\s*\\+", "severity": "medium", "note": "ORDER BY 拼接"}
+{"category": "sqli", "lang": "js", "pattern": "like\\s*[\\\"']?%", "severity": "medium", "note": "LIKE 模糊拼接"}
+{"category": "sqli", "lang": "js", "pattern": "interfaceUrl\\s*\\+\\s*\\w+", "severity": "medium", "note": "接口 URL 变量拼接"}
+{"category": "sqli", "lang": "js", "pattern": "/api/\\w+\\s*\\+\\s*(?:id|uid|userId|no)", "severity": "medium", "note": "RESTful 路径拼接 id"}
+{"category": "command", "lang": "js", "pattern": "child_process\\.exec(?:Sync)?\\s*\\(", "severity": "high", "note": "Node 子进程命令执行"}
+{"category": "command", "lang": "js", "pattern": "child_process\\.execFile\\s*\\(", "severity": "medium", "note": "Node execFile"}
+{"category": "command", "lang": "js", "pattern": "\\.exec\\s*\\(\\s*[\\\"'`][^\\\"'`]*\\$\\{", "severity": "high", "note": "exec 模板字符串命令拼接"}
+{"category": "command", "lang": "js", "pattern": "eval\\s*\\(", "severity": "high", "note": "eval 动态执行"}
+{"category": "command", "lang": "js", "pattern": "new\\s+Function\\s*\\(", "severity": "high", "note": "new Function 动态构造"}
+{"category": "command", "lang": "js", "pattern": "setTimeout\\s*\\(\\s*[\\\"']", "severity": "medium", "note": "setTimeout 字符串执行"}
+{"category": "command", "lang": "js", "pattern": "\\bshell\\s*\\.\\s*(?:exec|run)\\s*\\(", "severity": "high", "note": "shell 库执行"}
+{"category": "command", "lang": "js", "pattern": "process\\.env\\s*\\+\\s*[\\\"']", "severity": "low", "note": "env 拼接命令（信息泄露面）"}
+{"category": "path_traversal", "lang": "js", "pattern": "(?:fs|fsExtra|fs\\.(?:promises)?)\\.(?:readFile|readFileSync|writeFile|writeFileSync|unlink|unlinkSync|createReadStream)\\s*\\(\\s*[^,)]*\\+", "severity": "high", "note": "文件读写路径拼接"}
+{"category": "path_traversal", "lang": "js", "pattern": "path\\.(?:join|resolve)\\s*\\([^)]*(?:req\\.(?:query|params|body)|request\\.)", "severity": "high", "note": "path.join 入参含请求数据"}
+{"category": "path_traversal", "lang": "js", "pattern": "(?:download|upload|file|get)[A-Za-z]*\\s*\\(\\s*req\\.(?:query|params)\\.", "severity": "high", "note": "下载/文件接口直接用请求参数"}
+{"category": "path_traversal", "lang": "js", "pattern": "\\.\\./\\.\\./", "severity": "medium", "note": "穿越序列硬编码"}
+{"category": "path_traversal", "lang": "js", "pattern": "readFile\\s*\\(\\s*[\\\"']\\.\\./", "severity": "medium", "note": "相对路径读取"}
+{"category": "path_traversal", "lang": "js", "pattern": "sendFile\\s*\\(\\s*[^,)]*\\+", "severity": "high", "note": "sendFile 拼接"}
+{"category": "path_traversal", "lang": "js", "pattern": "static\\s*\\(\\s*[\\\"']/\\s*[\\\"']\\s*\\)", "severity": "low", "note": "静态目录挂根"}
+{"category": "path_traversal", "lang": "js", "pattern": "multer|formidable", "severity": "low", "note": "上传中间件（检查落盘名是否可控）"}
+{"category": "path_traversal", "lang": "js", "pattern": "\\.createWriteStream\\s*\\(\\s*[^,)]*\\+", "severity": "high", "note": "写流路径拼接"}
+{"category": "ssrf", "lang": "js", "pattern": "(?:axios|fetch|request|got)\\s*\\(\\s*(?:req|request)\\.(?:query|body|params)", "severity": "high", "note": "HTTP 客户端 URL 直接取自请求"}
+{"category": "ssrf", "lang": "js", "pattern": "url\\s*[:=]\\s*req\\.query\\.url", "severity": "high", "note": "经典 ?url= 直传"}
+{"category": "ssrf", "lang": "js", "pattern": "(?:imageUrl|fileUrl|webhookUrl|callbackUrl)\\s*[:=]\\s*req\\.", "severity": "high", "note": "回调/资源 URL 取自请求"}
+{"category": "ssrf", "lang": "js", "pattern": "urllib\\.request\\s*\\(\\s*[^,)]*\\+", "severity": "medium", "note": "urllib 拼接"}
+{"category": "ssrf", "lang": "js", "pattern": "http\\.get\\s*\\(\\s*[^,)]*(?:host|domain|target)", "severity": "medium", "note": "http.get 变量目标"}
+{"category": "ssrf", "lang": "js", "pattern": "\\.pipe\\s*\\(\\s*request\\s*\\(\\s*req\\.", "severity": "high", "note": "代理管道直传"}
+{"category": "ssrf", "lang": "js", "pattern": "dns\\.resolve\\w*\\s*\\(\\s*req\\.", "severity": "medium", "note": "DNS 解析请求参数"}
+{"category": "deserialize", "lang": "js", "pattern": "JSON\\.parse\\s*\\(\\s*(?:atob|unescape|decodeURIComponent)\\s*\\(", "severity": "high", "note": "解码后反序列化（可能原型污染/注入）"}
+{"category": "deserialize", "lang": "js", "pattern": "serialize\\.unserialize\\s*\\(", "severity": "high", "note": "node-serialize 反序列化（RCE 经典）"}
+{"category": "deserialize", "lang": "js", "pattern": "yaml\\.load\\s*\\(", "severity": "medium", "note": "yaml.load 非 safeLoad"}
+{"category": "deserialize", "lang": "js", "pattern": "node-serialize|funcster|serialize-javascript", "severity": "medium", "note": "序列化库引用"}
+{"category": "deserialize", "lang": "js", "pattern": "Object\\.assign\\s*\\(\\s*\\{\\}\\s*,\\s*JSON\\.parse\\s*\\(\\s*req\\.", "severity": "medium", "note": "请求体合并到对象（原型污染）"}
+{"category": "deserialize", "lang": "js", "pattern": "lodash.*merge\\s*\\(\\s*[^,]*req\\.body", "severity": "medium", "note": "lodash merge 请求体（原型污染）"}
+{"category": "weak_crypto", "lang": "js", "pattern": "\\bmd5\\s*\\(|createHash\\s*\\(\\s*[\\\"']md5[\\\"']", "severity": "medium", "note": "MD5 弱哈希"}
+{"category": "weak_crypto", "lang": "js", "pattern": "\\bsha1\\s*\\(|createHash\\s*\\(\\s*[\\\"']sha1[\\\"']", "severity": "low", "note": "SHA1 弱哈希"}
+{"category": "weak_crypto", "lang": "js", "pattern": "DES|des\\.encrypt|3des", "severity": "medium", "note": "DES 弱加密"}
+{"category": "weak_crypto", "lang": "js", "pattern": "Math\\.random\\s*\\(\\s*\\)", "severity": "low", "note": "Math.random（token/密钥生成不可用）"}
+{"category": "weak_crypto", "lang": "js", "pattern": "[\\\"'](?:123456|admin|password|passwd|secret|token|apikey|app_?key)[\\\"']\\s*[:=]\\s*[\\\"'][^\\\"']{4,}[\\\"']", "severity": "high", "note": "硬编码口令/密钥"}
+{"category": "weak_crypto", "lang": "js", "pattern": "aes[- ]?128[- ]?ecb|AES-128-ECB", "severity": "medium", "note": "ECB 模式"}
+{"category": "weak_crypto", "lang": "js", "pattern": "jwt\\.sign\\s*\\([^,]*,\\s*[\\\"'][^\\\"']{1,16}[\\\"']", "severity": "high", "note": "JWT 弱密钥签名"}
+{"category": "weak_crypto", "lang": "js", "pattern": "verify.*signature.*false|verify\\s*=\\s*false", "severity": "medium", "note": "关闭签名校验"}
+{"category": "weak_crypto", "lang": "js", "pattern": "https?://[^\\\"']*(?:password|passwd|secret|token)=", "severity": "high", "note": "URL 携带凭证"}
+{"category": "weak_crypto", "lang": "js", "pattern": "(?:accessKey|secretKey|appSecret|secret_key)\\s*[:=]\\s*[\\\"'][A-Za-z0-9+/=]{16,}[\\\"']", "severity": "high", "note": "云/支付密钥硬编码"}
+{"category": "authz_missing", "lang": "js", "pattern": "(?:admin|manage|internal|debug)/\\w+\\.js", "severity": "medium", "note": "管理/内部页面源码可达"}
+{"category": "authz_missing", "lang": "js", "pattern": "isAdmin\\s*[:=]\\s*(?:req\\.|params|query|body)", "severity": "high", "note": "管理员判定取自请求参数"}
+{"category": "authz_missing", "lang": "js", "pattern": "role\\s*[:=]\\s*req\\.(?:body|query)\\.role", "severity": "high", "note": "角色取自请求"}
+{"category": "authz_missing", "lang": "js", "pattern": "userId\\s*[:=]\\s*req\\.(?:body|query)\\.(?:userId|uid)", "severity": "high", "note": "身份取自请求（水平越权温床）"}
+{"category": "authz_missing", "lang": "js", "pattern": "owner\\s*[:=]\\s*req\\.body", "severity": "high", "note": "owner 取自请求体"}
+{"category": "authz_missing", "lang": "js", "pattern": "(?:delete|update|remove)\\w*\\s*\\(\\s*req\\.params\\.id\\s*\\)(?![^)]*check|[^)]*auth)", "severity": "medium", "note": "删改操作仅凭 id"}
+{"category": "authz_missing", "lang": "js", "pattern": "@role\\(['\\\"]?(?:user|guest)['\\\"]?\\)", "severity": "low", "note": "低权限注解（检查是否可提权）"}
+{"category": "authz_missing", "lang": "js", "pattern": "(?:skipAuth|noAuth|ignoreAuth|disableAuth)\\s*[:=]\\s*true", "severity": "high", "note": "显式关闭鉴权"}
+{"category": "authz_missing", "lang": "js", "pattern": "session(?:s)?\\.(?:userId|uid|user_id)\\s*=\\s*req\\.", "severity": "high", "note": "会话身份可被请求覆盖"}
+{"category": "authz_missing", "lang": "js", "pattern": "/api/(?:admin|internal|debug|test)/", "severity": "medium", "note": "内部 API 路径"}
+{"category": "authz_missing", "lang": "js", "pattern": "checkLogin\\s*\\(\\s*\\)\\s*\\{\\s*return\\s+true", "severity": "high", "note": "登录校验恒真"}
+{"category": "authz_missing", "lang": "js", "pattern": "permission\\s*[:=]\\s*(?:0|false|none)", "severity": "low", "note": "权限字段弱值"}

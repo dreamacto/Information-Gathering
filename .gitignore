@@ -118,3 +118,6 @@ device_points_all.json
 schedule_all.json
 nn-cc_platform_report.md
 *.bak_2runs
+
+# W11 OOB listener hit log (local runtime data, never commit)
+oob_hits.jsonl

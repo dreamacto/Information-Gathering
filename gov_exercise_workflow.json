@@ -360,6 +360,23 @@
       ]
     },
     {
+      "id": "idor_diff",
+      "title": "IDOR 水平越权差分（只读）",
+      "risk": "low",
+      "auto": false,
+      "rate_limit": {
+        "max_concurrency": 1,
+        "delay_seconds": 3.0,
+        "max_per_host": 5
+      },
+      "requires": [
+        "authorized target",
+        ">=2 accounts on same host (sessions file)",
+        "read-only GET endpoints"
+      ],
+      "tool_hint": "idor_triage.py --run-dir <dir> --sessions <file> --requests <file>"
+    },
+    {
       "id": "weak_credential_review",
       "title": "显式弱口令复核（默认不运行）",
       "risk": "medium",

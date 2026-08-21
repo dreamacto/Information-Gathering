@@ -75,6 +75,11 @@
       "backup_mode": "confirm_high_value_authenticated_candidates",
       "notes": "The runner creates a manual login/registration queue. After the operator supplies a valid local session file, review same-host JS and bounded GET-like APIs. Never persist cookies, response values, or downloaded files."
     },
+    "idor_diff": {
+      "primary": "idor_triage.py",
+      "backup": "manual_curl_differential",
+      "notes": "IDOR 水平越权差分：基线A/B重放/匿名三请求，结构指纹+Jaccard 判据；只读 GET/HEAD；需同host≥2凭证（sessions.jsonl）；delay≥3s、每host≤5端点；A凭证401/302即停该host"
+    },
     "healthcare_privacy_triage": {
       "primary": "healthcare_privacy_triage.py",
       "backup": "manual_browser_or_proxy",

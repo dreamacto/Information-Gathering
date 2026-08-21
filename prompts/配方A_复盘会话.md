@@ -10,7 +10,7 @@
 ## 规则
 1. 本会话只做"复核"这件事：工作区 = 指定 run 的 `postrun_review/`（由 `scripts/init_postrun_review.py` 生成，含 target_review_queue.csv + target_reviews/ 卷宗 + review_ledger.csv + findings_ledger.csv + approval_gates.md）。没有工作区就先跑 `python scripts/init_postrun_review.py <run-dir>`，不要凭空自建。
 2. 零网络请求：所有判断基于卷宗与盘上文件；原始响应/HAR/JS 只引"文件路径:行号"，不进对话。
-3. 逐目标审：按 `target_review_queue.csv` 的 review_order 升序，逐个读 `target_reviews/<order>_<host>.md` 卷宗 → 完成该 target 的 checklist（scope/源文件/类别信号/安全只读计划/审批门/证据/disposition/cleanup/retest）→ 把 disposition 写回队列；不采样、不跳审、不整类批量确认。
+3. 逐目标审（优先批次模式）：若工作区存在 `review_batches/batch_*.md`（fh_review_dispatch.py --prepare 产出），本会话只做**一个批次文件**里的目标——按文件内清单逐个读卷宗 → 完成 checklist（scope/源文件/类别信号/安全只读计划/审批门/证据/disposition/cleanup/retest）→ verdict 写入 `verdicts/<review_order>.json`（schema 以批次文件内嵌为准）。无批次文件时才按 `target_review_queue.csv` 的 review_order 升序连续审，写回 disposition 列；不采样、不跳审、不整类批量确认。
 4. 落盘对象与词表（8 状态，来自 fh skill）：
    - `target_review_queue.csv` 的 disposition 列 ← 每个 target 主判定
    - `review_ledger.csv` 的 status 列 ← 每个源文件的复核状态
