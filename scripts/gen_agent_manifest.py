@@ -80,6 +80,30 @@ ROOT_SCRIPTS = {
         "example": "python idor_triage.py --run-dir runs/<ts> --sessions sessions.jsonl --requests api_confirmed.jsonl",
         "risk": "只读（需≥2凭证、delay≥3s、每host≤5端点）",
     },
+    "run_lifecycle.py": {
+        "scene": "run 完成态查询器：从盘上产物推导 scan/review/planned/light_exhausted/swept 状态，回答'跑完了吗/下一步是什么'；--mark 人工标记",
+        "outputs": "run_lifecycle.json（run 目录内）",
+        "example": "python run_lifecycle.py runs/<ts>",
+        "risk": "纯离线",
+    },
+    "waf_profile.py": {
+        "scene": "WAF/拦截画像合成：零请求聚合 candidate_exposures/sqli_candidates/second_pass/light_verify 的 4xx 证据，每 host 出拦截层/统一拦截页判定，防 WAF 差异被误读成业务信号",
+        "outputs": "waf_profile.jsonl、reports/waf_profile.md",
+        "example": "python waf_profile.py --run-dir runs/<ts>",
+        "risk": "纯离线",
+    },
+    "light_diff_probe.py": {
+        "scene": "标准化只读差分探针（baseline/quote/dquote/boolean/empty），统一限速/元数据落盘/连续拦截提前停——替代 AI 手搓探测脚本；须 .venv",
+        "outputs": "--out 指定 jsonl（元数据）",
+        "example": '.venv/Scripts/python.exe light_diff_probe.py --url "https://x/api?q=1" --probes baseline,quote',
+        "risk": "只读 GET；并发1；delay 默认 3s；预算默认 8 请求/URL",
+    },
+    "import_run_to_engagement.py": {
+        "scene": "一键流程→深挖交接：把 run 的 api_confirmed/interesting/candidates 导入 engagement 的 endpoint-inventory.csv 种子行（去重、全 untested）",
+        "outputs": "engagements/<名>/artifacts/endpoint-inventory.csv 追加",
+        "example": "python import_run_to_engagement.py --run-dir runs/<ts> --engagement engagements/<名-日期>",
+        "risk": "纯离线",
+    },
     "metrics_weekly.py": {
         "scene": "W10 周度度量：扫 runs/*/ 聚五指标（候选数/确认率/FP率/假设命中率），出周报+history",
         "outputs": "reports/metrics_YYYYMMDD.md、metrics_history.jsonl",

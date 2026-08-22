@@ -211,8 +211,8 @@ def build_manual_auth_handoff(run_dir: Path) -> dict:
         ]
         if not session_rows:
             session_rows = [{
-                "base_url": "https://authorized.example.gov.cn",
-                "entry_url": "https://authorized.example.gov.cn/dashboard",
+                "base_url": "https://replace-me.invalid",
+                "entry_url": "https://replace-me.invalid/dashboard",
                 "cookie": "SESSION=<paste locally; never submit this file with the report>",
                 "headers": {},
             }]

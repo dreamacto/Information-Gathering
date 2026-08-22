@@ -24,6 +24,57 @@ Record every package in `artifacts/package-inventory.csv`, including failures an
 
 ## 2. Select and validate extraction tools
 
+### 2.1 本项目已有工具（优先使用，禁止重复造轮子）
+
+项目根目录下已有成熟的批量解密+API提取工具，**必须优先使用，不要每次临时写脚本**：
+
+**主工具：** `tools/miniapp_extract/extract_encrypted_wxapkg_domains.py`
+
+```bash
+# 批量解码全部缓存小程序
+python tools/miniapp_extract/extract_encrypted_wxapkg_domains.py \
+  --root "C:/Users/ASUS/AppData/Roaming/Tencent/xwechat/radium/users/64a7b1dae792358764749c820add44b9/applet/packages"
+
+# 解码单个小程序（用 AppID 路径）
+python tools/miniapp_extract/extract_encrypted_wxapkg_domains.py \
+  --root "C:/Users/ASUS/AppData/Roaming/Tencent/xwechat/radium/users/64a7b1dae792358764749c820add44b9/applet/packages/<appid>"
+```
+
+**解密算法：**
+- 文件头 `V1MMWX`（6字节）
+- AES-CBC 解密前1024字节：key = `PBKDF2(appid, "saltiest", 1000, dklen=32)`，IV = `"the iv: 16 bytes"`
+- 剩余字节用4个XOR key（`appid[-2]`, `appid[-1]`, `0x66`, `0x00`）尝试，选API关键词命中率最高的
+- 解密后尝试结构化解析（`0xBE...0xED` 头），失败则用正则回退（strings_only模式）
+
+**输出文件（CSV）：**
+| 文件 | 内容 |
+|------|------|
+| `wxapkg_urls.csv` | 完整URL、host、分类 |
+| `wxapkg_api_paths.csv` | 疑似API路径 |
+| `wxapkg_domains_all.csv` | 所有域名 |
+| `wxapkg_package_parse_summary.csv` | 每个包的解析状态 |
+
+**已知局限：**
+- `strings_only` 模式的正则只抓 `https?://` 绝对URL，`config.baseUrl` 变量存储的相对路径抓不到
+- 需要额外关键词深搜（`baseUrl`, `config`, `request`, 特定域名）来补充API端点
+- `urlparse` 遇到畸形URL已加 try/except 保护，不会再崩溃
+
+**解密脚本（20260823 起为可复用 CLI，算法经合成往返测试验证）：** `decrypt_wxapkg.py`（项目根目录，须 .venv 运行时）
+
+```
+.venv/Scripts/python.exe decrypt_wxapkg.py --appid <appid> --dir <包目录> --out <输出目录>
+```
+
+输出 `<名>.decrypted.wxapkg`（可继续喂 full_unpack）+ `decrypt_report.md/.jsonl`（非微信系 URL/域名线索）。无 V1MMWX 头的包自动按已解密透传。
+
+### 2.2 工具选择流程
+
+1. **首选** `extract_encrypted_wxapkg_domains.py` — 支持批量/单个，输出结构化CSV
+2. 如果 CSV 中真实业务域名/API太少 → 用 Python 内联脚本深搜 `baseUrl`、`config` 等关键词
+3. **禁止**每次临时写 `nncc_analysis.py`、`liugong_deep_search.py` 这种一次性脚本
+
+### 2.3 其他工具
+
 Inventory locally available maintained extractors/decompilers for the detected platform. Read help,
 version, supported container variants, output behavior, and known limitations before use. Prefer tools
 that preserve paths and emit structured manifests. Do not silently download or run unknown binaries.

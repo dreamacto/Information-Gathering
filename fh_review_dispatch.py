@@ -113,7 +113,8 @@ def batch_instruction(dossier: Path | None, order: str, host: str) -> str:
   "basis": "卷宗内证据（文件路径:行号 或 明确描述），confirmed 必须有确定性证据，证据不足降级 rejected/blocked/needs_login",
   "next_action": "",
   "fp_pattern": "仅 rejected 时可填：误报特征一句话（进 fp_memory 供下轮排重），其余留空",
-  "source_status": {{"<源文件名>": "reviewed|skipped"}}
+  "source_status": {{"<源文件名>": "reviewed|skipped"}},
+  "family_dispositions": {{"api": "...", "xss": "...", "sqli": "...", "product": "...", "exposure": "..."}}  // 可选但推荐：各候选家族的分别结论，聚合后进 TOP_人工复核
 }}
 ```
 """
@@ -130,6 +131,13 @@ def cmd_prepare(run_dir: Path, batch_size: int) -> None:
     pending_rows = [r for r in rows if (r.get("disposition") or "pending") == "pending"]
     already = {p.stem for p in verdicts_dir.glob("*.json")}
     todo = [r for r in pending_rows if r["review_order"] not in already]
+    # 卫生过滤：模板占位域/保留 TLD 不出批次（历史队列可能已被占位域污染）
+    import re as _re
+    _ph = _re.compile(r"(^|\.)(example|invalid|test|localhost|local|placeholder|replace[-_]me)(\.|$)", _re.I)
+    _dirty = [r for r in todo if _ph.search(r.get("host") or "")]
+    if _dirty:
+        print(f"[!] 过滤 {len(_dirty)} 个占位域目标（不进批次）：" + ", ".join(r.get("host") or "?" for r in _dirty))
+        todo = [r for r in todo if r not in _dirty]
 
     total = len(rows)
     done = total - len(todo)
@@ -242,6 +250,21 @@ def cmd_aggregate(run_dir: Path) -> None:
     applied = skipped = invalid = 0
     fp_added = findings_added = 0
     new_fp_lines: list[str] = []
+    verdict_families: dict[str, str] = {}
+    # 全库查重集合（KB README 规则：fp_memory 按 host+fp_pattern 去重）
+    existing_fp_keys: set = set()
+    new_fp_keys: set = set()
+    try:
+        for _ln in fp_path.read_text(encoding="utf-8").splitlines():
+            if not _ln.strip():
+                continue
+            try:
+                _r = json.loads(_ln)
+            except json.JSONDecodeError:
+                continue
+            existing_fp_keys.add(((_r.get("host") or "").strip().lower(), (_r.get("fp_pattern") or "").strip()))
+    except FileNotFoundError:
+        pass
 
     existing_orders = set()
     for v in verdict_files:
@@ -264,6 +287,9 @@ def cmd_aggregate(run_dir: Path) -> None:
             skipped += 1
             continue
         existing_orders.add(order)
+        fam_map = data.get("family_dispositions")
+        if isinstance(fam_map, dict) and fam_map:
+            verdict_families[order] = " ; ".join(f"{k}:{v}" for k, v in fam_map.items() if v)[:120]
 
         disp = data["disposition"]
         row = row_by_order[order]
@@ -291,15 +317,21 @@ def cmd_aggregate(run_dir: Path) -> None:
             ])
             findings_added += 1
 
-        # rejected + fp_pattern → fp_memory
+        # rejected + fp_pattern → fp_memory（按 host+fp_pattern 全库查重，规则与 KB README 一致）
         if disp == "rejected" and data.get("fp_pattern"):
-            new_fp_lines.append(json.dumps({
-                "ts": now_iso(),
-                "host": data.get("host") or row.get("host", ""),
-                "fp_pattern": str(data["fp_pattern"]),
-                "verdict_basis": f"verdicts/{order}.json basis={data.get('basis','')[:120]}",
-            }, ensure_ascii=False))
-            fp_added += 1
+            _fp_host = (data.get("host") or row.get("host", "")).strip().lower()
+            _fp_pat = str(data["fp_pattern"]).strip()
+            if (_fp_host, _fp_pat) in existing_fp_keys or (_fp_host, _fp_pat) in new_fp_keys:
+                print(f"[=] fp_memory 查重跳过：{_fp_host} 已有相同误报特征")
+            else:
+                new_fp_keys.add((_fp_host, _fp_pat))
+                new_fp_lines.append(json.dumps({
+                    "ts": now_iso(),
+                    "host": data.get("host") or row.get("host", ""),
+                    "fp_pattern": _fp_pat,
+                    "verdict_basis": f"verdicts/{order}.json basis={data.get('basis','')[:120]}",
+                }, ensure_ascii=False))
+                fp_added += 1
 
     save_queue(run_dir, rows)
     if new_fp_lines:
@@ -307,7 +339,7 @@ def cmd_aggregate(run_dir: Path) -> None:
             for ln in new_fp_lines:
                 f.write(ln + "\n")
 
-    _write_top_file(ws, rows)
+    _write_top_file(ws, rows, verdict_families)
     print(f"[+] 聚合完成：应用 {applied} 条 verdict（跳过 {skipped}，无效 {invalid}→invalid_verdicts.csv）")
     print(f"[+] findings_ledger 新增 {findings_added} 行；fp_memory 新增 {fp_added} 行（→ {fp_path}）")
     _print_progress(rows)
@@ -357,7 +389,8 @@ def _update_review_ledger(ws: Path, order: str, src_status: dict) -> None:
             w.writerows(rrows)
 
 
-def _write_top_file(ws: Path, rows: list[dict]) -> None:
+def _write_top_file(ws: Path, rows: list[dict], families: dict | None = None) -> None:
+    families = families or {}
     done = [r for r in rows if r.get("disposition") not in (None, "", "pending")]
     scored = []
     for r in done:
@@ -378,7 +411,10 @@ def _write_top_file(ws: Path, rows: list[dict]) -> None:
         "|---|---|---|---|---|",
     ]
     for w_, r in top:
-        lines.append(f"| {r.get('review_order')} | {r.get('host')} | {r.get('disposition')} | {r.get('priority')} | {(r.get('notes') or r.get('evidence_paths') or '')[:80]} |")
+        fam = families.get(str(r.get('review_order')), '')
+        base_note = (r.get('notes') or r.get('evidence_paths') or '')[:80]
+        note = f"{base_note} {fam}".strip()
+        lines.append(f"| {r.get('review_order')} | {r.get('host')} | {r.get('disposition')} | {r.get('priority')} | {note} |")
     (ws / "review_batches" / "TOP_人工复核.md").parent.mkdir(exist_ok=True)
     (ws / "review_batches" / "TOP_人工复核.md").write_text("\n".join(lines), encoding="utf-8")
 

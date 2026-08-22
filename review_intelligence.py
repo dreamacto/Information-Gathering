@@ -106,7 +106,12 @@ def md_safe(value: object, limit: int = 180) -> str:
     return csv_join(value).replace("|", "/").replace("\n", " ")[:limit]
 
 
+_LOW_SIGNAL_RUN = False  # 由 main() 依据 run_health 置位：全 FP/零 verified 的 run 不配产裸 P0/P1
+
+
 def priority_tier(score: int) -> str:
+    if _LOW_SIGNAL_RUN and score < 200:  # 低信号 run：封顶 P2（除非分数压倒性地高）
+        return "P2" if score >= 50 else "P3"
     if score >= 85:
         return "P0"
     if score >= 70:
@@ -671,6 +676,17 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Build offline P0-P3 candidate confidence and target dossiers")
     parser.add_argument("--run-dir", type=Path, required=True)
     args = parser.parse_args()
+
+    # 低信号 run 门（20260822 复盘 5.3）：run_health 已算出 FP 率=1.0/零 verified 时，
+    # 下游仍产裸 P0 —— 现在把真相接进优先级：此类 run 候选封顶 P2，等复核翻身。
+    global _LOW_SIGNAL_RUN
+    try:
+        _h = json.loads((args.run_dir / "run_health.json").read_text(encoding="utf-8"))
+        if float(_h.get("false_positive_ratio") or 0) >= 0.9 and int(_h.get("verified_exposures") or 0) == 0:
+            _LOW_SIGNAL_RUN = True
+            print("[!] 低信号 run（FP率>=0.9 且零 verified）：P0-P3 候选封顶 P2", flush=True)
+    except (OSError, ValueError):
+        pass
 
     rows = build_candidates(args.run_dir)
     write_jsonl(args.run_dir / "candidate_confidence.jsonl", rows)

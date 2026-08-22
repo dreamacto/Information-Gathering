@@ -157,6 +157,23 @@ def is_subdomain_root_candidate(root: str) -> bool:
     return True
 
 
+def intake_scope_hints(anchors: list[str]) -> list[dict]:
+    """入口作用域预警（20260823 复盘）：锚点是主机名而非根域时，
+    子域枚举只会查 <词>.<主机名> 形态（如 api.www.gxcic.net），现实中几乎必空。
+    不自动扩大范围（授权决策属于操作者），但必须在开工前说清楚。"""
+    hints = []
+    for a in anchors:
+        parent = registered_parent(a)
+        if parent and a != parent:
+            hints.append({
+                "anchor": a,
+                "registered_parent": parent,
+                "effect": f"输入为主机名：原锚点只会查询 *.{a}（几乎必空）；本次已自动补充根域锚点 {parent}（操作者策略 20260823）",
+                "suggestion": f"结果按后缀过滤只保留 *.{parent}；若某目标仅授权该主机、不含整域，请单独建 run 并加 --no-subdomain",
+            })
+    return hints
+
+
 def registered_parent(host: str) -> str:
     host = host.strip(".").lower()
     if not host or is_ip_address(host):
@@ -374,7 +391,7 @@ def main() -> int:
         help="Maximum exact input host scope anchors; input hosts are never widened",
     )
     parser.add_argument("--qps", type=float, default=0.0, help="Global DNS lookup start rate; overrides --delay when > 0")
-    parser.add_argument("--concurrency", type=int, default=1, help="Concurrent DNS workers; global qps/delay is still enforced")
+    parser.add_argument("--concurrency", type=int, default=3, help="Concurrent DNS workers; global qps/delay is still enforced")
     parser.add_argument("--max-queries", type=int, default=0, help="Maximum total DNS queries after root/word expansion")
     args = parser.parse_args()
 
@@ -382,7 +399,30 @@ def main() -> int:
     scope_anchors = load_scope_anchors(args.targets)[
         : args.max_roots if args.max_roots > 0 else None
     ]
+    # 根域自动锚定（操作者策略 20260823）：输入主机名（如 www.gxcic.net）时自动补充其
+    # 注册父域作为锚点，使枚举生成 api.gxcic.net 这类真实形态；结果仍经
+    # is_host_within_scope 后缀过滤——只有 *.根域 内的主机会进入后续流程。
+    _expanded = list(scope_anchors)
+    for _a in scope_anchors:
+        _parent = registered_parent(_a)
+        if _parent and _parent not in _expanded:
+            _expanded.append(_parent)
+    if _expanded != scope_anchors:
+        _added = [a for a in _expanded if a not in scope_anchors]
+        print(f"[*] 根域自动锚定（操作者策略）：已补充根域锚点 {', '.join(_added)}；"
+              f"结果按后缀过滤，仅 *.根域 内主机进入后续流程", flush=True)
+        scope_anchors = _expanded
     words = load_words(args.wordlist, args.max_words)
+    hints = intake_scope_hints(scope_anchors)
+    if hints:
+        print("[!] 目标作用域预警：以下锚点是主机名而非根域，子域枚举按纪律不扩大范围——", flush=True)
+        for h in hints:
+            print(f"      · {h['anchor']}：{h['effect']}", flush=True)
+            print(f"        {h['suggestion']}", flush=True)
+        hint_path = args.out_dir / "subdomain_intake_hints.jsonl"
+        with hint_path.open("w", encoding="utf-8") as hf:
+            for h in hints:
+                hf.write(json.dumps(h, ensure_ascii=False) + "\n")
     raw_path = args.out_dir / "subdomains_raw.txt"
     dedup_path = args.out_dir / "subdomains_dedup.txt"
     pending_path = args.out_dir / "subdomains_for_scope_confirmation.txt"

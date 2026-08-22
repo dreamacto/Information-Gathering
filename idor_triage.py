@@ -67,6 +67,14 @@ def token_set(body: str) -> set:
     return set(re.findall(r"\S{2,}", body[:20000]))
 
 
+def _empty_4xx(rec: dict | None) -> bool:
+    """空/近空 4xx：状态>=400 且响应体 <=50 字节（空串、2B 空数组之类）。"""
+    if not rec:
+        return False
+    st = rec.get("status")
+    return isinstance(st, int) and st >= 400 and (rec.get("len") or 0) <= 50
+
+
 def struct_hash(body: str) -> str:
     """结构指纹：JSON 键路径集合 / HTML 标签序列的哈希（对值不敏感、对结构敏感）。"""
     try:
@@ -276,6 +284,13 @@ def main():
                 verdict = "idor_horizontal_candidate"
             elif body_is_errorish(200, body_anon) or body_is_errorish(200, body_b):
                 verdict = "noise"
+            elif _empty_4xx(rec["anon"]) or (rec.get("b") and _empty_4xx(rec["b"])):
+                # 空 400 歧义协议（20260822 cacp L16 教训）：空/近空 4xx 分不清
+                # "鉴权边界生效" 还是 "目标 ID 恰好不存在" —— 不判 noise，留待
+                # "保证存在的第二对象"（跨账号互换自有对象 ID）定案。
+                verdict = "ambiguous_not_refuted"
+                rec["ambiguous_note"] = ("空/近空 4xx：无法区分鉴权拒绝与 ID 不存在；"
+                                         "用保证存在的第二对象（对方账号自有 ID）复测可定案")
 
             rec["verdict"] = verdict
             rec["evidence_ref"] = "响应摘要内联本文件；原始请求/响应不入对话"
@@ -291,7 +306,7 @@ def main():
         for r in results:
             f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    cand = [r for r in results if r.get("verdict") in ("unauth_access", "idor_horizontal_candidate")]
+    cand = [r for r in results if r.get("verdict") in ("unauth_access", "idor_horizontal_candidate", "ambiguous_not_refuted")]
     md = run_dir / "idor_manual_review.md"
     lines = [
         "# IDOR 越权差分 · 人工复核队列",

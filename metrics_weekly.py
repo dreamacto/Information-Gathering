@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -69,6 +70,9 @@ def scan_runs(runs_root: Path, days: int, now: datetime) -> tuple[list[dict], li
     for d in sorted(runs_root.iterdir()):
         if not d.is_dir() or not _mtime_within(d, days, now):
             continue
+        # 测试/开发目录不计入运营度量（20260822 复盘：11 个 *_test* 目录混进周报）
+        if re.search(r"(^|_)(test|smoke|dev|tmp|hdrtest)(_|$)", d.name, re.I):
+            continue
         cand_total = 0
         cand_files = []
         for f in d.glob("*_candidates.jsonl"):
@@ -81,6 +85,35 @@ def scan_runs(runs_root: Path, days: int, now: datetime) -> tuple[list[dict], li
         if not has_summary:
             incomplete.append(d.name)
     return runs, incomplete
+
+
+def collect_engagements(engagements_root: Path, days: int, now: datetime) -> dict:
+    """engagement 侧台账统计（20260822 复盘 P1-6：L15 级发现进不了周报的盲区）。
+    读 engagements/*/review_ledger.csv 的 status 列，按状态计数并单列报告。"""
+    stats = {"dirs": 0, "ledger_rows": 0, "by_status": Counter(), "recent_dirs": []}
+    if not engagements_root.is_dir():
+        return stats
+    for d in sorted(engagements_root.iterdir()):
+        if not d.is_dir():
+            continue
+        ledger = d / "review_ledger.csv"
+        if not ledger.is_file():
+            continue
+        if not _mtime_within(ledger, days, now):
+            continue
+        stats["dirs"] += 1
+        stats["recent_dirs"].append(d.name)
+        import csv
+        try:
+            with ledger.open(encoding="utf-8-sig", newline="") as f:
+                for row in csv.DictReader(f):
+                    st = (row.get("status") or "").strip().lower()
+                    if st:
+                        stats["by_status"][st] += 1
+                        stats["ledger_rows"] += 1
+        except OSError:
+            continue
+    return stats
 
 
 def collect_findings(runs_root: Path, days: int, now: datetime) -> Counter:
@@ -104,6 +137,12 @@ def collect_findings(runs_root: Path, days: int, now: datetime) -> Counter:
                 for row in csv.DictReader(f):
                     st = (row.get("disposition") or "pending").strip().lower()
                     c[f"disp_{st}"] += 1
+                    # P0/P1 复核存活率（20260822 复盘 P1 KPI）：L0 信号质量最直接的度量
+                    if (row.get("priority") or "").strip().upper() in ("P0", "P1") and st != "pending":
+                        c["p0p1_total"] += 1
+                        # 仍成立的处置：确认/待登录/待审批/被门挡住/接受风险；rejected/duplicate/out_of_scope=死亡
+                        if st in ("confirmed", "needs_login", "approval_required", "blocked", "accepted_risk"):
+                            c["p0p1_survived"] += 1
     return c
 
 
@@ -129,6 +168,7 @@ def main() -> None:
 
     # 指标2 确认率（queue disposition 近似 + findings_ledger 双口径）
     cnt = collect_findings(runs_root, a.days, now)
+    eng = collect_engagements(ROOT / "engagements", a.days, now)
     confirmed = cnt.get("findings_confirmed", 0)
     rejected = cnt.get("disp_rejected", 0)
     denom = confirmed + rejected
@@ -147,6 +187,10 @@ def main() -> None:
     tested_c = sum(1 for h in ledger if h.get("status") == "tested_confirmed")
     tested_f = sum(1 for h in ledger if h.get("status") == "tested_falsified")
     m5 = (tested_c / (tested_c + tested_f)) if (tested_c + tested_f) else None
+
+    # 指标6 P0/P1 复核存活率
+    p0p1_t, p0p1_s = cnt.get("p0p1_total", 0), cnt.get("p0p1_survived", 0)
+    m6 = (p0p1_s / p0p1_t) if p0p1_t else None
 
     def fmt(x, pct=False):
         if x is None:
@@ -176,6 +220,7 @@ def main() -> None:
         f"| 3 | 人工小时/确认 | {m3} | |",
         f"| 4 | FP 记忆率 | {fmt(m4, pct=True)} | fp_memory {len(fp_entries)} 条 / 候选 {cand_sum} |",
         f"| 5 | 假设命中率 | {fmt(m5, pct=True)} | ledger tested {tested_c}+{tested_f} |",
+        f"| 6 | P0/P1 复核存活率 | {fmt(m6, pct=True)} | 复核后仍成立的 P0/P1（确认/审批门/待登录等）={cnt.get('p0p1_survived',0)} / 已审 P0/P1 总数={cnt.get('p0p1_total',0)}；持续偏低=L0 在产噪声 |",
         "",
         "## 最吵队列（候选最多的来源文件）",
         "",
@@ -185,6 +230,16 @@ def main() -> None:
     else:
         lines.append("- 无候选文件")
     if incomplete:
+        lines += ["", "## engagement 侧台账（runs 之外的深挖线）", ""]
+        if eng["dirs"]:
+            by_st = ", ".join(f"{k}={v}" for k, v in sorted(eng["by_status"].items()))
+            lines += [
+                f"- 近 {a.days} 天活跃 engagement：{eng['dirs']} 个（{'; '.join(eng['recent_dirs'])}）",
+                f"- 台账行 {eng['ledger_rows']}，状态分布：{by_st or '无'}",
+                "- 说明：确认率仅统计 runs 侧 findings；engagement 的 confirmed/needs_manual_validation 在此单列，防止周报低估深挖线产出。",
+            ]
+        else:
+            lines += [f"- 近 {a.days} 天无活跃 engagement 台账。"]
         lines += ["", "## 数据不全的 run（缺 run_summary.json）", ""]
         lines += [f"- {n}" for n in incomplete[:20]]
     md.write_text("\n".join(lines), encoding="utf-8")

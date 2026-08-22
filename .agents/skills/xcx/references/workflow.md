@@ -29,6 +29,18 @@ offline analysis while waiting for a device, login, backend confirmation, or nar
 
 ## 2. Initial decoding
 
+**Standard tool chain (2026-08-23, all with .venv runtime — the only env with cryptography+pycryptodome):**
+
+| Step | Command | Purpose |
+|---|---|---|
+| 1. Decrypt packages + lead extraction | `.venv/Scripts/python.exe decrypt_wxapkg.py --appid <appid> --dir <pkg-dir> --out <engagement>/artifacts/wxapkg_decrypted` | V1MMWX 解密；输出 decrypted 包 + 非微信系 URL/域名报告 |
+| 2. Restore full source | `.venv/Scripts/python.exe full_unpack_wxapkg.py <appid> <decrypted.wxapkg> <engagement>/artifacts/unpacked/<appid>` | 解析 wxapkg 结构还原源码文件 |
+| 3. Source sink scan | `.venv/Scripts/python.exe whitebox_triage.py --source-dir <engagement>/artifacts/unpacked/<appid> --out-dir <engagement>/artifacts/whitebox --scan` | 62 条 sink 模式扫描（sqli/ssrf/deserialize/authz_missing…） |
+| 4. Extracted-domain host classification | feeds `scope.csv` + `notes/target-model.md` | 每个提取 host 分类后才可测试；平台/支付/CDN/厂商面 confirmation_required |
+
+Do not hand-roll decryption or URL extraction when these tools exist; failures must be recorded in the
+phase note with the tool output path (negative space), not silently worked around.
+
 After intake, attempt local and offline decoding before dynamic testing. Use safe local tools to decode
 QR images, parse entry/share links, inspect AppID or equivalent identifiers, unpack or decrypt
 packages/caches, parse traffic exports, recover manifests, routes, endpoints, source maps, and platform

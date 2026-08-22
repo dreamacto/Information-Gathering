@@ -300,6 +300,18 @@ def extract_assets(base_url: str, html: str) -> tuple[set[str], set[str], set[st
     return scripts, links, endpoints
 
 
+# 第三方前端库 denylist（20260822 首跑复盘 P0-3）：jquery/bootstrap/swiper 等压缩库里的
+# mobile/user/password/token 关键词命中是纯噪声，59 条 impact 候选里 54 条来自它们。
+THIRD_PARTY_JS_RE = re.compile(
+    r"(?:^|[/.\-])"
+    r"(?:jquery|bootstrap|swiper|tweenmax|nicescroll|layui|element[-.]?(?:ui|plus)|"
+    r"vue(?:\.runtime)?|react|angular|axios|echarts|antd|vant|webpack|polyfill|"
+    r"modernizr|underscore|moment|dayjs|lodash|animate|slick|owl\.carousel|wow|jweixin)"
+    r"(?:[/.\-]|$)",
+    re.I,
+)
+
+
 def extract_js_findings(base_url: str, js_url: str, text: str) -> tuple[set[str], set[str], list[dict]]:
     endpoints: set[str] = set()
     source_maps: set[str] = set()
@@ -449,7 +461,17 @@ def discover_target(base_url: str, out_dir: Path, delay: float, timeout: int, ma
                     "priority": "medium",
                 }
                 append_jsonl(impact_path, impact)
-            for secret in secrets[:10]:
+            # 第三方库的关键词命中直接丢弃；自研 JS 按 (source, keyword) 去重
+            if THIRD_PARTY_JS_RE.search(js_url):
+                secrets = []
+            deduped, seen = [], set()
+            for secret in secrets:
+                key = (secret.get("source"), (secret.get("keyword") or "").lower())
+                if key in seen:
+                    continue
+                seen.add(key)
+                deduped.append(secret)
+            for secret in deduped[:10]:
                 impact = {
                     "checked_at": now_iso(),
                     "base_url": base_url,

@@ -99,6 +99,11 @@ NOISE_HOST_RE = re.compile(
     r"(^|\.)(prototype|constructor|document|window|console|string|array|object|function|math|this|attrs|children|exports)(\.|$)",
     re.I,
 )
+# 模板占位域/保留 TLD 一律不入复核队列（防 auth_sessions.template.json 类示例域混成真目标）
+PLACEHOLDER_HOST_RE = re.compile(
+    r"(^|\.)(example|invalid|test|localhost|local|placeholder|replace-me|replace_me)(\.|$)|^example\.(com|net|org)$",
+    re.I,
+)
 CATEGORY_SCORES = {
     "priority_candidates": 120,
     "business_api": 85,
@@ -479,6 +484,8 @@ def is_probable_host(host: str) -> bool:
     if any(char in value for char in "/\\:@?&=%"):
         return False
     if NOISE_HOST_RE.search(value):
+        return False
+    if PLACEHOLDER_HOST_RE.search(value):
         return False
     labels = value.split(".")
     if any(not label or len(label) > 63 for label in labels):
@@ -937,6 +944,70 @@ def category_steps(categories: set[str]) -> list[str]:
     return steps
 
 
+def host_facts(output: Path, host: str) -> list[str]:
+    """证据密集化（20260822 复盘 P1）：把该 host 的关键事实预聚合进卷宗，
+    复核者不再需要自己从 10+ 个 jsonl 里重挖一遍。零网络请求。"""
+    run_dir = output.parent if output.name == "postrun_review" else output
+    facts: list[str] = []
+
+    def _rows(name: str) -> list[dict]:
+        path = run_dir / name
+        if not path.is_file():
+            return []
+        out_rows = []
+        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                out_rows.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+        return out_rows
+
+    def _match(r: dict) -> bool:
+        h = str(r.get("host") or "")
+        return h == host or str(r.get("url") or "").split("/")[2:3] and host in str(r.get("url") or r.get("base_url") or "")
+
+    exp = [r for r in _rows("candidate_exposures.jsonl") if r.get("host") == host]
+    if exp:
+        ok = [r for r in exp if isinstance(r.get("status"), int) and r.get("status") < 400]
+        statuses: dict[str, int] = {}
+        for r in exp:
+            statuses[str(r.get("status"))] = statuses.get(str(r.get("status")), 0) + 1
+        facts.append(f"固定路径探针 {len(exp)} 条：状态分布 {statuses}，存活(<400) {len(ok)} 条" + ("（全部未命中）" if not ok else ""))
+
+    fp = [r for r in _rows("product_fingerprints.jsonl") if r.get("host") == host]
+    if fp:
+        prods = "; ".join(f"{r.get('product')}({r.get('confidence')})" for r in fp)
+        facts.append(f"产品指纹 {len(fp)} 条（已过活体证据门）：{prods}")
+
+    ac = [r for r in _rows("api_confirmed.jsonl") if host in str(r.get("url") or "")]
+    if ac:
+        facts.append("confirmed API：" + "; ".join(f"{str(r.get('url'))[:80]} status={r.get('status')}" for r in ac[:5]))
+
+    sql = [r for r in _rows("sqli_candidates.jsonl") if r.get("host") == host]
+    if sql:
+        facts.append(f"SQLi 候选 {len(sql)} 条（high_probability={'yes' if any(r.get('high_probability') for r in sql) else 'no'}；注意 waf_or_block_page_hint 信号=差异可能来自拦截层）")
+
+    xss = [r for r in _rows("xss_candidates.jsonl") if host in str(r.get("url") or "")]
+    refl = [r for r in _rows("xss_reflection_checks.jsonl") if r.get("marker_reflected")]
+    if xss:
+        facts.append(f"XSS 候选 {len(xss)} 条（候选键已按参数名归一）；反射确认 {len(refl)} 条")
+
+    sp = [r for r in _rows("second_pass_results.jsonl") if r.get("host") == host]
+    if sp:
+        stable = sum(1 for r in sp if r.get("stable"))
+        facts.append(f"二轮复测 {len(sp)} 条：stable={stable}（stable=复现稳定，非漏洞确认）")
+
+    waf = [r for r in _rows("waf_profile.jsonl") if r.get("host") == host]
+    if waf:
+        w = waf[0]
+        facts.append(f"WAF/拦截画像：层={w.get('layer_guess')} 统一拦截页={'是' if w.get('unified_block_page') else '未证明'} 样本={w.get('block_samples')} → {str(w.get('guidance'))[:60]}")
+
+    return facts
+
+
 def write_target_dossiers(output: Path, target_rows: list[dict[str, str]]) -> None:
     target_dir = output / "target_reviews"
     target_dir.mkdir(parents=True, exist_ok=True)
@@ -971,6 +1042,17 @@ def write_target_dossiers(output: Path, target_rows: list[dict[str, str]]) -> No
                 lines.append(f"- {signal}")
         else:
             lines.append("- No extracted signal text; inspect source files directly.")
+        lines.append("")
+        facts = host_facts(output, row["host"])
+        lines.append("## Pre-aggregated Facts (evidence-dense, zero-network)")
+        lines.append("")
+        if facts:
+            lines.append("复核直接从下面事实出发，只对存疑处回查源文件：")
+            lines.append("")
+            for fact in facts:
+                lines.append(f"- {fact}")
+        else:
+            lines.append("- 该 host 在本 run 无结构化产物（或产物为空）。")
         lines.append("")
         lines.append("## Required Review Sequence")
         lines.append("")

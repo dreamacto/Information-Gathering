@@ -8,8 +8,9 @@
 | 库 | 谁写入 | 谁读取 | 何时 |
 |---|---|---|---|
 | fp_memory.jsonl | fh_review_dispatch.py --aggregate（rejected 且带 fp_pattern 时自动追加）；配方A 复核子代理间接产出 | 配方B 规划会话（排重依据）；metrics_weekly.py（FP 率指标） | 每次复核聚合 / 每轮规划 / 每周度量 |
+| asset_fingerprint_lib.jsonl | 一键流程 asset_fingerprint_ingest 写**项目根** asset_fingerprint_lib.jsonl；配方E 周度把经复核未拒绝的增量去重后同步到本库（20260822 起误报指纹隔离不入库） | 配方B 规划（host→产品先验） | 每次沉淀 / 每轮规划 |
 | vuln_pattern_lib.jsonl | 人工（确认一个漏洞后）；配方E 周度沉淀建议追加 | 配方B（假设模板来源）；配方D（竞态场景模板） | 每次确认漏洞 / 每周沉淀 |
-| hypothesis_ledger.jsonl | 配方B 追加 proposed；W7/W8 执行后人工回填 status | 配方B（避免重复提出）；metrics_weekly.py（命中率指标） | 每轮规划 / 每次执行后 |
+| hypothesis_ledger.jsonl | 配方E 沉淀时把 run 工作区 hypothesis_plan.jsonl 中**已获人工批准**的条目追加为 proposed；status 回填永远由人执行（配方B 只落 run 工作区，不直写本库） | 配方B（避免重复提出）；metrics_weekly.py（命中率指标） | 每轮规划 / 每次执行后 / 每周沉淀 |
 | sink_lib.jsonl (W13) | 人工维护（模式库，低频更新） | whitebox_triage.py（扫描种子） | 每次白盒扫描 |
 
 ## schema（字段定死，勿改字段名）

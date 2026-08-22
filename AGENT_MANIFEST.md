@@ -1,6 +1,6 @@
 # AGENT_MANIFEST.md — 机器可读工具清单
 
-> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-21 23:25）
+> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-22 23:31）
 
 > 用法：AI 选工具前先查本清单；所有新工具/新 phase 由生成器登记，不手写本文件。
 
@@ -34,12 +34,16 @@
 | 一键竞态测试_授权目标.bat | 读配方D 产出的 race_config.json 对授权目标执行竞态；开场强制 YES 确认；必须 .venv | 审批门：写端点需 write_risk_ack | `一键竞态测试_授权目标.bat` |
 | AI配方_一键复制.bat | 菜单选 1-6 把 prompts/ 配方A-F 全文复制到剪贴板，粘贴给任意 AI 启动对应会话（copy_prompt.py） | 离线复制，零网络请求 | `AI配方_一键复制.bat` |
 
-## 根目录核心脚本（44 个）
+## 根目录核心脚本（48 个）
 
 | 工具 | 路径 | 用途 | 输入 | 输出 | 风险 | 示例 |
 |---|---|---|---|---|---|---|
 | fh_review_dispatch.py | `D:\PythonSource\PythonProjects\PythonProject4\fh_review_dispatch.py` | W6 复核编排：把 postrun_review 工作区切成子代理批次(batch md 自包含) + 聚合 verdict 回台账；零网络 | 见 --help | postrun_review/review_batches/*.md、verdicts/*.json、findings_ledger.csv、fp_memory.jsonl、TOP_人工复核.md | 离线编排 | `python fh_review_dispatch.py --run-dir runs/<ts> --prepare --batch-size 8` |
 | idor_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\idor_triage.py` | W7 IDOR 水平越权差分：基线A/B重放/匿名三请求对比结构指纹与 Jaccard，只读 GET/HEAD | 见 --help | <run_dir>/idor_candidates.jsonl、idor_manual_review.md | 只读（需≥2凭证、delay≥3s、每host≤5端点） | `python idor_triage.py --run-dir runs/<ts> --sessions sessions.jsonl --requests api_confirmed.jsonl` |
+| run_lifecycle.py | `D:\PythonSource\PythonProjects\PythonProject4\run_lifecycle.py` | run 完成态查询器：从盘上产物推导 scan/review/planned/light_exhausted/swept 状态，回答'跑完了吗/下一步是什么'；--mark 人工标记 | 见 --help | run_lifecycle.json（run 目录内） | 纯离线 | `python run_lifecycle.py runs/<ts>` |
+| waf_profile.py | `D:\PythonSource\PythonProjects\PythonProject4\waf_profile.py` | WAF/拦截画像合成：零请求聚合 candidate_exposures/sqli_candidates/second_pass/light_verify 的 4xx 证据，每 host 出拦截层/统一拦截页判定，防 WAF 差异被误读成业务信号 | 见 --help | waf_profile.jsonl、reports/waf_profile.md | 纯离线 | `python waf_profile.py --run-dir runs/<ts>` |
+| light_diff_probe.py | `D:\PythonSource\PythonProjects\PythonProject4\light_diff_probe.py` | 标准化只读差分探针（baseline/quote/dquote/boolean/empty），统一限速/元数据落盘/连续拦截提前停——替代 AI 手搓探测脚本；须 .venv | 见 --help | --out 指定 jsonl（元数据） | 只读 GET；并发1；delay 默认 3s；预算默认 8 请求/URL | `.venv/Scripts/python.exe light_diff_probe.py --url "https://x/api?q=1" --probes baseline,quote` |
+| import_run_to_engagement.py | `D:\PythonSource\PythonProjects\PythonProject4\import_run_to_engagement.py` | 一键流程→深挖交接：把 run 的 api_confirmed/interesting/candidates 导入 engagement 的 endpoint-inventory.csv 种子行（去重、全 untested） | 见 --help | engagements/<名>/artifacts/endpoint-inventory.csv 追加 | 纯离线 | `python import_run_to_engagement.py --run-dir runs/<ts> --engagement engagements/<名-日期>` |
 | metrics_weekly.py | `D:\PythonSource\PythonProjects\PythonProject4\metrics_weekly.py` | W10 周度度量：扫 runs/*/ 聚五指标（候选数/确认率/FP率/假设命中率），出周报+history | 见 --help | reports/metrics_YYYYMMDD.md、metrics_history.jsonl | 纯离线 | `python metrics_weekly.py --days 7` |
 | oob_listener.py | `D:\PythonSource\PythonProjects\PythonProject4\oob_listener.py` | W11 OOB 回调监听（默认8899）：每请求记 {token,src_ip,ts} 到 oob_hits.jsonl；--pull 拉 VPS 命中 | 见 --help | oob_hits.jsonl | 本地监听；VPS 部署需随机前缀 | `python oob_listener.py --port 8899 --prefix ab12cd` |
 | race_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\race_triage.py` | W8 竞态执行器：三模式(h2单包/last-byte/barrier)测 check-then-act；矩阵判据只出 limit_overrun 布尔 | 见 --help | race_results.jsonl（基线vs并发矩阵） | 必须 .venv；写端点需 write_risk_ack==true；并发≤30 | `python race_triage.py --config race_config.json` |

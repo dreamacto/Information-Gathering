@@ -23,6 +23,7 @@ import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from urllib.parse import urljoin
@@ -326,6 +327,28 @@ def extract_title(sample: bytes) -> str:
     return " ".join(title.split())[:160]
 
 
+_WRITE_LOCK = threading.Lock()
+
+
+def _run_over_targets_cross_host(selected: list, cfg: dict, worker) -> None:
+    """跨 host 并发（操作者策略 20260823）：不同 host 的目标并行（默认 3 线程），
+    同一 host 的全部目标固定由同一线程串行处理——单 host 速率/限速/退避语义与单线程时代完全一致。
+    max_concurrency_default 在 gov_exercise_config.json rate_control 里调（1=回到纯串行）。"""
+    from concurrent.futures import ThreadPoolExecutor
+    max_workers = int((cfg.get("rate_control") or {}).get("max_concurrency_default", 1) or 1)
+    by_host: dict[str, list] = {}
+    for t in selected:
+        by_host.setdefault(t.host, []).append(t)
+    workers = max(1, min(max_workers, len(by_host)))
+    if workers <= 1:
+        for t in selected:
+            worker(t)
+        return
+    print(f"[*] 跨 host 并发：{workers} 线程 × {len(by_host)} 个 host（同 host 串行限速不变）", flush=True)
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        list(pool.map(lambda items: [worker(t) for t in items], by_host.values()))
+
+
 def run_probe(run_dir: Path, targets: list, cfg: dict, limit: int | None, delay: float, force: bool = False) -> None:
     timeout = int(cfg.get("probe_timeout_seconds", 8))
     selected = targets[:limit] if limit else targets
@@ -334,28 +357,35 @@ def run_probe(run_dir: Path, targets: list, cfg: dict, limit: int | None, delay:
     if not force:
         completed_urls = {row.get("url") for row in read_jsonl(output) if row.get("url")}
     rate = RateController(cfg, delay_override=delay)
-    for index, target in enumerate(selected, 1):
+    index_by_url = {t.url: i for i, t in enumerate(selected, 1)}
+
+    def _probe_one_target(target) -> None:
         if target.url in completed_urls:
-            append_jsonl(run_dir / "stage_skips.jsonl", {
-                "checked_at": now_iso(),
-                "stage": "probe",
-                "url": target.url,
-                "reason": "already_completed",
-            })
-            continue
+            with _WRITE_LOCK:
+                append_jsonl(run_dir / "stage_skips.jsonl", {
+                    "checked_at": now_iso(),
+                    "stage": "probe",
+                    "url": target.url,
+                    "reason": "already_completed",
+                })
+            return
         rate.wait_before(target.host)
         result = probe_one(target.url, timeout)
-        result["index"] = index
+        result["index"] = index_by_url.get(target.url, 0)
         result["name"] = target.name
         result["host"] = target.host
-        append_jsonl(output, result)
+        with _WRITE_LOCK:
+            append_jsonl(output, result)
         if not rate.record_result(target.host, result):
-            append_jsonl(run_dir / "rate_limit_skips.jsonl", {
-                "checked_at": now_iso(),
-                "host": target.host,
-                "reason": "repeated_errors",
-                "stage": "probe",
-            })
+            with _WRITE_LOCK:
+                append_jsonl(run_dir / "rate_limit_skips.jsonl", {
+                    "checked_at": now_iso(),
+                    "host": target.host,
+                    "reason": "repeated_errors",
+                    "stage": "probe",
+                })
+
+    _run_over_targets_cross_host(selected, cfg, _probe_one_target)
 
 
 def detect_categories(row: dict) -> list[str]:
@@ -495,27 +525,32 @@ def run_high_value_paths(run_dir: Path, targets: list, cfg: dict, limit: int | N
         completed_keys = {key_for_path(row) for row in read_jsonl(run_dir / "verified_exposures.jsonl")}
         completed_keys.update(key_for_path(row) for row in read_jsonl(run_dir / "false_positive_exposures.jsonl"))
     rate = RateController(cfg, delay_override=delay)
-    for index, target in enumerate(selected, 1):
+    index_by_url = {t.url: i for i, t in enumerate(selected, 1)}
+
+    def _hvp_one_target(target) -> None:
+        index = index_by_url.get(target.url, 0)
         if rate.error_counts.get(target.host, 0) >= rate.stop_on_repeated_errors:
-            continue
+            return
         home = home_by_url.get(target.url) or probe_one(target.url, timeout)
         for path, kind, keywords in HIGH_VALUE_PATHS:
             if (target.url.rstrip("/"), path) in completed_keys:
-                append_jsonl(run_dir / "stage_skips.jsonl", {
-                    "checked_at": now_iso(),
-                    "stage": "high_value_paths",
-                    "url": target.url,
-                    "path": path,
-                    "reason": "already_completed",
-                })
+                with _WRITE_LOCK:
+                    append_jsonl(run_dir / "stage_skips.jsonl", {
+                        "checked_at": now_iso(),
+                        "stage": "high_value_paths",
+                        "url": target.url,
+                        "path": path,
+                        "reason": "already_completed",
+                    })
                 continue
             if rate.error_counts.get(target.host, 0) >= rate.stop_on_repeated_errors:
-                append_jsonl(run_dir / "rate_limit_skips.jsonl", {
-                    "checked_at": now_iso(),
-                    "host": target.host,
-                    "reason": "repeated_errors",
-                    "stage": "high_value_paths",
-                })
+                with _WRITE_LOCK:
+                    append_jsonl(run_dir / "rate_limit_skips.jsonl", {
+                        "checked_at": now_iso(),
+                        "host": target.host,
+                        "reason": "repeated_errors",
+                        "stage": "high_value_paths",
+                    })
                 break
             rate.wait_before(target.host)
             candidate = check_path(target.url, path, timeout, keywords)
@@ -528,18 +563,22 @@ def run_high_value_paths(run_dir: Path, targets: list, cfg: dict, limit: int | N
                 "kind": kind,
                 "expected_keywords": keywords,
             })
-            append_jsonl(run_dir / "candidate_exposures.jsonl", candidate)
+            with _WRITE_LOCK:
+                append_jsonl(run_dir / "candidate_exposures.jsonl", candidate)
             false_like, false_reason = looks_like_spa_or_error(candidate, home)
             score, reasons = candidate_score(candidate, home, keywords)
             verified = dict(candidate)
             verified["verification_score"] = score
             verified["verification_reasons"] = reasons
             verified["false_positive_reason"] = false_reason
-            if not false_like and score >= 3:
-                append_jsonl(run_dir / "verified_exposures.jsonl", verified)
-            else:
-                append_jsonl(run_dir / "false_positive_exposures.jsonl", verified)
+            with _WRITE_LOCK:
+                if not false_like and score >= 3:
+                    append_jsonl(run_dir / "verified_exposures.jsonl", verified)
+                else:
+                    append_jsonl(run_dir / "false_positive_exposures.jsonl", verified)
             rate.record_result(target.host, candidate)
+
+    _run_over_targets_cross_host(selected, cfg, _hvp_one_target)
 
 
 def write_workflow_plan(run_dir: Path, workflow: dict, args: argparse.Namespace) -> None:
@@ -844,7 +883,17 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
     xss_reflection_checks = read_jsonl(run_dir / "xss_reflection_checks.jsonl")
     xss_reflection_count = sum(1 for row in xss_reflection_checks if row.get("marker_reflected"))
     shiro_candidate_count = len(read_jsonl(run_dir / "shiro_candidates.jsonl"))
-    subdomain_resolved_count = len(read_jsonl(run_dir / "subdomains_resolved.jsonl"))
+    # 统计口径修复（20260822 首跑复盘 P0-4）：resolved 只计真实解析成功，
+    # 失败尝试单列；全失败时给告警说明，防止下游把 attempts 当成"发现了 N 个资产"。
+    _sub_rows = read_jsonl(run_dir / "subdomains_resolved.jsonl")
+    _sub_ok = sum(1 for r in _sub_rows if r.get("status") == "resolved" or (r.get("ips") and not r.get("error")))
+    subdomain_attempt_count = len(_sub_rows)
+    subdomain_resolved_count = _sub_ok
+    subdomain_all_failed_note = (
+        "子域枚举 {} 次尝试全部失败（DNS 未解析成功）——注意：本工具按输入主机锚定作用域、"
+        "刻意不扩大到注册父域；若需覆盖根域子域，请在目标文件中登记根域（需授权确认）".format(subdomain_attempt_count)
+        if _sub_rows and _sub_ok == 0 else ""
+    )
     auto_merged_target_count = 0
     auto_merged_path = run_dir / "targets_with_auto_subdomains.txt"
     if auto_merged_path.exists():
@@ -956,6 +1005,9 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
         "mode": "probe" if args.probe else "check",
         "subdomain_bruteforce": bool(args.subdomain_bruteforce),
         "subdomains_resolved": subdomain_resolved_count,
+        "subdomain_resolve_attempts": subdomain_attempt_count,
+        "subdomain_resolve_failed": subdomain_attempt_count - subdomain_resolved_count,
+        "subdomain_all_failed_note": subdomain_all_failed_note,
         "targets_with_auto_subdomains": auto_merged_target_count,
         "tool_fingerprint": bool(args.tool_fingerprint),
         "tool_fingerprints": tool_fingerprint_count,
@@ -1079,7 +1131,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--subdomain-delay", type=float, default=1.5, help="Delay between DNS lookups in subdomain discovery")
     parser.add_argument("--subdomain-qps", type=float, default=0.0, help="Global DNS lookup start rate for subdomain discovery; overrides subdomain delay when > 0")
-    parser.add_argument("--subdomain-concurrency", type=int, default=1, help="Concurrent DNS workers for subdomain discovery; global qps/delay is still enforced")
+    parser.add_argument("--subdomain-concurrency", type=int, default=3, help="Concurrent DNS workers for subdomain discovery; global qps/delay is still enforced")
     parser.add_argument("--subdomain-max-queries", type=int, default=0, help="Maximum total DNS queries for subdomain discovery")
     parser.add_argument("--probe", action="store_true", help="Run low-rate HTTP metadata probing")
     parser.add_argument("--fingerprint", action="store_true", help="Classify existing probe results")
@@ -1177,6 +1229,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--no-evidence-build", action="store_true", help="Skip automatic report/evidence draft generation at the end")
     parser.add_argument("--limit", type=int, default=0, help="Limit target count for this run")
     parser.add_argument("--delay", type=float, default=None, help="Seconds between live HTTP requests")
+    parser.add_argument("--max-concurrency", type=int, default=0, help="跨 host 并发线程数上限（0=用 config 的 max_concurrency_default；保守模式可传 1 钉死串行）")
     return parser.parse_args()
 
 
@@ -1858,6 +1911,8 @@ def main() -> int:
     if args.xss_reflect_check:
         args.xss_triage = True
     cfg = load_config(args.config)
+    if getattr(args, "max_concurrency", 0):
+        cfg.setdefault("rate_control", {})["max_concurrency_default"] = int(args.max_concurrency)
     workflow_path = resolve_relative_config_path(args.config, args.workflow or cfg.get("workflow"), DEFAULT_WORKFLOW)
     workflow = load_workflow(workflow_path)
     strategy_path = resolve_relative_config_path(args.config, cfg.get("tool_strategy"), DEFAULT_TOOL_STRATEGY)
@@ -1903,6 +1958,16 @@ def main() -> int:
                 "continuing": True,
             })
             print(f"[!] 子域名阶段未捕获异常，已记录并继续后续流程: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
+    # 子域结果自动接入主流程（20260823 操作者需求）：解析成功的域内子域直接并入本次 run
+    # 的目标集继续探测，不再需要手动拿 subdomains_for_next_run.txt 去跑第二个 bat。
+    auto_merged_path = run_dir / "targets_with_auto_subdomains.txt"
+    if auto_merged_path.is_file():
+        merged_targets = load_targets(auto_merged_path)
+        if len(merged_targets) > len(targets):
+            print(f"[+] 子域自动接入主流程：目标 {len(targets)} → {len(merged_targets)}"
+                  f"（新增 {len(merged_targets) - len(targets)}），后续阶段直接续跑", flush=True)
+            targets = merged_targets
+            write_targets(run_dir, targets, auto_merged_path)
     if args.probe:
         run_probe(run_dir, targets, cfg, args.limit or None, float(delay), force=args.force)
     if args.fingerprint or args.probe:

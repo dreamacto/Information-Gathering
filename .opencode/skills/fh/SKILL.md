@@ -7,12 +7,12 @@ description: Review and close the outputs produced by the authorized one-click w
 
 These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
 
-1. **One session, one batch.** Review one batch of targets, then stop and record where you stopped. Do not try to clear the entire queue in one sitting.
+1. **One batch per review unit, ask at every batch boundary.** Review one batch of targets, write all verdicts and the resume cursor to disk, then ASK the operator: "本批次已完成——继续本会话审下一批，还是交接新会话？" If handoff, emit a self-contained handoff prompt that navigates the next session to run_dir/postrun_review/ (batch files, verdicts, queue, TOP) — never summarize from chat memory. If continue, proceed with the next batch. Do not try to clear the entire queue without the operator's per-batch choices.
 2. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
 3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
 4. **Tool results are used then cleared.** Do not accumulate tool output in context.
 5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
-6. **Stop at 70% context budget.** Wrap up, write state to disk, and tell the operator to open a new session.
+6. **70% context budget: wrap up and recommend handoff.** At 70%, write all state to disk and emit the handoff prompt with a recommendation to open a new session. Continuing past 70% requires the operator's explicit confirmation after your warning; do not silently continue.
 
 # fh: One-Click Workflow Post-Run Review
 

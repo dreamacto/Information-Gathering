@@ -59,7 +59,13 @@ python tools/miniapp_extract/extract_encrypted_wxapkg_domains.py \
 - 需要额外关键词深搜（`baseUrl`, `config`, `request`, 特定域名）来补充API端点
 - `urlparse` 遇到畸形URL已加 try/except 保护，不会再崩溃
 
-**解密脚本（单包调试用）：** `decrypt_wxapkg.py`（项目根目录，硬编码AppID，需要改代码才能复用）
+**解密脚本（20260823 起为可复用 CLI，算法经合成往返测试验证）：** `decrypt_wxapkg.py`（项目根目录，须 .venv 运行时）
+
+```
+.venv/Scripts/python.exe decrypt_wxapkg.py --appid <appid> --dir <包目录> --out <输出目录>
+```
+
+输出 `<名>.decrypted.wxapkg`（可继续喂 full_unpack）+ `decrypt_report.md/.jsonl`（非微信系 URL/域名线索）。无 V1MMWX 头的包自动按已解密透传。
 
 ### 2.2 工具选择流程
 

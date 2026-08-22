@@ -150,6 +150,9 @@ def run_sql_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
         append_jsonl(run_dir / "second_pass_results.jsonl", result)
         if stable:
             append_jsonl(run_dir / "second_pass_confirmed.jsonl", result)
+        # 循环内同步去重：源并集（interesting/confirmed/authenticated）可能含同一目标多份
+        key = f"{url}#{param}{'@POST' if (row.get('method') or 'GET').upper() == 'POST' else ''}"
+        completed.add(key)
     return tested, confirmed
 
 
@@ -218,6 +221,8 @@ def run_xss_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
         append_jsonl(run_dir / "second_pass_results.jsonl", result)
         if stable:
             append_jsonl(run_dir / "second_pass_confirmed.jsonl", result)
+        # 循环内同步去重：同一 (url,param) 只复测一次
+        completed.add(xss_key(candidate.url, candidate.param))
     return tested, confirmed
 
 
@@ -305,6 +310,7 @@ def run_api_second_pass(run_dir: Path, delay: float, timeout: int, limit: int, f
         append_jsonl(run_dir / "second_pass_results.jsonl", out)
         if stable:
             append_jsonl(run_dir / "second_pass_confirmed.jsonl", out)
+        completed.add(url)  # 循环内同步去重：api 源并集可能含同一 URL 多份
         time.sleep(delay)
     return tested, confirmed
 
@@ -382,6 +388,8 @@ def run_header_second_pass(run_dir: Path, delay: float, timeout: int, limit: int
         append_jsonl(run_dir / "second_pass_results.jsonl", result)
         if stable:
             append_jsonl(run_dir / "second_pass_confirmed.jsonl", result)
+        # 循环内同步去重：同一 header 目标只复测一次
+        completed.add(header_key(row))
     return tested, confirmed
 
 

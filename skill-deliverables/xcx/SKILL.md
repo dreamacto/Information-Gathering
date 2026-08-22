@@ -1,23 +1,25 @@
 ---
 name: xcx
-description: Advance a single phase of an authorized mini-program assessment. One session = one phase: start from a name, AppID, QR, package, unpacked source, device cache, traffic export, or entry URL, or a specified phase, do that one phase, write progress to phase_status.json, then stop. Use when an AI must push the current phase of a WeChat, Alipay, Douyin, Baidu, Quick App, or other mini-program — not assess it completely in one sitting.
+description: Advance phases of an authorized mini-program assessment. After each phase, write the cursor and handoff-complete records to disk, then ASK the operator whether to continue in this session or hand off — if handoff, emit a self-contained prompt for the new session. Sessions still hard-stop at approval-gated phases, heavy phases, or 70% context budget. Start from a name, AppID, QR, package, unpacked source, device cache, traffic export, or entry URL, or a specified phase. Use when an AI must push the current phase of a WeChat, Alipay, Douyin, Baidu, Quick App, or other mini-program — not assess it completely in one sitting.
 ---
 
 ## Highest-priority hard constraints (project discipline)
 
 These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
 
-1. **One session, one stage.** Advance exactly one phase, then stop and write progress to `phase_status.json` (or the run's status file). Do not chain further phases.
-2. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
-3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
-4. **Tool results are used then cleared.** Do not accumulate tool output in context.
-5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
-6. **Stop at 70% context budget.** Wrap up, write state to disk, and tell the operator to open a new session.
-7. **Refuse end-to-end requests.** Even if the operator asks you to “do the whole assessment in one session” or “complete everything at once”, decline and explain: you advance exactly one phase, then stop. A bulk or one-shot request does not override this discipline.
+1. **Session window: advance until a stop point, ask at every phase boundary.** You may advance multiple lightweight phases in one session (scope → subdomain → alive_probe → fingerprint style), but after EVERY phase you MUST do three things before anything else: (i) update the phase cursor on disk, (ii) update the target model and phase record (constraint 2), (iii) ASK the operator: "本阶段已完成——继续本会话，还是交接新会话？" If the operator wants a new session, emit a self-contained handoff prompt (constraint 3); if not, continue in this session. Hard stops remain: (a) an approval-gated phase (credential_testing / exploitability / approval_gate), (b) a heavy phase (authenticated_session_review / weak_credential_review / report), or (c) 70% context budget. Never run past a hard stop without explicit operator confirmation.
+2. **Phase records must be handoff-complete.** Every phase must leave behind: (a) an updated `notes/target-model.md` — the single evolving snapshot of the target (in-scope host map with roles, tech stack per host, entry points, auth topology, and EVERY attack surface ever considered with its status: open / ruled-out-with-reason / blocked-on-approval — cumulative, never shrinks); (b) a phase note recording what was tested, what was NOT tested and why (the negative space), and evidence cited as `path:line`. Negative results and ruled-out surfaces carry the same weight as findings: omitting them is how the next session misses attack surface. (c) an append-only `notes/operator_tasks.md` recording pending operator actions (token capture, seed records, cleanup of marker data, scope confirmations) with status and what each unlocks; the end-of-phase summary and every handoff prompt must surface the open items.
+3. **Handoff prompts are built from disk facts only.** When the operator chooses a new session, emit a prompt that navigates (never summarizes from chat memory): phase_status.json cursor → notes/target-model.md → review_ledger.csv → endpoint/package inventory → notes/safety-controls.md, plus the next phase name, current priority items, and the standing hard constraints. A new session reading the prompt plus those files must be able to continue with zero knowledge of this conversation.
+4. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
+5. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
+6. **Tool results are used then cleared.** Do not accumulate tool output in context.
+7. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
+8. **70% context budget: wrap up and recommend handoff.** At 70%, finish the current phase record (constraint 2), write all state to disk, and emit the handoff prompt (constraint 3) with a recommendation to open a new session. Continuing past 70% requires the operator's explicit confirmation after your warning; do not silently continue.
+9. **Refuse end-to-end requests.** If the operator asks you to “do the whole assessment in one session” or “complete everything at once”, decline and explain the session-window rule: phases advance under constraint 1 (ask-based handoff at each boundary, records written every phase), and approval-gated or heavy phases always stop. A bulk request does not override the approval gates or the record/handoff obligations.
 
 ## Session scope (stage gate)
 
-This skill is one stage of a larger engagement. Treat each session as advancing one phase: read the current contract, do the work, update the status file, then stop. References are loaded on demand, not all at once.
+This skill is one stage of a larger engagement. Treat each session as advancing phases under the ask-based handoff policy: read the current contract, do the work, update the status file and target model, then ask the operator continue-or-handoff. References are loaded on demand, not all at once.
 
 # Test One Mini-Program from Intake to Closure
 
@@ -99,14 +101,16 @@ material, host, endpoint, phase, ledger, evidence, and report artifacts.
 
 ## Execute one phase
 
-Do exactly three things, then stop:
+Do exactly four things, then ask:
 
 1. Read `phase_status.json` (or the run's status file) to find the current phase — the one marked
    `pending` or `in_progress` next in order, or the phase the operator named.
 2. Advance that single phase only. Use `references/workflow.md` as the phase dictionary to see what this
    phase covers; do not start any later phase.
-3. Update `phase_status.json` with this phase's result, then stop and tell the operator which phase is
-   next and to open a new session to continue.
+3. Update `phase_status.json` with this phase's result, plus the phase note and `notes/target-model.md`
+   (handoff-complete, per constraint 2).
+4. Tell the operator which phase is next, and ASK: continue in this session, or hand off? If handoff,
+   emit the self-contained handoff prompt per constraint 3.
 
 For each confirmed owned backend, when this phase is a backend assessment phase, apply the same scope,
 mapping, testing, validation, evidence, cleanup, and reporting requirements as the website/API process.

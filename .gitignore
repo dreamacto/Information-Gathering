@@ -121,3 +121,13 @@ nn-cc_platform_report.md
 
 # W11 OOB listener hit log (local runtime data, never commit)
 oob_hits.jsonl
+
+# Engagement workspaces contain captured sessions/PII evidence — never leave this machine (same policy as runs/)
+engagements/
+
+# 情报数据文件：本地保留、永不进库（真实目标指纹/误报记忆/沉淀游标）
+asset_fingerprint_lib.jsonl
+asset_fingerprint_views/
+knowledge_base/asset_fingerprint_lib.jsonl
+knowledge_base/fp_memory.jsonl
+knowledge_base/last_sweep.json

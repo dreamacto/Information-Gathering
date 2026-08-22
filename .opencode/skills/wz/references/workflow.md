@@ -49,6 +49,26 @@ Collect public ownership and architecture clues, DNS records, certificate names,
 historical URLs where allowed, public code or documentation references, and technology hints. Treat
 all discovered names as candidates until scope is confirmed.
 
+**Mandatory tool wiring (2026-08-23)**: when the operator has confirmed domain-level authorization
+(root domain registered, or explicit wildcard like *.example.com), the passive context step MUST run
+the project's built-in dictionary enumeration instead of hand-written spot checks:
+
+```
+python subdomain_bruteforce_controlled.py --targets <root-domain-list.txt> --out-dir <engagement>/artifacts/subdomain --delay 2 --concurrency 3
+```
+
+The tool already auto-anchors to the registered parent (www.example.com -> example.com) and
+suffix-filters results to in-domain hosts only. Post-processing rules:
+
+- Resolved in-domain subdomains go into `scope.csv` as `in_scope` with `source=subdomain_dns`
+  (domain-level authorization covers them); third-party or out-of-domain hits stay
+  `confirmation_required` and are never probed.
+- Sync every new host into `notes/target-model.md` and the endpoint inventory the same phase.
+- If the tool is unavailable or the operator explicitly wants passive-only for this target, record
+  that decision and the reason in the phase note (negative space) — silent omission is forbidden;
+  discovering hosts mid-flow via JS chains (like api.example.com surfacing in a later phase) after
+  skipping enumeration is exactly the failure this rule prevents.
+
 ### Active low-rate discovery
 
 For confirmed assets, collect DNS resolution, reachable schemes and ports, redirects, status, title,

@@ -390,6 +390,15 @@ def build_findings(run_dir: Path) -> list[dict]:
     by_key: dict[tuple[str, str], dict] = {}
 
     for source, row in source_rows:
+        # 活体证据门：固定路径探针行必须真实命中（status < 400）才能当指纹证据。
+        # 否则探针 path 本身（/actuator、/druid/index.html…）会被 regex 当成"产品存在"，
+        # 逐级放大成产品漏洞候选（20260822 run：43 探针全 404/403 仍产出 10 条指纹、7 条候选）。
+        if source == "candidate_exposures":
+            try:
+                if row.get("status") is None or int(row.get("status")) >= 400:
+                    continue
+            except (TypeError, ValueError):
+                continue
         base_url = row_url(row)
         text = row_text(row)
         if not base_url or not text:
@@ -432,12 +441,19 @@ def build_findings(run_dir: Path) -> list[dict]:
                 "kind": row.get("kind"),
                 "title": row.get("title"),
                 "finding": row.get("finding"),
+                "status": row.get("status"),
             })
 
     findings = []
     for item in by_key.values():
         item["score"] = min(100, int(item["score"]))
         item["confidence"] = confidence_label(item["score"])
+        # 二次佐证规则：证据全部来自 impact_candidates（JS 关键词）的指纹，
+        # 无论分数多高一律封顶 low——第三方压缩库里的 't+'/'redis' 命中不构成产品存在证明。
+        ev_sources = {e.get("source") for e in item["evidence"]}
+        if ev_sources and ev_sources <= {"impact_candidates"}:
+            item["confidence"] = "low"
+            item["notes"] = (item.get("notes") or "") + " | JS-keyword-only match, needs corroboration"
         item["evidence"] = item["evidence"][:8]
         findings.append(item)
     findings.sort(key=lambda row: (-row["score"], row["family"], row["host"], row["product_id"]))

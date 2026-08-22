@@ -127,7 +127,13 @@ def read_jsonl(path: Path) -> list[dict]:
 
 
 def endpoint_key(url: str, param: str) -> str:
-    return hashlib.sha256(f"{url.rstrip()}#{param}".encode("utf-8", errors="ignore")).hexdigest()
+    # 键归一化：参数值不影响反射行为，同端点同参数名只算一个候选
+    # （20260822 复盘：BrandCarModel.html?source=ID3/ID4X/… 生成了 8 条实质相同的候选）
+    parsed = urlparse(url.rstrip())
+    pairs = parse_qsl(parsed.query, keep_blank_values=True)
+    normalized_query = "&".join(sorted(f"{safe_param_name(name)}=" for name, _v in pairs))
+    normalized = urlunparse(parsed._replace(query=normalized_query))
+    return hashlib.sha256(f"{normalized}#{param}".encode("utf-8", errors="ignore")).hexdigest()
 
 
 def safe_param_name(name: str) -> str:
