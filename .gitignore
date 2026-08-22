@@ -131,3 +131,4 @@ asset_fingerprint_views/
 knowledge_base/asset_fingerprint_lib.jsonl
 knowledge_base/fp_memory.jsonl
 knowledge_base/last_sweep.json
+knowledge_base/hypothesis_ledger.jsonl
