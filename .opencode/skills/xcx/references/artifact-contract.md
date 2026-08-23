@@ -18,7 +18,8 @@
 | `notes/coverage.md` | Matrix coverage, accounts, devices, versions, limitations |
 | `notes/safety-controls.md` | Rate limits, read-only automation mode, write-approval gates, stop thresholds |
 | `evidence/index.csv` | Evidence IDs, finding IDs, timestamps, hashes, sensitivity, paths |
-| `reports/final-report.md` | Final client/backend/platform-separated report |
+| `reports/攻防成果报告_<engagement>_<日期>.docx` | **Final deliverable（主交付，2026-08-23 起）**：`python report_docx.py` 生成（meta/findings.json 或 --from-ledger 骨架）；红色【需截图】标注补齐前未完成 |
+| `reports/final-report.md` | Working notes（过程稿，不再作为对外交付物） |
 
 ## Material states
 

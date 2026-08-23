@@ -48,3 +48,18 @@ inflate severity from a product version or theoretical exploit chain that was no
 Each finding includes title, severity, affected asset, description, preconditions, evidence, impact,
 root cause, remediation, verification guidance, cleanup, and references. Keep raw secrets and sensitive
 data out of the report.
+
+
+## Final report is DOCX (2026-08-23)
+
+The client-facing deliverable is generated, not hand-written:
+
+1. Reporting phase: curate `reports/findings.json` (one entry per reportable finding — merge related
+   ledger rows; title quantifies impact; `commands` are complete one-line curl reproductions using
+   $BASE/$TOKEN env vars; TOKEN value stays in local session files, the report writes
+   `<见本地凭证文件>`) and `reports/meta.json` (intro/stats/problems/suggestions).
+2. Run `python report_docx.py --meta ... --findings ... --out reports/攻防成果报告_<名>_<日期>.docx`
+   (skeleton first pass: `--from-ledger <engagement>` fills titles/URLs/levels from confirmed rows).
+3. The generator inserts red 【需截图 S-N】 markers automatically — every marker must be replaced
+   with a real screenshot (system time visible, sensitive values redacted) before submission.
+4. `final-report.md` remains internal working notes only.

@@ -80,6 +80,12 @@ ROOT_SCRIPTS = {
         "example": "python idor_triage.py --run-dir runs/<ts> --sessions sessions.jsonl --requests api_confirmed.jsonl",
         "risk": "只读（需≥2凭证、delay≥3s、每host≤5端点）",
     },
+    "report_docx.py": {
+        "scene": "攻防成果报告 docx 生成器（北港网格式）：findings.json+meta.json 渲染 / --from-ledger 台账骨架 / --demo 模板；自动插入红色【需截图】标注",
+        "outputs": "reports/攻防成果报告_<名>_<日期>.docx",
+        "example": "python report_docx.py --meta reports/meta.json --findings reports/findings.json",
+        "risk": "纯离线渲染",
+    },
     "run_lifecycle.py": {
         "scene": "run 完成态查询器：从盘上产物推导 scan/review/planned/light_exhausted/swept 状态，回答'跑完了吗/下一步是什么'；--mark 人工标记",
         "outputs": "run_lifecycle.json（run 目录内）",

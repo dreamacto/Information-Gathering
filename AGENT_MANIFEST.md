@@ -1,13 +1,13 @@
 # AGENT_MANIFEST.md — 机器可读工具清单
 
-> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-22 23:31）
+> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-23 11:37）
 
 > 用法：AI 选工具前先查本清单；所有新工具/新 phase 由生成器登记，不手写本文件。
 
 ## 全局速率红线（gov_exercise_config.json rate_control）
 
 - 默认请求间隔 ≥2.0s（jitter ±25%）；单 host 最小间隔 ≥2.0s
-- 退避：[429, 500, 502, 503, 504] → 停 10s；并发上限 1；同 host 连续错误 5 次 → 停该 host
+- 退避：[429, 500, 502, 503, 504] → 停 10s；并发上限 3；同 host 连续错误 5 次 → 停该 host
 
 ## 禁止动作（blocked_actions 全表）
 
@@ -34,12 +34,13 @@
 | 一键竞态测试_授权目标.bat | 读配方D 产出的 race_config.json 对授权目标执行竞态；开场强制 YES 确认；必须 .venv | 审批门：写端点需 write_risk_ack | `一键竞态测试_授权目标.bat` |
 | AI配方_一键复制.bat | 菜单选 1-6 把 prompts/ 配方A-F 全文复制到剪贴板，粘贴给任意 AI 启动对应会话（copy_prompt.py） | 离线复制，零网络请求 | `AI配方_一键复制.bat` |
 
-## 根目录核心脚本（48 个）
+## 根目录核心脚本（49 个）
 
 | 工具 | 路径 | 用途 | 输入 | 输出 | 风险 | 示例 |
 |---|---|---|---|---|---|---|
 | fh_review_dispatch.py | `D:\PythonSource\PythonProjects\PythonProject4\fh_review_dispatch.py` | W6 复核编排：把 postrun_review 工作区切成子代理批次(batch md 自包含) + 聚合 verdict 回台账；零网络 | 见 --help | postrun_review/review_batches/*.md、verdicts/*.json、findings_ledger.csv、fp_memory.jsonl、TOP_人工复核.md | 离线编排 | `python fh_review_dispatch.py --run-dir runs/<ts> --prepare --batch-size 8` |
 | idor_triage.py | `D:\PythonSource\PythonProjects\PythonProject4\idor_triage.py` | W7 IDOR 水平越权差分：基线A/B重放/匿名三请求对比结构指纹与 Jaccard，只读 GET/HEAD | 见 --help | <run_dir>/idor_candidates.jsonl、idor_manual_review.md | 只读（需≥2凭证、delay≥3s、每host≤5端点） | `python idor_triage.py --run-dir runs/<ts> --sessions sessions.jsonl --requests api_confirmed.jsonl` |
+| report_docx.py | `D:\PythonSource\PythonProjects\PythonProject4\report_docx.py` | 攻防成果报告 docx 生成器（北港网格式）：findings.json+meta.json 渲染 / --from-ledger 台账骨架 / --demo 模板；自动插入红色【需截图】标注 | 见 --help | reports/攻防成果报告_<名>_<日期>.docx | 纯离线渲染 | `python report_docx.py --meta reports/meta.json --findings reports/findings.json` |
 | run_lifecycle.py | `D:\PythonSource\PythonProjects\PythonProject4\run_lifecycle.py` | run 完成态查询器：从盘上产物推导 scan/review/planned/light_exhausted/swept 状态，回答'跑完了吗/下一步是什么'；--mark 人工标记 | 见 --help | run_lifecycle.json（run 目录内） | 纯离线 | `python run_lifecycle.py runs/<ts>` |
 | waf_profile.py | `D:\PythonSource\PythonProjects\PythonProject4\waf_profile.py` | WAF/拦截画像合成：零请求聚合 candidate_exposures/sqli_candidates/second_pass/light_verify 的 4xx 证据，每 host 出拦截层/统一拦截页判定，防 WAF 差异被误读成业务信号 | 见 --help | waf_profile.jsonl、reports/waf_profile.md | 纯离线 | `python waf_profile.py --run-dir runs/<ts>` |
 | light_diff_probe.py | `D:\PythonSource\PythonProjects\PythonProject4\light_diff_probe.py` | 标准化只读差分探针（baseline/quote/dquote/boolean/empty），统一限速/元数据落盘/连续拦截提前停——替代 AI 手搓探测脚本；须 .venv | 见 --help | --out 指定 jsonl（元数据） | 只读 GET；并发1；delay 默认 3s；预算默认 8 请求/URL | `.venv/Scripts/python.exe light_diff_probe.py --url "https://x/api?q=1" --probes baseline,quote` |

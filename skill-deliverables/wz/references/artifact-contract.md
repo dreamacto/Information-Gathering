@@ -13,7 +13,8 @@
 | `notes/safety-controls.md` | Rate limits, read-only automation mode, write-approval gates, stop thresholds |
 | `artifacts/endpoint-inventory.csv` | Methods, routes, parameters, auth, roles, source, status |
 | `evidence/index.csv` | Evidence IDs, finding IDs, timestamps, hashes, sensitivity, paths |
-| `reports/final-report.md` | Final deliverable |
+| `reports/攻防成果报告_<engagement>_<日期>.docx` | **Final deliverable（主交付，2026-08-23 起）**：由 `python report_docx.py --meta reports/meta.json --findings reports/findings.json` 生成（或 `--from-ledger` 出骨架再补）；红色【需截图】标注补齐前报告未完成 |
+| `reports/final-report.md` | Working notes（过程稿，供 findings.json 取材，不再作为对外交付物） |
 
 The initializer creates empty templates for these artifacts. Populate them with structured data as the
 engagement progresses. Additional tool outputs belong under `artifacts/` or `logs/`, not beside the
