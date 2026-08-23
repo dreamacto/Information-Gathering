@@ -94,6 +94,23 @@ def _tech_name_version(tech: str) -> tuple[str, str | None]:
     return name, None
 
 
+# 入库卫生门（2026-08-23）：占位域不入库；纯 JS 关键词指纹（product_triage 打了
+# needs-corroboration 标记的）不入库——今晨根库被灌 10 条误报指纹的事故防线。
+PLACEHOLDER_HOST_RE = re.compile(
+    r"(^|\.)(example|invalid|test|localhost|local|placeholder|replace[-_]me)(\.|$)",
+    re.I,
+)
+
+
+def _row_allowed(row: dict, host: str) -> bool:
+    if PLACEHOLDER_HOST_RE.search((host or "").lower()):
+        return False
+    notes = str(row.get("notes") or "")
+    if "JS-keyword-only" in notes:
+        return False
+    return True
+
+
 PRODUCT_PRIORITY = {
     "product_fingerprints": 3,
     "shiro_candidates": 2,
@@ -113,6 +130,8 @@ def extract_rows(run_dir: Path) -> list[dict]:
         product = str(row.get("product_id") or row.get("product") or "").strip()
         if not product:
             continue
+        if not _row_allowed(row, str(row.get("host") or "")):
+            continue
         rows.append({
             "url": url,
             "host": row.get("host") or (urlsplit(url).hostname or ""),
@@ -130,6 +149,8 @@ def extract_rows(run_dir: Path) -> list[dict]:
         if not url:
             continue
         host = row.get("host") or (urlsplit(url).hostname or "")
+        if not _row_allowed(row, str(host)):
+            continue
         for tech in row.get("technologies") or []:
             name, version = _tech_name_version(str(tech))
             if not name:
@@ -151,6 +172,8 @@ def extract_rows(run_dir: Path) -> list[dict]:
         if not url:
             continue
         if str(row.get("confidence") or "") != "high":
+            continue
+        if not _row_allowed(row, str(row.get("host") or urlsplit(url).hostname or "")):
             continue
         rows.append({
             "url": url,

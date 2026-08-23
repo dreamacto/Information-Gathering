@@ -27,7 +27,6 @@ NUCLEI_TEMPLATE_ROOT = BASE_DIR / "tools" / "managed" / "nuclei-templates" / "10
 SOURCE_FILES = {
     "fingerprints": "fingerprints.jsonl",
     "verified_exposures": "verified_exposures.jsonl",
-    "candidate_exposures": "candidate_exposures.jsonl",
     "impact_candidates": "impact_candidates.jsonl",
     "api_candidates": "api_candidates.jsonl",
     "api_interesting": "api_interesting.jsonl",
@@ -67,32 +66,32 @@ RULES: tuple[ProductRule, ...] = (
     ProductRule("weaver_eoffice", "Weaver E-Office", "oa", (r"e-office", r"eoffice", r"e-mobile", r"泛微"), ("e-office", "eoffice", "weaver", "e-mobile"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "oa_weaver", "Separate E-Office/E-Mobile paths from E-Cology before validation."),
     ProductRule("seeyon", "Seeyon OA", "oa", (r"\bseeyon\b", r"\bseeyou\b", r"致远", r"/seeyon/"), ("seeyon", "seeyou"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "oa_seeyon", "Default queue only; file upload/RCE templates require explicit approval."),
     ProductRule("tongda", "Tongda OA", "oa", (r"\btongda\b", r"通达", r"office anywhere", r"/general/login"), ("tongda"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "oa_tongda", "Check unauth/session exposure first; do not run arbitrary-login templates full-scope."),
-    ProductRule("yonyou", "Yonyou", "oa_erp", (r"\byonyou\b", r"用友", r"\bu8\b", r"\bnc\b", r"nccloud", r"grp-u8"), ("yonyou", "u8", "nc", "grp"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "erp_yonyou", "ERP targets need strict evidence minimization; file/data export checks stay manual."),
+    ProductRule("yonyou", "Yonyou", "oa_erp", (r"\byonyou\b", r"用友", r"nccloud", r"grp-u8"), ("yonyou", "u8", "nc", "grp"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "erp_yonyou", "ERP targets need strict evidence minimization; file/data export checks stay manual."),
     ProductRule("wanhu", "Wanhu OA", "oa", (r"\bwanhu\b", r"万户", r"ezoffice"), ("wanhu", "ezoffice"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "oa_wanhu", "Prefer panel/version/info exposure confirmation before any exploit template."),
-    ProductRule("landray", "Landray OA", "oa", (r"\blandray\b", r"蓝凌", r"\bekp\b", r"/sys/ui/"), ("landray", "lanray"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "oa_landray", "RCE and upload templates are approval-gated."),
-    ProductRule("kingdee", "Kingdee EAS/K3 Cloud", "oa_erp", (r"\bkingdee\b", r"金蝶", r"\beas\b", r"k3.?cloud", r"apusic"), ("kingdee", "eas", "k3", "apusic"), ("dddd/nuclei", "OA-EXPTOOL"), ("afrog", "manual proxy"), "erp_kingdee", "Start with product/version and file-read exposure review; uploads and RCE require approval."),
-    ProductRule("chanjet", "Chanjet T+", "oa_erp", (r"\bchanjet\b", r"畅捷通", r"tplus", r"t\+"), ("chanjet", "畅捷通", "tplus"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "erp_chanjet", "File read, SQL injection, upload, and auth checks are operator-gated."),
+    ProductRule("landray", "Landray OA", "oa", (r"\blandray\b", r"蓝凌", r"\bekp\b"), ("landray", "lanray"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "oa_landray", "RCE and upload templates are approval-gated."),
+    ProductRule("kingdee", "Kingdee EAS/K3 Cloud", "oa_erp", (r"\bkingdee\b", r"金蝶", r"k3.?cloud", r"apusic"), ("kingdee", "eas", "k3", "apusic"), ("dddd/nuclei", "OA-EXPTOOL"), ("afrog", "manual proxy"), "erp_kingdee", "Start with product/version and file-read exposure review; uploads and RCE require approval."),
+    ProductRule("chanjet", "Chanjet T+", "oa_erp", (r"\bchanjet\b", r"畅捷通", r"tplus"), ("chanjet", "畅捷通", "tplus"), ("OA-EXPTOOL", "dddd/nuclei"), ("afrog", "manual proxy"), "erp_chanjet", "File read, SQL injection, upload, and auth checks are operator-gated."),
     ProductRule("hongfan", "Hongfan OA", "oa", (r"\bhongfan\b", r"红帆", r"ioffice"), ("hongfan", "红帆", "ioffice"), ("dddd/nuclei", "manual browser"), ("afrog",), "oa_hongfan", "Queue product-specific templates only after fingerprint confirmation."),
     ProductRule("jinher", "Jinher OA", "oa", (r"\bjinher\b", r"金和", r"c6.?oa"), ("jinher", "金和", "c6"), ("dddd/nuclei", "manual browser"), ("afrog",), "oa_jinher", "Prefer disclosure and panel checks; write or execution payloads require approval."),
     ProductRule("ruoyi", "RuoYi", "framework", (r"\bruoyi\b", r"若依", r"/prod-api/", r"ruoyi-admin"), ("ruoyi"), ("dddd/nuclei", "manual browser"), ("afrog", "Shiro triage"), "framework_ruoyi", "Often overlaps Shiro/Druid/SpringBoot; route to those branches too."),
     ProductRule("jeecgboot", "JeecgBoot", "framework", (r"jeecg", r"jeecgboot", r"jeecg-boot"), ("jeecg"), ("dddd/nuclei", "manual browser"), ("afrog", "API review"), "framework_jeecg", "Swagger and unauth checks are usually more useful than broad path scans."),
-    ProductRule("springboot", "Spring Boot", "middleware", (r"spring.?boot", r"spring_actuator", r"/actuator", r"actuator_"), ("springboot", "spring-boot", "actuator"), ("springboot_triage.py", "nuclei"), ("SpringBoot-Scan.py manual",), "java_springboot", "Only read actuator metadata by default; heapdump/env needs careful review."),
+    ProductRule("springboot", "Spring Boot", "middleware", (r"spring.?boot", r"spring_actuator", r"actuator_"), ("springboot", "spring-boot", "actuator"), ("springboot_triage.py", "nuclei"), ("SpringBoot-Scan.py manual",), "java_springboot", "Only read actuator metadata by default; heapdump/env needs careful review."),
     ProductRule("druid", "Alibaba Druid", "middleware", (r"\bdruid\b", r"druid monitor", r"druid stat"), ("druid"), ("runner high-value paths", "dddd/nuclei"), ("manual browser",), "middleware_druid", "Druid panels may be login-only; JSON endpoints need truth verification."),
     ProductRule("swagger", "Swagger/Knife4j/OpenAPI", "api", (r"swagger", r"knife4j", r"openapi", r"api-docs", r"swagger_api"), ("swagger", "openapi", "knife4j"), ("api_discovery.py", "api_endpoint_confirm.py"), ("dddd/nuclei", "manual browser"), "api_docs", "Extract schema and GET-like endpoints only; skip writes/downloads by default."),
     ProductRule("shiro", "Apache Shiro", "middleware", (r"\bshiro\b", r"rememberme", r"shiro_"), ("shiro"), ("shiro_triage.py",), ("ShiroAttack2 single-target manual",), "java_shiro", "Default branch only screens rememberMe behavior; key testing is manual approval."),
-    ProductRule("log4j", "Apache Log4j", "java_component", (r"log4j", r"log4shell", r"cve-2021-44228", r"jndi", r"ldap://", r"rmi://"), ("log4j", "log4shell", "cve-2021-44228"), ("nuclei", "manual request review"), ("dddd legacy templates",), "java_log4j", "Queue only. Safe confirmation normally needs version evidence; JNDI/RCE callbacks are approval-gated."),
+    ProductRule("log4j", "Apache Log4j", "java_component", (r"log4j", r"log4shell", r"cve-2021-44228"), ("log4j", "log4shell", "cve-2021-44228"), ("nuclei", "manual request review"), ("dddd legacy templates",), "java_log4j", "Queue only. Safe confirmation normally needs version evidence; JNDI/RCE callbacks are approval-gated."),
     ProductRule("thinkphp", "ThinkPHP", "cms_framework", (r"thinkphp", r"thinkcmf", r"index\.php\?s="), ("thinkphp", "thinkcmf"), ("dddd/nuclei", "afrog"), ("manual browser",), "php_thinkphp", "Keep RCE templates approval-gated; use version/info checks first."),
     ProductRule("wordpress", "WordPress", "cms", (r"wordpress", r"wp-content", r"wp-includes"), ("wordpress", "wp-"), ("dddd/nuclei", "manual browser"), ("afrog",), "cms_wordpress", "Enumerate exposed version/plugin metadata only; credential and active plugin checks are gated."),
     ProductRule("dedecms", "DedeCMS", "cms", (r"dedecms", r"织梦", r"/dede/"), ("dedecms", "dede"), ("dddd/nuclei", "afrog"), ("manual browser",), "cms_dedecms", "Use panel/version and disclosure checks before any exploit template."),
     ProductRule("discuz", "Discuz!", "cms", (r"discuz", r"comsenz", r"forum\.php"), ("discuz", "comsenz"), ("dddd/nuclei", "afrog"), ("manual browser",), "cms_discuz", "No account guessing; route only confirmed products."),
-    ProductRule("confluence", "Atlassian Confluence", "collaboration", (r"confluence", r"x-confluence", r"/wiki/"), ("confluence",), ("dddd/nuclei", "manual browser"), ("afrog",), "collab_confluence", "Version and public-space checks are safe candidates; RCE/auth bypass stays gated."),
+    ProductRule("confluence", "Atlassian Confluence", "collaboration", (r"confluence", r"x-confluence"), ("confluence",), ("dddd/nuclei", "manual browser"), ("afrog",), "collab_confluence", "Version and public-space checks are safe candidates; RCE/auth bypass stays gated."),
     ProductRule("jira", "Atlassian Jira", "collaboration", (r"atlassian.?jira", r"x-arequestid", r"/secure/dashboard"), ("jira", "atlassian"), ("dddd/nuclei", "manual browser"), ("afrog",), "collab_jira", "Review public projects and version exposure; do not test credentials automatically."),
     ProductRule("fastjson", "Fastjson", "java_component", (r"fastjson", r"com\.alibaba\.fastjson"), ("fastjson"), ("fastjson_triage.py", "nuclei"), ("FastjsonScan.exe",), "java_fastjson", "Treat RCE templates as approval-gated; version detection is safe to queue."),
-    ProductRule("weblogic", "WebLogic", "middleware", (r"weblogic", r"bea weblogic", r"/console/login"), ("weblogic"), ("tomcat_triage.py", "nuclei"), ("nuclei weblogic cves templates",), "middleware_weblogic", "Prefer console/version/protocol detection; exploit checks need approval."),
+    ProductRule("weblogic", "WebLogic", "middleware", (r"weblogic", r"bea weblogic"), ("weblogic"), ("tomcat_triage.py", "nuclei"), ("nuclei weblogic cves templates",), "middleware_weblogic", "Prefer console/version/protocol detection; exploit checks need approval."),
     ProductRule("struts2", "Apache Struts", "framework", (r"struts", r"struts2", r"\.action\b"), ("struts"), ("struts2_triage.py", "nuclei"), ("Struts2Scan.py",), "java_struts", "Only route candidates; OGNL/RCE payload validation is approval-gated."),
     ProductRule("tomcat", "Apache Tomcat", "middleware", (r"tomcat", r"catalina", r"/manager/html", r"apache-coyote"), ("tomcat"), ("tomcat_triage.py", "nuclei"), ("manual browser",), "middleware_tomcat", "Manager/default-login checks must not brute force."),
     ProductRule("nacos", "Nacos", "middleware", (r"\bnacos\b", r"/nacos/"), ("nacos"), ("nacos_triage.py", "nuclei"), ("nuclei nacos templates",), "middleware_nacos", "Default identity/token checks are sensitive; queue for single-target review."),
-    ProductRule("redis", "Redis/ES/ZK", "middleware", (r"\bredis\b", r"elasticsearch", r"\bzk\b", r"zookeeper"), ("redis", "elasticsearch", "zookeeper"), ("redis_triage.py", "nuclei"), ("redis-cli manual",), "middleware_store", "PING/connect probes only; ssh-key/crontab writes and index reads are approval-gated."),
+    ProductRule("redis", "Redis/ES/ZK", "middleware", (r"\bredis\b", r"elasticsearch", r"zookeeper"), ("redis", "elasticsearch", "zookeeper"), ("redis_triage.py", "nuclei"), ("redis-cli manual",), "middleware_store", "PING/connect probes only; ssh-key/crontab writes and index reads are approval-gated."),
     ProductRule("solr", "Apache Solr", "middleware", (r"\bsolr\b", r"/solr/"), ("solr"), ("dddd/nuclei", "manual browser"), ("afrog",), "middleware_solr", "Use dashboard/version checks first; file read/RCE stays approval-gated."),
     ProductRule("jenkins", "Jenkins", "devops", (r"jenkins", r"x-jenkins", r"/jenkins/"), ("jenkins"), ("dddd/nuclei", "manual browser"), ("afrog",), "devops_jenkins", "No credential guessing; only public panel/registration/script exposure triage."),
     ProductRule("grafana", "Grafana", "devops", (r"grafana", r"/grafana/"), ("grafana"), ("dddd/nuclei", "manual browser"), ("afrog",), "devops_grafana", "Public signup/default login checks need operator approval."),
@@ -259,28 +258,19 @@ def row_url(row: dict) -> str:
 
 
 def row_text(row: dict) -> str:
+    """2026-08-23 终极修复：只拼响应侧字段。
+
+    请求回声字段（url/final_url/host/path/kind/name/source/categories/verification_reasons）
+    全部剔除——探针 URL 里当然含产品名，把它们拼进匹配文本等于"我探了 /swagger-ui.html
+    所以这站有 Swagger"的循环论证（8/20 run 的 101 条假 Swagger、njrc168 的 SPA 兜底页
+    全是这么来的）。产品存在的证据只能来自对方响应：标题/服务器头/内容类型/正文关键词
+    命中/JSON 顶层键/技术栈清单/JS 片段内容。"""
     parts = []
-    for key in (
-        "url",
-        "base_url",
-        "final_url",
-        "host",
-        "server",
-        "content_type",
-        "title",
-        "kind",
-        "path",
-        "name",
-        "finding",
-        "keyword",
-        "source",
-        "snippet",
-        "confidence",
-    ):
+    for key in ("title", "server", "content_type", "snippet", "finding", "keyword"):
         value = row.get(key)
         if value:
             parts.append(str(value))
-    for key in ("categories", "tags", "source_tags", "top_level_keys", "verification_reasons", "body_keyword_hits", "technologies"):
+    for key in ("body_keyword_hits", "top_level_keys", "technologies"):
         value = row.get(key)
         if isinstance(value, list):
             parts.extend(str(item) for item in value)
@@ -303,7 +293,6 @@ def source_weight(source: str) -> int:
         "shiro_candidates": 30,
         "authenticated_impact_candidates": 30,
         "impact_candidates": 22,
-        "candidate_exposures": 18,
         "api_candidates": 16,
         "fingerprints": 14,
     }.get(source, 10)
@@ -443,6 +432,16 @@ def build_findings(run_dir: Path) -> list[dict]:
                 "finding": row.get("finding"),
                 "status": row.get("status"),
             })
+
+    # 证据来源审计（2026-08-23）：仅剩 impact_candidates（JS 关键词）单源支撑的条目直接丢弃——
+    # 前端第三方库里出现产品名词不构成该主机运行该产品的证据；有响应类证据佐证时才保留。
+    _js_only = [k for k, v in by_key.items()
+                if {e.get("source") for e in v.get("evidence", [])} and
+                   {e.get("source") for e in v.get("evidence", [])} <= {"impact_candidates"}]
+    for k in _js_only:
+        by_key.pop(k, None)
+    if _js_only:
+        print(f"[!] 丢弃 {len(_js_only)} 条仅 JS 关键词单源支撑的指纹（无响应类佐证）", flush=True)
 
     findings = []
     for item in by_key.values():

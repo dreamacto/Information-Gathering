@@ -24,6 +24,7 @@ import ssl
 import subprocess
 import sys
 import threading
+import uuid
 import time
 from pathlib import Path
 from urllib.parse import urljoin
@@ -69,12 +70,12 @@ HIGH_VALUE_PATHS = [
     ("/actuator/beans", "spring_actuator", ["contexts", "beans"]),
     ("/actuator/mappings", "spring_actuator", ["dispatcherServlets", "handler"]),
     ("/actuator/metrics", "spring_actuator", ["names", "jvm.", "process."]),
-    ("/actuator/logfile", "spring_actuator", ["ERROR", "INFO", "WARN"]),
+    ("/actuator/logfile", "spring_actuator", [" --- ", "JVM running", "Tomcat started"]),  # 日志分隔符/启动标志，样板词 ERROR/INFO/WARN 任何错误页都有
     ("/actuator/heapdump", "spring_heapdump", ["JAVA PROFILE", "heap"]),
     ("/druid/index.html", "druid", ["Druid Stat", "Druid Monitor"]),
     ("/druid/login.html", "druid", ["Druid Stat", "Druid Monitor"]),
-    ("/druid/basic.json", "druid", ["ResultCode", "Content", "Version"]),
-    ("/druid/datasource.json", "druid", ["ResultCode", "Content", "Identity"]),
+    ("/druid/basic.json", "druid", ["ResultCode", "Version"]),  # Content 是 http-equiv 样板词
+    ("/druid/datasource.json", "druid", ["ResultCode", "Identity"]),
     ("/swagger-ui.html", "swagger", ["swagger", "Swagger UI"]),
     ("/swagger-ui/index.html", "swagger", ["swagger", "Swagger UI"]),
     ("/swagger-ui/", "swagger", ["swagger", "Swagger UI"]),
@@ -84,7 +85,7 @@ HIGH_VALUE_PATHS = [
     ("/v2/api-docs", "swagger_api", ["swagger", "paths"]),
     ("/v3/api-docs", "swagger_api", ["openapi", "paths"]),
     ("/v3/api-docs/swagger-config", "swagger_api", ["configUrl", "urls", "swagger"]),
-    ("/swagger-resources", "swagger_api", ["swaggerVersion", "location", "name"]),
+    ("/swagger-resources", "swagger_api", ["swaggerVersion", "\"location\"", "\"name\""]),  # JSON 字段带引号，HTML 样板不带
     ("/.git/HEAD", "git_exposure", ["ref:"]),
     ("/.git/config", "git_exposure", ["[core]", "[remote", "repositoryformatversion"]),
     ("/.svn/entries", "svn_exposure", ["dir", "file"]),
@@ -99,12 +100,12 @@ HIGH_VALUE_PATHS = [
     ("/manager/html", "tomcat_manager", ["Tomcat", "Manager App"]),
     ("/phpinfo.php", "php_info", ["PHP Version", "phpinfo"]),
     ("/info.php", "php_info", ["PHP Version", "phpinfo"]),
-    ("/composer.json", "php_config", ["require", "autoload", "name"]),
+    ("/composer.json", "php_config", ["\"autoload\"", "\"require\"", "\"repositories\""]),
     ("/application.properties", "java_config", ["spring.", "server.", "datasource"]),
     ("/bootstrap.properties", "java_config", ["spring.", "server.", "datasource"]),
     ("/application.yml", "java_config", ["spring:", "server:", "datasource:"]),
     ("/bootstrap.yml", "java_config", ["spring:", "server:", "datasource:"]),
-    ("/WEB-INF/web.xml", "java_config", ["<web-app", "servlet", "filter"]),
+    ("/WEB-INF/web.xml", "java_config", ["<web-app", "<servlet", "<filter"]),  # XML 标签带尖括号
     ("/WEB-INF/classes/application.properties", "java_config", ["spring.", "server.", "datasource"]),
 ]
 
@@ -388,29 +389,23 @@ def run_probe(run_dir: Path, targets: list, cfg: dict, limit: int | None, delay:
     _run_over_targets_cross_host(selected, cfg, _probe_one_target)
 
 
+# 分类匹配改词边界正则（2026-08-23 审计）：旧子串匹配把 javascript 归 java、
+# email/detail 归 ai、case 归 cas、load 归 oa、任意 json 字样归 api——全是伪分类。
+CATEGORY_RES = {
+    "java": re.compile(r"jsessionid|\btomcat\b|\bspring\b|springboot|spring-boot|\bjava\b|weblogic|jboss|coyote", re.I),
+    "net": re.compile(r"asp\.net|\baspx?\b|\biis\b", re.I),
+    "php": re.compile(r"\.php\b|thinkphp|laravel|\bphp\b", re.I),
+    "oa": re.compile(r"\boa\b|seeyon|tongda|weaver|fanwei|ecology|e-office|landray|wanhu|yonyou|kingdee|致远|泛微|通达|蓝凌|万户|用友|金蝶", re.I),
+    "ai": re.compile(r"\bai\b|\bllm\b|chat|assistant|问答|智能", re.I),
+    "bigscreen": re.compile(r"screen|大屏|可视化|display", re.I),
+    "login": re.compile(r"login|signin|\bsso\b|\bcas\b|统一认证|登录", re.I),
+    "api": re.compile(r"swagger|openapi|api-docs|/api/|application/json", re.I),
+}
+
+
 def detect_categories(row: dict) -> list[str]:
     text = " ".join(str(row.get(k, "")) for k in ("url", "final_url", "server", "content_type", "title")).lower()
-    cats: set[str] = set()
-    if any(k in text for k in ("jsessionid", "tomcat", "spring", "java", "weblogic", "jboss")):
-        cats.add("java")
-    if any(k in text for k in ("asp.net", "aspx", "iis", "microsoft-iis")):
-        cats.add("net")
-    if any(k in text for k in ("php", "thinkphp", "laravel")):
-        cats.add("php")
-    if any(k in text for k in (
-        "oa", "seeyon", "tongda", "weaver", "fanwei", "ecology", "e-office",
-        "landray", "wanhu", "yonyou", "kingdee", "致远", "泛微", "通达", "蓝凌",
-        "万户", "用友", "金蝶",
-    )):
-        cats.add("oa")
-    if any(k in text for k in ("ai", "chat", "llm", "assistant", "问答", "智能")):
-        cats.add("ai")
-    if any(k in text for k in ("screen", "大屏", "可视化", "display")):
-        cats.add("bigscreen")
-    if any(k in text for k in ("login", "signin", "sso", "cas", "统一认证", "登录")):
-        cats.add("login")
-    if any(k in text for k in ("swagger", "openapi", "api-docs", "json")):
-        cats.add("api")
+    cats = {cat for cat, rx in CATEGORY_RES.items() if rx.search(text)}
     if not cats:
         cats.add("other")
     return sorted(cats)
@@ -474,12 +469,16 @@ def key_for_path(row: dict) -> tuple[str, str]:
     return ((row.get("base_url") or row.get("url") or "").rstrip("/"), row.get("path") or "")
 
 
-def looks_like_spa_or_error(candidate: dict, home: dict) -> tuple[bool, str]:
+def looks_like_spa_or_error(candidate: dict, home: dict, soft404_sha: str = "") -> tuple[bool, str]:
     status = int(candidate.get("status") or 0)
     if status in (301, 302, 401, 403, 404):
         return True, f"status_{status}"
     if candidate.get("body_sample_sha256") and candidate.get("body_sample_sha256") == home.get("body_sample_sha256"):
         return True, "same_as_home_hash"
+    # 软404基线（2026-08-23）：WAF/网关用 200 返回统一错误页（安全狗实测），
+    # 与"必不存在路径"的响应体哈希一致即判 FP——不依赖厂商签名。
+    if soft404_sha and candidate.get("body_sample_sha256") and candidate["body_sample_sha256"] == soft404_sha:
+        return True, "same_as_soft404_baseline"
     title = str(candidate.get("title", "")).lower()
     if any(k in title for k in ("404", "not found", "error", "login")):
         return True, f"title_{title[:40]}"
@@ -502,7 +501,9 @@ def candidate_score(candidate: dict, home: dict, keywords: list[str]) -> tuple[i
     if abs(length - home_length) > 200:
         score += 1
         reasons.append("length_differs_from_home")
-    haystack = " ".join(str(candidate.get(k, "")) for k in ("title", "server", "content_type", "final_url"))
+    # 2026-08-23 审计修复：final_url 是请求自身回声（/swagger-ui.html 当然含 swagger），
+    # 关键词只允许命中响应侧字段；正文命中由 body_keyword_hit 单独计分。
+    haystack = " ".join(str(candidate.get(k, "")) for k in ("title", "server", "content_type"))
     if any(k.lower() in haystack.lower() for k in keywords):
         score += 2
         reasons.append("keyword_hit")
@@ -532,6 +533,10 @@ def run_high_value_paths(run_dir: Path, targets: list, cfg: dict, limit: int | N
         if rate.error_counts.get(target.host, 0) >= rate.stop_on_repeated_errors:
             return
         home = home_by_url.get(target.url) or probe_one(target.url, timeout)
+        # 软404基线：+1 请求/host，抓"200 返回统一错误页"的 WAF 行为
+        rate.wait_before(target.host)
+        _base = probe_one(urljoin(target.url.rstrip("/") + "/", f"zzqx-nonexist-{uuid.uuid4().hex[:8]}.html"), timeout)
+        soft404_sha = _base.get("body_sample_sha256") or ""
         for path, kind, keywords in HIGH_VALUE_PATHS:
             if (target.url.rstrip("/"), path) in completed_keys:
                 with _WRITE_LOCK:
@@ -565,7 +570,7 @@ def run_high_value_paths(run_dir: Path, targets: list, cfg: dict, limit: int | N
             })
             with _WRITE_LOCK:
                 append_jsonl(run_dir / "candidate_exposures.jsonl", candidate)
-            false_like, false_reason = looks_like_spa_or_error(candidate, home)
+            false_like, false_reason = looks_like_spa_or_error(candidate, home, soft404_sha)
             score, reasons = candidate_score(candidate, home, keywords)
             verified = dict(candidate)
             verified["verification_score"] = score

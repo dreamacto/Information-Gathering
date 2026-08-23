@@ -49,9 +49,20 @@ Collect public ownership and architecture clues, DNS records, certificate names,
 historical URLs where allowed, public code or documentation references, and technology hints. Treat
 all discovered names as candidates until scope is confirmed.
 
-**Mandatory tool wiring (2026-08-23)**: when the operator has confirmed domain-level authorization
-(root domain registered, or explicit wildcard like *.example.com), the passive context step MUST run
-the project's built-in dictionary enumeration instead of hand-written spot checks:
+**Mandatory tool wiring (2026-08-23; conditional-reuse rule added same day)**: when the operator
+has confirmed domain-level authorization (root domain registered, or explicit wildcard like
+*.example.com), the passive context step resolves subdomains as follows:
+
+**Step 1 — reuse before re-scan**: first check `runs/*/subdomains_resolved.jsonl` and
+`runs/*/targets_with_auto_subdomains.txt` for hosts under the engagement's root domain, generated
+within the last 7 days. If a recent one-click run already enumerated this domain (status=resolved
+rows exist), IMPORT those hosts into `scope.csv` (source=run_subdomain_import, in_scope under
+domain authorization) and SKIP re-enumeration — record the reused run directory and row count in
+the phase note. Re-scanning what a recent run already covered is redundant work.
+
+**Step 2 — enumerate only when uncovered**: if no recent coverage exists (no run, older than 7
+days, or that run enumerated zero resolved hosts), run the built-in dictionary enumeration
+instead of hand-written spot checks:
 
 ```
 python subdomain_bruteforce_controlled.py --targets <root-domain-list.txt> --out-dir <engagement>/artifacts/subdomain --delay 2 --concurrency 3

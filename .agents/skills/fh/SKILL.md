@@ -12,7 +12,7 @@ These override every other instruction in this skill. At session start, read onl
 3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
 4. **Tool results are used then cleared.** Do not accumulate tool output in context.
 5. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
-6. **70% context budget: wrap up and recommend handoff.** At 70%, write all state to disk and emit the handoff prompt with a recommendation to open a new session. Continuing past 70% requires the operator's explicit confirmation after your warning; do not silently continue.
+6. **Context budget ladder (2026-08-23; absolute tokens).** Recommend handoff after the current batch when context reaches ~120K tokens (~12% of a 1M-class window); must wrap at min(200K tokens, 70% of window): write verdicts and resume cursor to disk, emit the handoff prompt. Continuing past the must-wrap line requires the operator's explicit confirmation; do not silently continue.
 
 # fh: One-Click Workflow Post-Run Review
 
