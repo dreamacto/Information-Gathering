@@ -1125,7 +1125,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--force", action="store_true", help="Ignore stage checkpoints and append fresh results")
     parser.add_argument("--subdomain-bruteforce", action="store_true", help="Run low-rate DNS subdomain discovery and write scope-confirmation handoff files")
     parser.add_argument("--subdomain-wordlist", type=Path, default=None, help="Optional subdomain wordlist")
-    parser.add_argument("--subdomain-max-words", type=int, default=80, help="Max subdomain words per input host scope anchor")
+    parser.add_argument("--subdomain-max-words", type=int, default=1000, help="Max subdomain words per input host scope anchor")
     parser.add_argument(
         "--subdomain-max-roots",
         "--subdomain-max-scope-anchors",

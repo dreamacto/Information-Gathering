@@ -96,6 +96,8 @@ def runner_command(args: argparse.Namespace) -> list[str]:
             "--subdomain-bruteforce",
             "--subdomain-delay",
             str(max(1.5, args.delay)),
+            "--subdomain-qps",
+            "3",
         ])
     if not args.no_tool_fingerprint:
         cmd.append("--tool-fingerprint")
