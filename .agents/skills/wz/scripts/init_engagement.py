@@ -101,6 +101,44 @@ def normalize_host(host: str) -> str:
     return ascii_host
 
 
+def _registered_parent(host: str) -> str:
+    parts = [p for p in host.split(".") if p]
+    if len(parts) <= 2:
+        return host
+    suffix2 = ".".join(parts[-2:])
+    if suffix2 in {"com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn", "ac.cn", "mil.cn"} and len(parts) >= 3:
+        return ".".join(parts[-3:])
+    return suffix2
+
+
+def find_same_asset_engagements(output_root: Path, host: str) -> list[Path]:
+    """同资产工作区发现（2026-08-23）：扫同级 engagements/*/ 的 scope.csv，
+    找已登记覆盖本 host 或其注册父域的工作区——保证'同资产不同网站'续用同一工作区，
+    昨天的台账/target-model 不丢。"""
+    parent = _registered_parent(host)
+    hits: list[Path] = []
+    base = output_root.parent
+    if not base.is_dir():
+        return hits
+    for sibling in sorted(base.iterdir()):
+        scope = sibling / "scope.csv"
+        if sibling == output_root or not scope.is_file():
+            continue
+        try:
+            with scope.open(encoding="utf-8-sig", newline="") as f:
+                for row in csv.DictReader(f):
+                    asset = (row.get("asset") or "").strip().lower().lstrip("*.")
+                    if not asset:
+                        continue
+                    if host == asset or host.endswith("." + asset) or asset == parent or asset.endswith("." + parent):
+                        if sibling not in hits:
+                            hits.append(sibling)
+                        break
+        except OSError:
+            continue
+    return hits
+
+
 def normalize_target(raw: str) -> dict[str, object]:
     value = raw.strip()
     if not value or any(char.isspace() for char in value):
@@ -153,6 +191,9 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Initialize a website assessment workspace.")
     parser.add_argument("target", help="Authorized website URL, domain, or IP host.")
     parser.add_argument("--output", required=True, help="Engagement workspace directory.")
+    parser.add_argument("--allow-parallel", action="store_true", help="明确允许为同资产另建平行工作区（默认禁止）")
+    parser.add_argument("--add-site", dest="add_site", action="store_true", default=None, help="resume 时允许把同父域的新 host 扩展进本工作区（默认允许，需父域已登记域级授权）")
+    parser.add_argument("--no-add-site", dest="add_site", action="store_false", help="resume 拒绝站点扩展")
     parser.add_argument("--name", default="", help="Optional engagement name.")
     parser.add_argument(
         "--authorization-ref",
@@ -181,11 +222,49 @@ def main() -> int:
     if root.exists() and not args.resume:
         print(f"ERROR: Output already exists; use --resume for the same engagement: {root}", file=sys.stderr)
         return 3
+
+    # 同资产发现（2026-08-23）：新建前先找同资产既有工作区
+    site_extension = False
+    if not args.resume:
+        prior = find_same_asset_engagements(root, str(target["host"]))
+        if prior and not getattr(args, "allow_parallel", False):
+            print("ERROR: 同一资产已有工作区，禁止平行新建（会丢失既有台账/target-model）：", file=sys.stderr)
+            for p in prior:
+                print(f"  -> {p}", file=sys.stderr)
+            print(f"改用：--resume {prior[0]} --add-site {target['host']}（站点扩展，L 编号续用）；"
+                  f"确需平行工作区加 --allow-parallel", file=sys.stderr)
+            return 4
     if args.resume and engagement_path.is_file():
         existing = json.loads(engagement_path.read_text(encoding="utf-8-sig"))
-        if existing.get("target", {}).get("host") != target["host"]:
-            print("ERROR: Resume target does not match the existing engagement.", file=sys.stderr)
-            return 3
+        existing_host = str(existing.get("target", {}).get("host") or "")
+        if existing_host != target["host"]:
+            parent_new = _registered_parent(str(target["host"]))
+            parent_old = _registered_parent(existing_host)
+            if parent_new == parent_old and (args.add_site or args.add_site is None):
+                # 同资产站点扩展：要求父域已在 scope 里登记（域级授权），随后追加该 host
+                covered = False
+                scope_csv = root / "scope.csv"
+                if scope_csv.is_file():
+                    with scope_csv.open(encoding="utf-8-sig", newline="") as f:
+                        for row in csv.DictReader(f):
+                            asset = (row.get("asset") or "").strip().lower().lstrip("*.")
+                            rationale = " ".join(str(row.get(k, "")) for k in ("source", "notes", "ownership_rationale")).lower()
+                            if asset == parent_new or asset == str(target["host"]):
+                                covered = True
+                                break
+                            # 域级授权登记形态：wildcard source/notes 或 *.父域 字样
+                            if ("wildcard" in rationale or "整域" in rationale or "*." + parent_new in rationale) and asset.endswith("." + parent_new):
+                                covered = True
+                                break
+                if not covered:
+                    print(f"ERROR: {target['host']} 属于本工作区的 {parent_new}，但父域未在 scope.csv "
+                          f"登记域级授权；先补登（操作者确认）或用 --no-add-site 明确拒绝扩展。", file=sys.stderr)
+                    return 3
+                site_extension = True
+                print(f"[*] 同资产站点扩展：{existing_host} -> 追加 {target['host']}（{parent_new} 域级授权已登记）")
+            else:
+                print("ERROR: Resume target does not match the existing engagement.", file=sys.stderr)
+                return 3
 
     for relative in (
         "artifacts",
@@ -246,6 +325,22 @@ def main() -> int:
             }
         )
     write_csv_if_missing(root / "scope.csv", SCOPE_FIELDS, scope_rows)
+    if site_extension:
+        existing_assets = set()
+        with (root / "scope.csv").open(encoding="utf-8-sig", newline="") as f:
+            existing_assets = {(r.get("asset") or "").strip().lower() for r in csv.DictReader(f)}
+        new_rows = []
+        for row in scope_rows:
+            if (row.get("asset") or "").lower() not in existing_assets:
+                row["source"] = "same_asset_site_extension"
+                row["ownership_rationale"] = f"同资产站点扩展：{existing_host} 工作区父域 {parent_new} 已登记域级授权"
+                row["notes"] = f"站点扩展：同 {existing_host} 工作区追加"
+                new_rows.append(row)
+        if new_rows:
+            with (root / "scope.csv").open("a", encoding="utf-8-sig", newline="") as f:
+                w = csv.DictWriter(f, fieldnames=SCOPE_FIELDS, extrasaction="ignore")
+                w.writerows(new_rows)
+            print(f"[*] scope.csv 追加 {len(new_rows)} 行（source=same_asset_site_extension）")
 
     phase_path = root / "phase_status.json"
     if not phase_path.exists():
