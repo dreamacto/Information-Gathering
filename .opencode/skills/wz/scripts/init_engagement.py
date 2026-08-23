@@ -231,7 +231,7 @@ def main() -> int:
             print("ERROR: 同一资产已有工作区，禁止平行新建（会丢失既有台账/target-model）：", file=sys.stderr)
             for p in prior:
                 print(f"  -> {p}", file=sys.stderr)
-            print(f"改用：--resume {prior[0]} --add-site {target['host']}（站点扩展，L 编号续用）；"
+            print(f"改用：--resume {prior[0]} --add-site {target['host']}（站点扩展，该站独立 L 编号）；"
                   f"确需平行工作区加 --allow-parallel", file=sys.stderr)
             return 4
     if args.resume and engagement_path.is_file():
@@ -334,7 +334,7 @@ def main() -> int:
             if (row.get("asset") or "").lower() not in existing_assets:
                 row["source"] = "same_asset_site_extension"
                 row["ownership_rationale"] = f"同资产站点扩展：{existing_host} 工作区父域 {parent_new} 已登记域级授权"
-                row["notes"] = f"站点扩展：同 {existing_host} 工作区追加"
+                row["notes"] = f"站点扩展：同资产工作区追加，本站独立编号"
                 new_rows.append(row)
         if new_rows:
             with (root / "scope.csv").open("a", encoding="utf-8-sig", newline="") as f:

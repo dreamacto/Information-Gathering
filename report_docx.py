@@ -170,12 +170,18 @@ def build_report(meta: dict, findings: list[dict], out: Path) -> Path:
 PRIORITY_LEVEL = {"high": "高危", "medium": "中危", "low": "低危"}
 
 
-def from_ledger(engagement: Path) -> tuple[dict, list[dict]]:
-    """骨架模式：confirmed 行 → findings 骨架（命令/解读留 TODO 标记待补）。"""
+def from_ledger(engagement: Path, site: str | None = None) -> tuple[dict, list[dict]]:
+    """骨架模式：confirmed 行 → findings 骨架（命令/解读留 TODO 标记待补）。
+
+    site: 多站共用工作区时按站过滤（asset 列精确匹配该 host）——报告按站分开出。
+    """
     ledger = engagement / "review_ledger.csv"
     rows = []
     with ledger.open(encoding="utf-8-sig", newline="") as f:
         rows = [r for r in csv.DictReader(f) if (r.get("status") or "").strip() == "confirmed"]
+    if site:
+        site_l = site.strip().lower()
+        rows = [r for r in rows if (r.get("asset") or "").strip().lower() == site_l]
     findings = []
     for r in rows:
         findings.append({
@@ -238,6 +244,7 @@ def main() -> int:
     ap.add_argument("--meta", type=Path, help="meta.json（综述/统计/问题/建议）")
     ap.add_argument("--findings", type=Path, help="findings.json（成果数组：标题/描述/命令/翻页/证据）")
     ap.add_argument("--from-ledger", type=Path, help="engagement 目录：从台账 confirmed 行生成骨架初稿")
+    ap.add_argument("--site", help="按站过滤（多站共用工作区时报告分开出：--site <host>，匹配台账 asset 列）")
     ap.add_argument("--demo", action="store_true", help="重新生成空白模板")
     ap.add_argument("--out", type=Path, help="输出 docx 路径")
     a = ap.parse_args()
@@ -246,9 +253,10 @@ def main() -> int:
         meta, findings = demo()
         out = a.out or (ROOT / "templates" / "攻防成果报告_模板.docx")
     elif a.from_ledger:
-        meta, findings = from_ledger(a.from_ledger)
+        meta, findings = from_ledger(a.from_ledger, a.site)
         name = a.from_ledger.name
-        out = a.out or (a.from_ledger / "reports" / f"攻防成果报告_{name}_{now_date()}.docx")
+        site_tag = f"_{a.site}" if a.site else ""
+        out = a.out or (a.from_ledger / "reports" / f"攻防成果报告_{name}{site_tag}_{now_date()}.docx")
     elif a.meta and a.findings:
         meta = json.loads(a.meta.read_text(encoding="utf-8"))
         findings = json.loads(a.findings.read_text(encoding="utf-8"))

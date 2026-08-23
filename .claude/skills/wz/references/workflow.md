@@ -159,6 +159,7 @@ candidates, limitations, gated tests, cleanup, retest, residual risk, evidence i
 7. Same-asset site extension (2026-08-23): when the task is a different site of an already-tested
    asset, resume that asset's workspace (`init_engagement.py <site-host> --resume <workspace>` —
    requires the parent domain's domain-level authorization on record). The site joins the same
-   scope.csv (source=same_asset_site_extension), ledger L numbering continues, and
+   scope.csv (source=same_asset_site_extension); ledger item IDs are **site-scoped**
+   (`<host-short>-L<N>`, starting at 1 per site, because reports are delivered per site), and
    `notes/target-model.md` stays the single accumulating snapshot for the whole asset. Never start
    a parallel workspace for the same asset.
