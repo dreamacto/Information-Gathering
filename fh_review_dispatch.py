@@ -538,10 +538,14 @@ def cmd_recommend(run_dir: Path, top_n: int = 5) -> None:
             score += add
             reasons.append(f"影响面候选 {n_imp}(+{add})")
 
-        # +15 复核判定说明认证后还有空间
+        # 复核判定：认证后有没有空间，取决于能否过认证
         if disp in ("needs_login", "approval_required"):
-            score += 15
-            reasons.append(f"复核判定 {disp}：认证后仍有空间(+15)")
+            if host in reg_hosts:
+                score += 15
+                reasons.append(f"可注册+{disp}：注册后可拿登录态(+15)")
+            else:
+                score -= 20
+                reasons.append(f"{disp} 但无注册口，操作员拿不到账号(-20)")
         elif disp == "confirmed":
             score += 20
             reasons.append("已有确认发现，值得继续深挖(+20)")
@@ -569,17 +573,20 @@ def cmd_recommend(run_dir: Path, top_n: int = 5) -> None:
         f"生成：fh_review_dispatch.py --recommend · {now_iso()} · 已审 {len(done)}/{len(rows)}",
         "",
         "从已审目标中按以下优先级选出最值得跑**单目标网站流程**的目标（一个目标要几小时，宁缺毋滥）：",
-        "注册可达 > 确认API数量 > 未结高危线索 > 复核判定还有肉 > 老技术栈；邮件系统无注册口会被降权。",
+        "**能注册（自己拿得到 cookie）>> 未授权可打的面（确认API/SQLi线索）> 老技术栈**。",
+        "需要登录但无注册口的目标会被降权——登录都登不进去，认证后的空间无从验证；邮件系统无注册口同样降权。",
+        "看「可注册」列：=是= 才是你能自助拿登录态的目标；=否= 的只有存在未授权可打面（确认API/高危线索）时才会出现在这里。",
         "",
     ]
     if not top:
         lines.append("_没有合适的推荐目标（可能复核还没做完，或全部已证伪）。_")
     else:
-        lines.append("| 排名 | host | 复核判定 | 推荐分 | 为什么选它 |")
-        lines.append("|---|---|---|---|---|")
+        lines.append("| 排名 | host | 可注册 | 复核判定 | 推荐分 | 为什么选它 |")
+        lines.append("|---|---|---|---|---|---|")
         for i, (score, host, disp, reasons) in enumerate(top, 1):
             rr = "；".join(reasons)
-            lines.append(f"| {i} | {host} | {disp} | {score:.0f} | {rr} |")
+            reg_mark = "是" if host in reg_hosts else "否"
+            lines.append(f"| {i} | {host} | {reg_mark} | {disp} | {score:.0f} | {rr} |")
         lines += [
             "",
             "## 怎么用这份清单",
