@@ -15,12 +15,14 @@
   python tools/fh_review_dispatch.py --run-dir runs/20260820_114704_one_click_full_weak --prepare [--batch-size 8]
   python tools/fh_review_dispatch.py --run-dir runs/20260820_114704_one_click_full_weak --aggregate
   python tools/fh_review_dispatch.py --run-dir runs/20260820_114704_one_click_full_weak --status
+  python fh_review_dispatch.py --run-dir <run> --recommend [--top 5]   # 复核收尾：推荐单目标深挖清单
 """
 from __future__ import annotations
 
 import argparse
 import csv
 import json
+import re
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -419,6 +421,185 @@ def _write_top_file(ws: Path, rows: list[dict], families: dict | None = None) ->
     (ws / "review_batches" / "TOP_人工复核.md").write_text("\n".join(lines), encoding="utf-8")
 
 
+
+
+# ---------------------------------------------------------------- recommend
+
+def _count_jsonl_by_host(path: Path) -> dict:
+    """统计 jsonl 里按 host/base_url 归属的条数（兼容 host 字段或只有 url/base_url 的行）。"""
+    import urllib.parse
+    out = {}
+    if not path.is_file():
+        return out
+    for ln in path.read_text(encoding="utf-8").splitlines():
+        if not ln.strip():
+            continue
+        try:
+            d = json.loads(ln)
+        except json.JSONDecodeError:
+            continue
+        h = (d.get("host") or "").strip().lower()
+        if not h:
+            u = d.get("base_url") or d.get("url") or ""
+            try:
+                h = urllib.parse.urlsplit(u).netloc.lower()
+            except Exception:
+                continue
+        if h:
+            out[h] = out.get(h, 0) + 1
+    return out
+
+
+def cmd_recommend(run_dir: Path, top_n: int = 5) -> None:
+    """复核收尾：从已审目标里挑出最值得跑单目标网站流程的目标（默认 top 5）。
+
+    选站依据全部来自盘上复核产物（零网络请求）：
+    注册可达 > 确认API数量 > 未结高危线索 > 复核判定还有肉 > 老技术栈。
+    输出 postrun_review/深挖推荐.md；这是建议清单，最终由操作员逐个拍板。
+    """
+    rows = load_queue(run_dir)
+    ws = run_dir / "postrun_review"
+    done = [r for r in rows if (r.get("disposition") or "pending") != "pending"]
+
+    # ---- 盘上数据源（缺失按空处理，不报错） ----
+    maq_path = run_dir / "manual_auth_queue.csv"
+    reg_hosts = set()
+    if maq_path.is_file():
+        with maq_path.open(encoding="utf-8-sig", newline="") as f:
+            for r in csv.DictReader(f):
+                if str(r.get("registration_candidate", "")).strip().lower() == "true":
+                    reg_hosts.add((r.get("host") or "").strip().lower())
+
+    api_conf = _count_jsonl_by_host(run_dir / "api_confirmed.jsonl")
+    sqli_c = _count_jsonl_by_host(run_dir / "sqli_candidates.jsonl")
+    xss_c = _count_jsonl_by_host(run_dir / "xss_candidates.jsonl")
+    impact_c = _count_jsonl_by_host(run_dir / "impact_candidates.jsonl")
+
+    # 产品指纹（老技术栈信号）
+    old_stack_hosts = set()
+    pf_path = run_dir / "product_fingerprints.jsonl"
+    OLD_STACK_RE = re.compile(
+        r"spring|druid|tomcat|struts|thinkphp|fastjson|log4j|shiro|jenkins|weblogic|jboss|nacos|swagger|knife4j",
+        re.I,
+    )
+    if pf_path.is_file():
+        for ln in pf_path.read_text(encoding="utf-8").splitlines():
+            if not ln.strip():
+                continue
+            try:
+                d = json.loads(ln)
+            except json.JSONDecodeError:
+                continue
+            hay = " ".join(str(d.get(k, "")) for k in ("host", "product", "fingerprints", "signature", "name"))
+            if OLD_STACK_RE.search(hay):
+                h = (d.get("host") or "").strip().lower()
+                if h:
+                    old_stack_hosts.add(h)
+
+    # ---- 逐目标打分 ----
+    MAIL_RE = re.compile(r"^(mail|newmail|mx|pop3|imap|smtp|webmail)[.-]", re.I)
+    scored = []
+    for r in done:
+        host = (r.get("host") or "").strip().lower()
+        disp = (r.get("disposition") or "").strip().lower()
+        if not host:
+            continue
+        if disp in ("rejected", "out_of_scope", "duplicate", "accepted_risk"):
+            continue  # 已证伪/出范围/重复/已接受风险：不再投几小时
+
+        score = PRIORITY_WEIGHT.get(r.get("priority", ""), 0) / 10.0
+        reasons = []
+
+        # +40 注册可达：操作员能自助拿 cookie，认证态复核成功率最高
+        if host in reg_hosts:
+            score += 40
+            reasons.append("注册口可达，可自助拿Cookie(+40)")
+
+        # +25 确认 API 数量：业务面真实存在
+        n_api = api_conf.get(host, 0)
+        if n_api >= 3:
+            score += 25
+            reasons.append(f"确认API {n_api} 条(+25)")
+        elif n_api >= 1:
+            score += 15
+            reasons.append(f"确认API {n_api} 条(+15)")
+
+        # +20 未结高危线索
+        n_sqli, n_xss, n_imp = sqli_c.get(host, 0), xss_c.get(host, 0), impact_c.get(host, 0)
+        if n_sqli:
+            score += 12
+            reasons.append(f"SQLi候选 {n_sqli}(+12)")
+        if n_xss:
+            add = min(8, 2 * n_xss)
+            score += add
+            reasons.append(f"XSS候选 {n_xss}(+{add})")
+        if n_imp:
+            add = min(5, n_imp)
+            score += add
+            reasons.append(f"影响面候选 {n_imp}(+{add})")
+
+        # +15 复核判定说明认证后还有空间
+        if disp in ("needs_login", "approval_required"):
+            score += 15
+            reasons.append(f"复核判定 {disp}：认证后仍有空间(+15)")
+        elif disp == "confirmed":
+            score += 20
+            reasons.append("已有确认发现，值得继续深挖(+20)")
+
+        # +10 老技术栈
+        if host in old_stack_hosts:
+            score += 10
+            reasons.append("老技术栈/产品指纹(+10)")
+
+        # -30 邮件系统且无注册口：拿不到账号，认证态必卡死
+        if MAIL_RE.match(host) and host not in reg_hosts:
+            score -= 30
+            reasons.append("邮件系统且无注册口，账号难获取(-30)")
+
+        if reasons:
+            scored.append((score, host, disp, reasons))
+
+    scored.sort(key=lambda t: t[0], reverse=True)
+    top = scored[: max(1, top_n)]
+
+    # ---- 输出 md ----
+    lines = [
+        "# 单目标深挖推荐（复核收尾产出）",
+        "",
+        f"生成：fh_review_dispatch.py --recommend · {now_iso()} · 已审 {len(done)}/{len(rows)}",
+        "",
+        "从已审目标中按以下优先级选出最值得跑**单目标网站流程**的目标（一个目标要几小时，宁缺毋滥）：",
+        "注册可达 > 确认API数量 > 未结高危线索 > 复核判定还有肉 > 老技术栈；邮件系统无注册口会被降权。",
+        "",
+    ]
+    if not top:
+        lines.append("_没有合适的推荐目标（可能复核还没做完，或全部已证伪）。_")
+    else:
+        lines.append("| 排名 | host | 复核判定 | 推荐分 | 为什么选它 |")
+        lines.append("|---|---|---|---|---|")
+        for i, (score, host, disp, reasons) in enumerate(top, 1):
+            rr = "；".join(reasons)
+            lines.append(f"| {i} | {host} | {disp} | {score:.0f} | {rr} |")
+        lines += [
+            "",
+            "## 怎么用这份清单",
+            "",
+            "1. 从排名 1 开始逐个拍板：不认可的跳过，认可的才投入几小时。",
+            "2. 对认可的目标，到提示词分发员会话拿「网站流程提示词」。",
+            "3. 网站流程为单目标模式：scope 直接锚定该 host，跳过子域扫描。",
+            "4. 拿 cookie 优先选注册可达的目标；需要登录的先走 01_需要你登录拿Cookie.md 的指引。",
+            "",
+            "> 推荐只是排序建议，不构成漏洞结论；单目标流程内的写操作仍走审批门。",
+        ]
+    out = ws / "深挖推荐.md"
+    out.parent.mkdir(exist_ok=True)
+    out.write_text(chr(10).join(lines), encoding="utf-8")
+    print(f"[+] 深挖推荐已写入 {out}")
+    for i, (score, host, disp, reasons) in enumerate(top, 1):
+        print(f"    {i}. {host} ({disp}, 分数 {score:.0f})")
+    _print_progress(rows)
+
+
 def cmd_status(run_dir: Path) -> None:
     rows = load_queue(run_dir)
     from collections import Counter
@@ -437,13 +618,17 @@ def main() -> None:
     g.add_argument("--prepare", action="store_true")
     g.add_argument("--aggregate", action="store_true")
     g.add_argument("--status", action="store_true")
+    g.add_argument("--recommend", action="store_true")
     ap.add_argument("--batch-size", type=int, default=8)
+    ap.add_argument("--top", type=int, default=5, help="--recommend 输出的推荐数量，默认 5")
     a = ap.parse_args()
     run_dir = Path(a.run_dir)
     if a.prepare:
         cmd_prepare(run_dir, a.batch_size)
     elif a.aggregate:
         cmd_aggregate(run_dir)
+    elif a.recommend:
+        cmd_recommend(run_dir, a.top)
     else:
         cmd_status(run_dir)
 

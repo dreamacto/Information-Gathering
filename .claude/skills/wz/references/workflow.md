@@ -53,6 +53,20 @@ all discovered names as candidates until scope is confirmed.
 has confirmed domain-level authorization (root domain registered, or explicit wildcard like
 *.example.com), the passive context step resolves subdomains as follows:
 
+**Step 0 — single-target mode (2026-08-25): skip enumeration by default.** When the
+engagement was started from a post-run review recommendation (深挖推荐.md / the prompt-dispatcher
+website prompt) or the operator supplied a single host as the whole scope, the subdomain phase is
+NOT a discovery phase anymore: the host was already found and reviewed by the one-click run.
+Default behavior in this mode:
+
+- Scope stays anchored to the supplied host only (record `source=single_target_anchor`).
+- Do NOT run dictionary enumeration for the parent domain unless the operator explicitly asks
+  ("expand siblings" / "把兄弟子域也带上"). Record the skip decision and reason in the phase note
+  (negative space) — silent omission is forbidden, but re-scanning the parent domain the one-click
+  run already covered is redundant work by design.
+- If mid-flow evidence surfaces sibling hosts (JS chains, redirects, API bases under the same
+  parent), add them as `confirmation_required` and surface them to the operator; do not probe.
+
 **Step 1 — reuse before re-scan**: first check `runs/*/subdomains_resolved.jsonl` and
 `runs/*/targets_with_auto_subdomains.txt` for hosts under the engagement's root domain, generated
 within the last 7 days. If a recent one-click run already enumerated this domain (status=resolved
