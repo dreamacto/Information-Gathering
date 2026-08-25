@@ -589,6 +589,41 @@ def cmd_recommend(run_dir: Path, top_n: int = 5) -> None:
             lines.append(f"| {i} | {host} | {reg_mark} | {disp} | {score:.0f} | {rr} |")
         lines += [
             "",
+            "## 全部已审目标评分排名（供操作员自己挑）",
+            "",
+            "按推荐分降序；rejected/out_of_scope 也列出（分数=已否决/已出范围），方便你确认排除理由。",
+            "可注册=是 的目标优先。",
+            "",
+            "| 排名 | host | 可注册 | 复核判定 | 推荐分 | 为什么选它 |",
+            "|---|---|---|---|---|---|",
+        ]
+        # 全部已审：rejected 等也进表，用 notes 里的否决理由
+        full_rows = []
+        for r in done:
+            host = (r.get("host") or "").strip().lower()
+            disp = (r.get("disposition") or "").strip().lower()
+            if not host:
+                continue
+            if disp in ("rejected", "out_of_scope", "duplicate", "accepted_risk"):
+                note = (r.get("notes") or "").strip()
+                note = note.split("verdict@")[0].strip() or "复核已否决"
+                full_rows.append((-999, host, disp, [f"已否决/出范围：{note[:80]}"]))
+                continue
+            hit = next((s for s in scored if s[1] == host), None)
+            if hit:
+                full_rows.append(hit)
+            else:
+                full_rows.append((0, host, disp, ["已审但无评分依据"]))
+        full_rows.sort(key=lambda t: t[0], reverse=True)
+        for i, (score, host, disp, reasons) in enumerate(full_rows, 1):
+            rr = "；".join(reasons)
+            reg_mark = "是" if host in reg_hosts else "否"
+            score_txt = "-" if score == -999 else f"{score:.0f}"
+            lines.append(f"| {i} | {host} | {reg_mark} | {disp} | {score_txt} | {rr} |")
+        lines += [
+            "",
+            "> 分数 ≤0 的目标表示登不进去且没有未授权可打面，直接跳过；「-」表示复核已否决。",
+            "",
             "## 怎么用这份清单",
             "",
             "1. 从排名 1 开始逐个拍板：不认可的跳过，认可的才投入几小时。",
