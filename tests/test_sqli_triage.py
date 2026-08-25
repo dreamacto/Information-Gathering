@@ -32,16 +32,26 @@ class SqliTriageTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             run_dir = Path(tmp)
             responses = [
+                # base1 / base2（稳定基线）
                 sample("https://example.test/api/list?id=1", text="record id=1 name=alice"),
                 sample("https://example.test/api/list?id=1", text="record id=1 name=alice"),
+                # quote_s / quote_d / widebyte_s / widebyte_d（无 5xx、无 db error）
                 sample("https://example.test/api/list?id=1'", text="record id=1 name=alice"),
+                sample('https://example.test/api/list?id=1"', text="record id=1 name=alice"),
+                sample("https://example.test/api/list?id=1\xbf'", text="record id=1 name=alice"),
+                sample('https://example.test/api/list?id=1\xbf"', text="record id=1 name=alice"),
+                # boolean 3 对：第 1 对形成差分（true 同基线 / false 空结果），后 2 对保持稳定
                 sample("https://example.test/api/list?id=1 AND 1=1", text="record id=1 name=alice"),
                 sample("https://example.test/api/list?id=1 AND 1=2", text="empty result"),
+                sample("https://example.test/api/list?id=1' AND '1'='1'-- ", text="record id=1 name=alice"),
+                sample("https://example.test/api/list?id=1' AND '1'='2'-- ", text="empty result"),
+                sample("https://example.test/api/list?id=1.0", text="record id=1 name=alice"),
+                sample("https://example.test/api/list?id=1.9", text="empty result"),
             ]
             with patch("sqli_triage.fetch_wait", side_effect=responses):
                 record = analyze_probe(UrlParam("https://example.test/api/list?id=1", "id"), run_dir, 10, 0)
             self.assertTrue(record["high_probability"])
-            self.assertIn("boolean_differential", record["signals"])
+            self.assertTrue(any(s.startswith("boolean_differential") for s in record["signals"]))
 
     def test_500_status_delta_is_candidate_not_high_probability(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -50,14 +60,21 @@ class SqliTriageTests(unittest.TestCase):
                 sample("https://example.test/api/list?id=1", text="stable page"),
                 sample("https://example.test/api/list?id=1", text="stable page"),
                 sample("https://example.test/api/list?id=1'", status=500, text="server error"),
+                sample('https://example.test/api/list?id=1"', text="stable page"),
+                sample("https://example.test/api/list?id=1\xbf'", text="stable page"),
+                sample('https://example.test/api/list?id=1\xbf"', text="stable page"),
                 sample("https://example.test/api/list?id=1 AND 1=1", text="stable page"),
                 sample("https://example.test/api/list?id=1 AND 1=2", text="stable page"),
+                sample("https://example.test/api/list?id=1' AND '1'='1'-- ", text="stable page"),
+                sample("https://example.test/api/list?id=1' AND '1'='2'-- ", text="stable page"),
+                sample("https://example.test/api/list?id=1.0", text="stable page"),
+                sample("https://example.test/api/list?id=1.9", text="stable page"),
             ]
             with patch("sqli_triage.fetch_wait", side_effect=responses):
                 record = analyze_probe(UrlParam("https://example.test/api/list?id=1", "id"), run_dir, 10, 0)
             self.assertFalse(record["high_probability"])
             self.assertEqual(record["confidence"], "medium")
-            self.assertIn("quote_status_5xx_delta", record["signals"])
+            self.assertIn("quote_single_status_5xx_delta", record["signals"])
 
     def test_loader_skips_risky_paths_and_prioritizes_params(self):
         with tempfile.TemporaryDirectory() as tmp:

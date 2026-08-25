@@ -21,7 +21,7 @@ def make_workspace(tmp_path: Path, n=5) -> Path:
     (ws / "target_reviews").mkdir(parents=True)
     rows = []
     for i in range(1, n + 1):
-        host = f"h{i}.example.com"
+        host = f"h{i}.target-authorized.cn"
         rows.append({c: "" for c in QUEUE_COLS} | {
             "target_id": f"T{i:04d}", "review_order": str(i), "priority": "P1" if i <= 2 else "P2",
             "value_score": str(100 - i * 10), "host": host,
@@ -70,14 +70,14 @@ def test_aggregate_flow(tmp_path):
     vdir = ws / "verdicts"
     # 一条 confirmed + 一条 rejected(带fp_pattern)
     (vdir / "1.json").write_text(json.dumps({
-        "review_order": 1, "target_id": "T0001", "host": "h1.example.com",
+        "review_order": 1, "target_id": "T0001", "host": "h1.target-authorized.cn",
         "disposition": "confirmed", "confidence": 0.9,
-        "basis": "target_reviews/1_h1.example.com.md:12 明确 unauth 数据接口与差异证据",
+        "basis": "target_reviews/1_h1.target-authorized.cn.md:12 明确 unauth 数据接口与差异证据",
         "next_action": "人工终审", "fp_pattern": "",
         "source_status": {"a.jsonl": "reviewed"},
     }, ensure_ascii=False), encoding="utf-8")
     (vdir / "2.json").write_text(json.dumps({
-        "review_order": 2, "host": "h2.example.com",
+        "review_order": 2, "host": "h2.target-authorized.cn",
         "disposition": "rejected", "confidence": 0.8,
         "basis": "同模板导航页泛匹配, 无真实泄露",
         "fp_pattern": "HTML200 导航页同模板误报",
@@ -107,7 +107,7 @@ def test_invalid_verdict(tmp_path):
     ws = run / "postrun_review"
     (ws / "verdicts").mkdir()
     (ws / "verdicts" / "1.json").write_text(json.dumps({
-        "review_order": 1, "host": "h1.example.com",
+        "review_order": 1, "host": "h1.target-authorized.cn",
         "disposition": "definitely_vulnerable", "confidence": 1.0, "basis": "x",
     }), encoding="utf-8")
     out = run_tool("--run-dir", str(run), "--aggregate")

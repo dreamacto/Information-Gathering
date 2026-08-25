@@ -132,3 +132,6 @@ knowledge_base/asset_fingerprint_lib.jsonl
 knowledge_base/fp_memory.jsonl
 knowledge_base/last_sweep.json
 knowledge_base/hypothesis_ledger.jsonl
+
+# Playwright MCP runtime logs/page snapshots (local, sensitive page content possible)
+.playwright-mcp/

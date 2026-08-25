@@ -21,7 +21,7 @@
 | D:\Desktop\一键已有子域名后流程_含弱口令.bat | 已有子域名清单，从活性/指纹阶段接着跑 |
 | D:\Desktop\一键保守全流程_尽量多信息_避WAF.bat | 保守模式：低速、尽量避开 WAF 触发 |
 | D:\Desktop\SQLi会话探测.bat | SQLi 三合一探测（预算 16/参数、基线差分、marker） |
-| D:\Desktop\AI配方_一键复制.bat | 菜单 1-6 复制 prompts/ 配方全文到剪贴板，粘贴给任意 AI 启动对应会话 |
+| D:\Desktop\AI配方_一键复制.bat | 菜单 1-7（A-F/P） 复制 prompts/ 配方全文到剪贴板，粘贴给任意 AI 启动对应会话 |
 | D:\Desktop\一键IDOR差分_只读.bat | 越权差分：输入 run 目录/会话文件/端点文件，跑 idor_triage.py（只读） |
 | D:\Desktop\一键竞态靶场.bat | 本地起竞态靶场（8892）：/claim 漏洞真值 /claim_safe 负例，判据校准教学 |
 | D:\Desktop\一键竞态测试_授权目标.bat | 读 race_config.json 对授权目标跑竞态（开场 YES 确认；写端点需 ack） |

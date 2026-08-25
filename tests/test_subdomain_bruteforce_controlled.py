@@ -108,6 +108,10 @@ class SubdomainBruteforceControlledTests(unittest.TestCase):
                 controlled,
                 "resolve_host",
                 return_value=(["192.0.2.10"], ""),
+            ), patch.object(
+                controlled,
+                "ct_log_names",
+                return_value=([], ""),
             ):
                 self.assertEqual(controlled.main(), 0)
 
@@ -123,18 +127,24 @@ class SubdomainBruteforceControlledTests(unittest.TestCase):
                 )
             )
 
-            self.assertEqual(discovered, [
-                "admin.bgjt.bbwport.net",
-                "login.bgjt.bbwport.net",
-            ])
-            self.assertIn("https://bgjt.bbwport.net|北港金投业务管理系统", merged)
-            self.assertNotIn("admin.bbwport.net", merged)
-            self.assertNotIn("login.bbwport.net", merged)
+            # 新版策略（20260823）：输入主机自动补充注册根域锚点，输出允许 *.根域 内子域
             self.assertEqual(
-                manifest["input_scope_anchors"],
-                ["bgjt.bbwport.net"],
+                sorted(discovered),
+                sorted([
+                    "admin.bgjt.bbwport.net",
+                    "login.bgjt.bbwport.net",
+                    "admin.bbwport.net",
+                    "login.bbwport.net",
+                ]),
             )
-            self.assertFalse(manifest["registered_parent_widening"])
+            self.assertIn("https://bgjt.bbwport.net|北港金投业务管理系统", merged)
+            self.assertNotIn("evil.bbwport.net", merged)  # 范围外不出现
+            self.assertEqual(
+                sorted(manifest["input_scope_anchors"]),
+                sorted(["bgjt.bbwport.net", "bbwport.net"]),
+            )
+            # 补充根域锚点后锚点数=2（bgjt.bbwport.net + bbwport.net）
+            self.assertEqual(manifest["scope_anchor_count"], 2)
             self.assertEqual(manifest["out_of_scope_rejected_count"], 0)
 
     def test_auto_merge_preserves_original_targets_and_dedups(self):
