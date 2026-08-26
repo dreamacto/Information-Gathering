@@ -42,3 +42,11 @@ retention.
 Each finding includes a stable ID, title, severity, affected platform/version/host, description,
 preconditions, evidence, impact, root cause, remediation, verification guidance, cleanup, and retest.
 Keep raw packages, traffic, credentials, personal data, and secrets out of the report.
+
+
+## Final report is DOCX (2026-08-23)
+
+Client-facing deliverable is generated: curate findings.json/meta.json then
+`python report_docx.py`（or `--from-ledger` skeleton）. Red 【需截图 S-N】 markers must all be
+replaced with real screenshots before submission; TOKEN values stay in local session files.
+`final-report.md` remains internal working notes.

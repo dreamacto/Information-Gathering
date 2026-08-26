@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "authorized-assessment-workbench"
+version = "0.1.0"
+description = "Offline and controlled authorized assessment workflow tools"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+  "requests>=2.28,<3",
+  "urllib3>=1.26,<3",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<10", "pytest-cov>=5,<7"]
+report = ["python-docx>=1.1,<2"]
+miniapp = ["cryptography>=42,<46", "pycryptodome>=3.20,<4"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+addopts = ["-ra", "--strict-markers", "--disable-warnings"]
+markers = [
+  "safe: offline or read-only logic",
+  "approval: approval-gate behavior without active execution",
+  "blocked: prohibited-action fail-closed behavior",
+  "offline: must not access the network",
+  "cli: local command-line smoke test",
+  "artifact: run and evidence artifact checks",
+  "integration: local multi-module integration",
+  "slow: intentionally slower local test",
+]
+
+[tool.setuptools]
+py-modules = ["exercise_runtime", "policy_engine", "artifact_manifest", "gov_exercise_runner"]

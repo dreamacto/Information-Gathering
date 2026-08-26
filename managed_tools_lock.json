@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "source_policy": "official_release_assets_only; versioned; no live execution during install",
+  "tools": {
+    "nuclei": {"version": "3.8.0", "tag": "v3.8.0", "expected_sha256": "", "expected_bytes": null, "status": "hash_pending"},
+    "nuclei-templates": {"version": "10.4.4", "tag": "v10.4.4", "expected_sha256": "", "expected_bytes": null, "status": "hash_pending"},
+    "httpx": {"version": "1.9.0", "tag": "v1.9.0", "expected_sha256": "", "expected_bytes": null, "status": "hash_pending"},
+    "katana": {"version": "1.6.1", "tag": "v1.6.1", "expected_sha256": "", "expected_bytes": null, "status": "hash_pending"},
+    "afrog": {"version": "3.5.3", "tag": "v3.5.3", "expected_sha256": "", "expected_bytes": null, "status": "hash_pending"},
+    "shiroattack2": {"version": "5.1.1", "tag": "v5.1.1", "expected_sha256": "", "expected_bytes": null, "status": "hash_pending"}
+  }
+}

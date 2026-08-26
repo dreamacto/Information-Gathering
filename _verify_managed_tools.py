@@ -14,8 +14,19 @@ if hasattr(sys.stdout, "reconfigure"):
 
 ROOT = Path(r"D:\PythonSource\PythonProjects\PythonProject4")
 MANAGED = ROOT / "tools" / "managed"
+LOCK_FILE = ROOT / "managed_tools_lock.json"
 STATE = MANAGED / "_validation_state"
 STATE.mkdir(parents=True, exist_ok=True)
+
+
+def load_lock() -> dict:
+    try:
+        return json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"tools": {}}
+
+
+LOCK = load_lock()
 
 
 def digest(path: Path) -> str:
@@ -86,7 +97,10 @@ for spec in specs:
     record = {key: value for key, value in spec.items() if key not in {"path", "args"}}
     record.update({"path": str(path), "installed": path.is_file()})
     if path.is_file():
-        record.update({"bytes": path.stat().st_size, "sha256": digest(path)})
+        expected = LOCK.get("tools", {}).get(spec["name"], {}).get("expected_sha256", "")
+        actual = digest(path)
+        record.update({"bytes": path.stat().st_size, "sha256": actual,
+                       "expected_sha256": expected, "hash_status": "verified" if expected and actual.lower() == expected.lower() else ("hash_pending" if not expected else "mismatch")})
         if spec["args"] is not None:
             record["version_check"] = version(path, spec["args"])
         else:

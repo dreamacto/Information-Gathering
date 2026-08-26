@@ -16,11 +16,9 @@ ctx = ssl._create_unverified_context()
 def ts(): return time.strftime("%H:%M:%S")
 
 def safe_run(cmd, timeout=300, cwd=None, desc=""):
-    print(f"  [{ts()}] {desc or cmd[:80]}")
-    try: return subprocess.run(cmd, shell=True, timeout=timeout, cwd=cwd or TOOLS_DIR)
-    except FileNotFoundError: print("    工具未找到,跳过")
-    except subprocess.TimeoutExpired: print(f"    超时({timeout}s),跳过")
-    except Exception as e: print(f"    异常: {e}")
+    """Legacy execution is intentionally disabled; use gov_exercise_runner."""
+    print(f"  [{ts()}] legacy execution blocked: {desc or str(cmd)[:80]}")
+    print("    请改用 gov_exercise_runner.py；该旧入口不会启动外部命令。")
     return None
 
 def get_targets(f):

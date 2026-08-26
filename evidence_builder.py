@@ -10,6 +10,7 @@ from datetime import datetime
 from pathlib import Path
 
 from exercise_runtime import now_iso, write_json
+from artifact_manifest import create_manifest
 from screenshot_queue_builder import build_screenshot_queue
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -496,12 +497,15 @@ def main() -> int:
         force=args.attack_report,
         skip=args.no_attack_report,
     )
+    manifest = create_manifest(run_dir)
     print(json.dumps({
         "evidence_index": str(evidence_index),
         "daily_report": str(daily_report),
         "submission_template": str(submission),
         "screenshot_queue": screenshot_queue,
         "attack_result_docx": str(attack_report) if attack_report else "",
+        "artifact_manifest": str(run_dir / "artifact_manifest.json"),
+        "artifact_root_sha256": manifest["root_sha256"],
     }, ensure_ascii=False, indent=2))
     return 0
 

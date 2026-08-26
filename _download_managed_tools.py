@@ -21,6 +21,7 @@ ROOT = Path(r"D:\PythonSource\PythonProjects\PythonProject4")
 MANAGED = ROOT / "tools" / "managed"
 DOWNLOADS = MANAGED / "_downloads"
 USER_AGENT = "gx-health-exercise-tool-manager/1.0"
+LOCK_FILE = ROOT / "managed_tools_lock.json"
 
 SPECS = [
     {
@@ -65,6 +66,19 @@ SPECS = [
         ],
     },
 ]
+
+
+def load_lock() -> dict:
+    try:
+        data = json.loads(LOCK_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise RuntimeError(f"managed tool lock is missing or invalid: {LOCK_FILE}") from exc
+    if not isinstance(data.get("tools"), dict):
+        raise RuntimeError("managed tool lock has no tools map")
+    return data
+
+
+LOCK = load_lock()
 
 
 def request_json(url: str) -> dict:
@@ -175,6 +189,15 @@ for spec in SPECS:
     archive = download_dir / asset["name"]
     print(f"Downloading {asset['name']}...", flush=True)
     download(asset["browser_download_url"], archive, asset.get("size"))
+    lock = LOCK.get("tools", {}).get(spec["name"], {})
+    expected_sha = str(lock.get("expected_sha256") or "")
+    expected_bytes = lock.get("expected_bytes")
+    if not expected_sha:
+        raise RuntimeError(f"refusing to install {spec['name']}: expected_sha256 is not pinned")
+    if sha256(archive).lower() != expected_sha.lower():
+        raise RuntimeError(f"hash mismatch for {spec['name']}: expected {expected_sha}")
+    if expected_bytes is not None and archive.stat().st_size != int(expected_bytes):
+        raise RuntimeError(f"size mismatch for {spec['name']}: expected {expected_bytes}")
     record = {
         "name": spec["name"],
         "repo": f"https://github.com/{spec['repo']}",
@@ -185,6 +208,8 @@ for spec in SPECS:
         "asset_url": asset["browser_download_url"],
         "asset_bytes": archive.stat().st_size,
         "sha256": sha256(archive),
+        "expected_sha256": expected_sha,
+        "hash_status": "verified" if expected_sha else "hash_pending",
         "installed_dir": str(tool_dir),
         "extracted": [],
     }

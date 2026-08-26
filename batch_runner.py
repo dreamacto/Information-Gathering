@@ -71,28 +71,10 @@ def mark_phase_done(progress, abbr, phase):
 
 
 def run_phase(name, script, abbr, domain):
-    script_path = os.path.join(BASE_DIR, script)
-    if not os.path.isfile(script_path):
-        print(f"  [!] 脚本不存在: {script_path}")
-        return False
-
-    cmd = [PYTHON, script_path, "--project", abbr]
-    if "--domain" in open(script_path, encoding="utf-8").read()[:2000]:
-        cmd.extend(["--domain", domain])
-    if script == "dir_scanner.py":
-        cmd.extend(["--tier", "2"])
-
-    print(f"\n  [{name}] {' '.join(cmd)}")
-    try:
-        result = subprocess.run(cmd, timeout=3600, cwd=BASE_DIR,
-                              stdin=subprocess.DEVNULL)
-        return result.returncode == 0
-    except subprocess.TimeoutExpired:
-        print(f"  [!] {name} 超时(1h)")
-        return False
-    except Exception as e:
-        print(f"  [!] {name} 出错: {e}")
-        return False
+    """Legacy batch execution is disabled; use gov_exercise_runner.py."""
+    print(f"  [BLOCKED] legacy batch phase: {name} ({script})")
+    print("  请改用 gov_exercise_runner.py；未启动任何子进程。")
+    return False
 
 
 def process_target(target, progress, phases="full", resume=False):

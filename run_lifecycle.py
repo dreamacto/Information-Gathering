@@ -24,7 +24,7 @@ import argparse
 import json
 import sys
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
+from artifact_manifest import verify_manifest
 
 CST = timezone(timedelta(hours=8))
 ROOT = Path(__file__).resolve().parent
@@ -115,6 +115,8 @@ def derive(run_dir: Path) -> dict:
     ]
     next_step = next((name + " · " + desc for name, desc in steps if name not in all_states), "全部阶段闭环（或进入周期性下一轮）")
 
+    integrity = verify_manifest(run_dir)
+
     return {
         "run_dir": str(run_dir),
         "generated_at": now_iso(),
@@ -127,6 +129,8 @@ def derive(run_dir: Path) -> dict:
             "stop_reason": stop_reason or None,
         },
         "complete_cycle": all(s in all_states for s, _ in steps),
+        "integrity": integrity,
+        "cleanup_audit": "recorded" if (run_dir / "deletion_audit.jsonl").is_file() else "legacy_unknown",
         "next_step": next_step,
     }
 

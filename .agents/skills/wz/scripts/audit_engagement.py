@@ -71,11 +71,15 @@ def phase_map(root: Path) -> tuple[dict[str, dict[str, Any]], list[str]]:
         return {}, ["phase_status.json does not contain a phases list"]
     result: dict[str, dict[str, Any]] = {}
     errors: list[str] = []
+    seen: set[str] = set()
     for row in rows:
         if not isinstance(row, dict) or not str(row.get("phase", "")).strip():
             errors.append("phase_status.json contains an invalid phase row")
             continue
         name = str(row["phase"]).strip()
+        if name in seen:
+            errors.append(f"duplicate phase: {name}")
+        seen.add(name)
         status = str(row.get("status", "")).strip()
         if status not in VALID_PHASE_STATUSES:
             errors.append(f"{name}: invalid phase status {status!r}")
@@ -109,8 +113,14 @@ def audit(root: Path) -> dict[str, Any]:
     issues: list[str] = []
     authorization = engagement.get("authorization", {})
     auth_status = authorization.get("status", "") if isinstance(authorization, dict) else ""
-    initial_target_recorded = bool(engagement.get("target") or engagement.get("target_input_sha256"))
-    auth_confirmed = auth_status == "confirmed" or initial_target_recorded
+    auth_confirmed = (
+        isinstance(authorization, dict)
+        and authorization.get("status") == "confirmed"
+        and bool(authorization.get("authorization_evidence_recorded"))
+        and bool(authorization.get("active_testing_authorized"))
+    )
+    if not auth_confirmed:
+        issues.append("active testing authorization is not explicitly confirmed")
     safety_controls = engagement.get("safety_controls", {})
     safety_controls_recorded = (
         isinstance(safety_controls, dict)
@@ -156,14 +166,32 @@ def audit(root: Path) -> dict[str, Any]:
         if row.get("status") in {"confirmed", "fixed", "retest_failed", "retest_passed"}
         and not existing_evidence(root, row.get("evidence_ref", ""))
     ]
+    rejected_without_reason = [
+        row.get("item_id", "<missing>") for row in ledger
+        if row.get("status") == "rejected" and not (row.get("validation_result", "").strip() or row.get("notes", "").strip())
+    ]
     issues.extend(f"invalid review status: {item}" for item in invalid_review)
     issues.extend(f"approval gate lacks exact requirement: {item}" for item in unreasoned_gates)
+    issues.extend(f"rejected item lacks false-positive reason: {item}" for item in rejected_without_reason)
 
     def done(name: str) -> bool:
         row = required.get(name)
         return bool(row and row.get("status") in {"complete", "not_applicable"})
 
-    report_exists = (root / "reports" / "final-report.md").is_file()
+    report_files = {
+        "primary_docx": [p for p in (root / "reports").glob("*.docx") if p.is_file() and p.stat().st_size > 0],
+        "findings_json": root / "reports" / "findings.json",
+        "meta_json": root / "reports" / "meta.json",
+        "evidence_index": root / "evidence" / "index.csv",
+    }
+    report_complete = bool(report_files["primary_docx"] and report_files["findings_json"].is_file()
+                           and report_files["findings_json"].stat().st_size > 0
+                           and report_files["meta_json"].is_file()
+                           and report_files["meta_json"].stat().st_size > 0
+                           and report_files["evidence_index"].is_file())
+    report_exists = report_complete
+    if not report_complete:
+        issues.append("final DOCX, findings.json, meta.json, and evidence/index.csv are required")
     if not auth_confirmed:
         state = "AUTHORIZATION_PENDING"
     elif not in_scope or unresolved_scope or invalid_scope:
@@ -236,7 +264,7 @@ def main() -> int:
         print(f"workspace={result['workspace']}")
         for item in result.get("issues", []):
             print(f"issue={item}")
-    return 0
+    return 0 if result["state"] == "CLOSED" else 1
 
 
 if __name__ == "__main__":

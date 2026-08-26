@@ -1,0 +1,10 @@
+{
+  "schema_version": "1.0",
+  "phase_statuses": ["pending", "in_progress", "complete", "blocked", "not_applicable"],
+  "review_statuses": ["candidate", "needs_manual_validation", "approval_required", "confirmed", "rejected", "accepted_risk", "fixed", "retest_failed", "retest_passed", "duplicate", "out_of_scope", "needs_login", "blocked"],
+  "scope_states": ["in_scope", "confirmation_required", "third_party", "platform_shared", "out_of_scope", "invalid", "unclassified"],
+  "authorization_states": ["target_received", "initial_target_recorded", "authorization_evidence_recorded", "active_testing_authorized", "high_risk_action_approved"],
+  "blocked_actions": ["password_spray", "bruteforce", "webshell", "c2", "tunnel", "data_export", "destructive_write", "ddos", "social_engineering", "near_field"],
+  "phase_cursor_required": ["schema_version", "current_phase", "next_phase", "last_completed_phase", "updated_at"],
+  "report_required": ["primary_docx", "findings_json", "meta_json", "evidence_index"]
+}

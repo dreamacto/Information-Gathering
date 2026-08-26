@@ -646,20 +646,19 @@ def get_tools_for_fingerprint(fingerprint):
 
 
 def run_tool(name, url=None, host=None, domain=None, port=None, timeout=None,
-             extra_args=None):
-    """运行单个工具，返回 (success, output)
-
-    Args:
-        name:        工具名（REGISTRY中的key）
-        url:         目标URL
-        host:        目标IP/主机
-        domain:      目标域名
-        port:        目标端口
-        timeout:     超时（覆盖默认）
-        extra_args:  额外参数列表
-    """
+             extra_args=None, policy=None, context=None):
+    """Run a registered tool only when an explicit policy permits it."""
     if name not in REGISTRY:
         return False, f"未知工具: {name}"
+    if policy is None:
+        return False, "拒绝：工具调用必须提供 PolicyEngine 上下文"
+    context = dict(context or {})
+    context.setdefault("target", url or "")
+    context.setdefault("phase", "tool_execution")
+    decision = policy.authorize_tool(name, capabilities=cfg.get("capabilities", {"unknown"}),
+                                     context=context, target=url or "")
+    if not decision.allowed:
+        return False, f"策略拒绝: {decision.reason}"
 
     cfg = REGISTRY[name]
     tool_type = cfg["type"]
@@ -733,9 +732,9 @@ def run_tool(name, url=None, host=None, domain=None, port=None, timeout=None,
             result = subprocess.run(
                 [tool_path] + formatted_args,
                 capture_output=True, text=True, timeout=tool_timeout,
-                encoding="utf-8", errors="replace", shell=True,
+                encoding="utf-8", errors="replace", shell=False,
             )
-            return True, _combine_output(result)
+            return result.returncode == 0, _combine_output(result)
 
         # === GUI 应用（不可自动化调用）===
         elif tool_type == "gui":
@@ -760,11 +759,12 @@ def _combine_output(result):
     return combined[:8000] if len(combined) > 8000 else combined
 
 
-def run_tools_batch(tool_names, url=None, host=None, domain=None):
-    """批量运行多个工具，返回 {name: (success, output)}"""
+def run_tools_batch(tool_names, url=None, host=None, domain=None, policy=None, context=None):
+    """批量运行多个工具；每项都必须单独通过策略。"""
     results = {}
     for name in tool_names:
-        ok, out = run_tool(name, url=url, host=host, domain=domain)
+        ok, out = run_tool(name, url=url, host=host, domain=domain,
+                           policy=policy, context=context)
         results[name] = (ok, out)
         if ok:
             print(f"    [+] {name} 完成")

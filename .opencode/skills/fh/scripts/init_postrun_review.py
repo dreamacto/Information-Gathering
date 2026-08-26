@@ -1245,6 +1245,7 @@ def refresh_generated_output(output: Path) -> None:
         if output_resolved not in target_resolved.parents:
             raise RuntimeError(f"Refusing to refresh directory outside output workspace: {target_dir}")
         shutil.rmtree(target_dir)
+    (output / "verdicts").mkdir(parents=True, exist_ok=True)
     for name in GENERATED_WORKSPACE_FILES:
         path = output / name
         if not path.exists():

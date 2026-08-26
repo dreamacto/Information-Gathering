@@ -279,7 +279,7 @@ def main() -> int:
 
     created = now()
     authorization_ref = args.authorization_ref.strip() or "user_supplied_initial_target"
-    authorization_confirmed = True
+    authorization_confirmed = False
     if not engagement_path.exists():
         engagement = {
             "workspace_version": 1,
@@ -288,9 +288,14 @@ def main() -> int:
             "target_input_sha256": hashlib.sha256(args.target.encode("utf-8")).hexdigest(),
             "target": target,
             "authorization": {
-                "status": "confirmed",
+                "status": "target_received",
                 "reference": authorization_ref,
                 "basis": "user_supplied_initial_target",
+                "target_received": True,
+                "initial_target_recorded": True,
+                "authorization_evidence_recorded": bool(args.authorization_ref.strip()),
+                "active_testing_authorized": False,
+                "high_risk_action_approved": False,
                 "window": args.window.strip(),
                 "rules_reference": args.rules.strip(),
                 "rate_note": args.rate.strip(),
@@ -316,11 +321,11 @@ def main() -> int:
                 "asset_id": hashlib.sha256(host.encode("utf-8")).hexdigest()[:16],
                 "asset": host,
                 "asset_type": asset_type,
-                "scope_state": "in_scope" if authorization_confirmed else "confirmation_required",
+                "scope_state": "confirmation_required",
                 "source": "initial_target" if host == target["host"] else "operator_supplied",
                 "ownership_rationale": authorization_ref,
-                "permitted_actions": "per rules of engagement" if authorization_confirmed else "none",
-                "confirmed_at": created if authorization_confirmed else "",
+                "permitted_actions": "none",
+                "confirmed_at": "",
                 "notes": "",
             }
         )
@@ -358,7 +363,14 @@ def main() -> int:
                 }
             )
         phase_path.write_text(
-            json.dumps({"phases": phases}, ensure_ascii=False, indent=2) + "\n",
+            json.dumps({
+                "schema_version": "1.0",
+                "current_phase": "authorization",
+                "next_phase": "scope",
+                "last_completed_phase": "",
+                "updated_at": created,
+                "phases": phases,
+            }, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
 
@@ -379,8 +391,11 @@ def main() -> int:
         ),
         [],
     )
+    write_text_if_missing(root / "notes" / "target-model.md", "# Target model\n\n## Host map\n\n## Technology stack\n\n## Entrypoints\n\n## Authentication topology\n\n## Attack-surface decisions\n\n## Excluded and untested areas\n")
+    write_text_if_missing(root / "notes" / "operator_tasks.md", "# Operator tasks\n\n- [ ] Confirm authorization evidence, testing window, and scope before active testing.\n")
     write_text_if_missing(root / "notes" / "tool-inventory.md", "# Tool inventory\n")
     write_text_if_missing(root / "notes" / "coverage.md", "# Coverage\n")
+    (root / "notes" / "phase-history").mkdir(parents=True, exist_ok=True)
     write_text_if_missing(
         root / "notes" / "safety-controls.md",
         "# Safety controls\n\n"
@@ -404,7 +419,7 @@ def main() -> int:
     write_text_if_missing(root / "reports" / ".gitkeep", "")
     print(f"workspace={root}")
     print(f"target={target['canonical_url']}")
-    print("authorization=confirmed")
+    print("authorization=target_received (active testing not authorized)")
     return 0
 
 

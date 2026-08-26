@@ -107,7 +107,7 @@ def directory_manifest_sha256(path: Path) -> str:
             size = item.stat().st_size
         except OSError:
             continue
-        digest.update(f"{relative}\0{size}\n".encode("utf-8", errors="replace"))
+        digest.update(f"{relative}\0{size}\0{sha256_file(item)}\n".encode("utf-8", errors="replace"))
     return digest.hexdigest()
 
 
@@ -242,9 +242,14 @@ def main() -> int:
             "input_type": input_type,
             "input_sha256": hashlib.sha256(args.input.encode("utf-8")).hexdigest(),
             "authorization": {
-                "status": "confirmed",
+                "status": "target_received",
                 "reference": authorization_ref,
                 "basis": "user_supplied_initial_target",
+                "target_received": True,
+                "initial_target_recorded": True,
+                "authorization_evidence_recorded": bool(args.authorization_ref.strip()),
+                "active_testing_authorized": False,
+                "high_risk_action_approved": False,
                 "window": args.window.strip(),
                 "rules_reference": args.rules.strip(),
                 "rate_note": args.rate.strip(),
@@ -349,11 +354,19 @@ def main() -> int:
                 }
             )
         phase_path.write_text(
-            json.dumps({"phases": phases}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            json.dumps({
+                "schema_version": "1.0",
+                "current_phase": "authorization",
+                "next_phase": "identity",
+                "last_completed_phase": "",
+                "updated_at": created,
+                "phases": phases,
+            }, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
 
-    write_text_if_missing(root / "notes" / "tool-inventory.md", "# Tool inventory\n")
-    write_text_if_missing(root / "notes" / "coverage.md", "# Coverage\n")
+    write_text_if_missing(root / "notes" / "target-model.md", "# Target model\n\n## Host map\n\n## Technology stack\n\n## Entrypoints\n\n## Authentication topology\n\n## Attack-surface decisions\n\n## Excluded and untested areas\n")
+    write_text_if_missing(root / "notes" / "operator_tasks.md", "# Operator tasks\n\n- [ ] Confirm authorization evidence, testing window, and scope before active testing.\n")
+    (root / "notes" / "phase-history").mkdir(parents=True, exist_ok=True)
     write_text_if_missing(
         root / "notes" / "safety-controls.md",
         "# Safety controls\n\n"
@@ -380,7 +393,7 @@ def main() -> int:
     print(f"input_type={input_type}")
     print(f"platform={platform}")
     print(f"identity={'confirmed' if identity_confirmed else 'pending'}")
-    print("authorization=confirmed")
+    print("authorization=target_received (active testing not authorized)")
     return 0
 
 

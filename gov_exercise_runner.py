@@ -51,7 +51,7 @@ from product_triage import write_outputs as write_product_outputs
 from healthcare_privacy_triage import build_triage as build_healthcare_privacy_triage
 from healthcare_privacy_triage import write_outputs as write_healthcare_privacy_outputs
 from operator_action_hub import build_operator_action_hub
-from weak_credential_review import run_review as run_weak_credential_review
+from policy_engine import load_policy_engine
 
 
 DEFAULT_WORKFLOW = BASE_DIR / "gov_exercise_workflow.json"
@@ -1939,6 +1939,36 @@ def main() -> int:
     else:
         run_dir = create_run_dir(run_label)
     write_targets(run_dir, targets, args.targets)
+    policy = load_policy_engine(
+        cfg, workflow, tool_strategy, targets, run_dir,
+        entrypoint="gov_exercise_runner",
+    )
+    if not policy.valid:
+        raise SystemExit("Policy configuration is invalid; refusing to run")
+    requested_actions = {
+        "subdomain_bruteforce": "active_discovery",
+        "tool_fingerprint": "metadata_read",
+        "high_value_paths": "metadata_read",
+        "api_discovery": "metadata_read",
+        "api_confirm": "metadata_read",
+        "xss_triage": "input_testing",
+        "sqli_triage": "input_testing",
+        "header_sqli_triage": "input_testing",
+        "shiro_triage": "rce",
+        "idor_triage": "authorization_testing",
+        "weak_credential_review": "password_spray",
+        "auth_review": "authenticated_testing",
+    }
+    for flag, action in requested_actions.items():
+        if getattr(args, flag, False):
+            decision = policy.authorize_action(action, phase=flag)
+            if not decision.allowed:
+                raise SystemExit(f"{flag} refused by policy: {decision.reason}")
+    if args.probe:
+        for target in targets:
+            decision = policy.authorize_action("probe", target.url, "active_discovery")
+            if not decision.allowed:
+                raise SystemExit(f"Probe refused for {target.url}: {decision.reason}")
     write_workflow_plan(run_dir, workflow, args)
 
     runtime = collect_runtime_inventory(cfg)
@@ -1963,16 +1993,18 @@ def main() -> int:
                 "continuing": True,
             })
             print(f"[!] 子域名阶段未捕获异常，已记录并继续后续流程: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
-    # 子域结果自动接入主流程（20260823 操作者需求）：解析成功的域内子域直接并入本次 run
-    # 的目标集继续探测，不再需要手动拿 subdomains_for_next_run.txt 去跑第二个 bat。
+    # Newly discovered hosts remain pending until separately authorized.
     auto_merged_path = run_dir / "targets_with_auto_subdomains.txt"
     if auto_merged_path.is_file():
-        merged_targets = load_targets(auto_merged_path)
-        if len(merged_targets) > len(targets):
-            print(f"[+] 子域自动接入主流程：目标 {len(targets)} → {len(merged_targets)}"
-                  f"（新增 {len(merged_targets) - len(targets)}），后续阶段直接续跑", flush=True)
-            targets = merged_targets
-            write_targets(run_dir, targets, auto_merged_path)
+        pending_targets = load_targets(auto_merged_path)
+        if len(pending_targets) > len(targets):
+            append_jsonl(run_dir / "pending_scope_assets.jsonl", {
+                "checked_at": now_iso(),
+                "source": str(auto_merged_path),
+                "count": len(pending_targets) - len(targets),
+                "reason": "new assets require ownership and scope confirmation before probing",
+            })
+            print("[!] 发现新子域，已进入 pending 队列；未自动并入本次探测。", flush=True)
     if args.probe:
         run_probe(run_dir, targets, cfg, args.limit or None, float(delay), force=args.force)
     if args.fingerprint or args.probe:

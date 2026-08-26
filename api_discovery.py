@@ -24,8 +24,11 @@ from pathlib import Path
 from urllib.parse import urljoin, urlparse
 
 
-USER_AGENT = "Authorized-ReadOnly-API-Discovery/1.0"
+from artifact_manifest import sha256_file
+from deletion_audit import record_delete
 
+
+USER_AGENT = "Authorized-ReadOnly-API-Discovery/1.0"
 SCRIPT_RE = re.compile(r"<script[^>]+src=[\"']([^\"']+)[\"']", re.I)
 HREF_RE = re.compile(r"<a[^>]+href=[\"']([^\"']+)[\"']", re.I)
 TITLE_RE = re.compile(r"<title[^>]*>(.*?)</title>", re.I | re.S)
@@ -208,8 +211,8 @@ def fetch(url: str, timeout: int, connect_timeout: int, tmp_dir: Path,
     finally:
         for path in (body_path, header_path):
             try:
-                path.unlink()
-            except OSError:
+                record_delete(path, tmp_dir, "temporary API discovery response cleanup")
+            except (OSError, ValueError, PermissionError):
                 pass
     return result
 
