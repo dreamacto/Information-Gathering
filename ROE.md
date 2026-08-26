@@ -55,8 +55,10 @@
 
 ## 4. 凭证纪律
 
-- sessions.jsonl / auth_sessions.local.json 只被本地脚本读取；AI 只见元数据（源：AGENTS.md:13）。
-- 凭证内容永不进对话、不进报告、不进 prompt、不进日志样例。
+- 凭证文件（auth_sessions.local.json / sessions.jsonl 等 *.local.*）只存本地（.gitignore 已排除），供本地脚本读取与认证态测试使用。
+- **操作员在会话中主动提供凭证**（粘贴 cookie/token/Authorization，或要求把凭证写入文件）：AI **应当接收**，写入对应本地凭证文件（按 host 组织进 auth_sessions.local.json），并在授权范围内用该凭证执行认证态测试。回复只确认"已写入 auth_sessions.local.json（host=xxx）"，不复述凭证值。
+- AI 不得主动索要凭证；最多提示"如需认证态测试，可在会话中提供该站点 cookie，我会写入本地凭证文件"。
+- 凭证内容禁止外泄：不进报告、不进 prompt 模板、不进日志样例、不进截图、不进 findings_ledger / review_ledger、不进交接提示词、不进 git、不进外部服务。
 - 敏感信息可取证但不得导出、下载或留存（源：authorization-boundaries.md:22）。
 
 ## 5. 证据分级

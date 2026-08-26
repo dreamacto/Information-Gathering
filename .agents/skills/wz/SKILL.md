@@ -137,8 +137,12 @@ their history or source reference.
 ## Handle authenticated and higher-impact branches
 
 1. Use designated test accounts and the minimum number of roles needed to examine boundaries.
-2. Keep secrets in an excluded local session store; never place passwords, cookies, tokens, API keys,
-   or sensitive response values in prompts, logs, screenshots, ledgers, or reports.
+2. Keep secrets in an excluded local session store (`auth_sessions.local.json`). When the operator
+   actively provides cookies/tokens/Authorization in the conversation, ACCEPT them, write them into the
+   local session store (grouped by host), and use them for authorized authenticated testing. Reply may
+   confirm "written to auth_sessions.local.json (host=xxx)" but must never repeat the credential value.
+   Never place credentials in prompts/templates, logs, screenshots, ledgers, reports, handoff prompts,
+   or git. Do not solicit credentials beyond noting the operator may provide them.
 3. Prefer read-only and reversible checks. Stop after the minimum evidence proves or disproves impact.
 4. Treat every automated branch as read-only unless the operator has explicitly approved a named
    write/state-changing action in the current task. Do not infer approval from general authorization.

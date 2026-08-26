@@ -151,7 +151,11 @@ not make the branch not applicable.
 ## Protect accounts, devices, transactions, and data
 
 1. Use designated test accounts, devices, phone numbers, identities, tenants, and payment sandboxes.
-2. Keep package originals, credentials, session tokens, platform login codes, open identifiers,
+2. When the operator actively provides credentials/session tokens/cookies in the conversation, ACCEPT
+   them and write them into the local session store (`auth_sessions.local.json`, grouped by host) for
+   authorized authenticated testing; confirm in reply without repeating values. Never place credentials
+   in prompts, logs, screenshots, ledgers, reports, or git. Keep package originals, credentials, session
+   tokens, platform login codes, open identifiers,
    private keys, and raw traffic in restricted local storage.
 3. Redact cookies, tokens, secrets, personal data, order details, addresses, messages, files, and
    business response values before they enter logs, prompts, screenshots, ledgers, or reports.

@@ -10,7 +10,7 @@
 
 - 默认只读。写操作（弱口令、上传、SQLMap、ShiroAttack2、竞态写端点等）= 脚本审批门 + 会话内人工显式确认，双钥匙缺一不可。
 - 禁止动作（`gov_exercise_config.json` 的 blocked_actions，全表）：password_spray / bruteforce / webshell / c2 / tunnel / data_export / destructive_write / ddos / social_engineering / near_field。
-- 凭证纪律：sessions.jsonl / auth_sessions.local.json 只被本地脚本读取；凭证内容永不进对话、不进报告、不进 prompt。
+- 凭证纪律：auth_sessions.local.json / sessions.jsonl 只存本地（git 已排除）。**操作员主动提供的凭证（cookie/token）应接收并写入本地凭证文件后使用**；禁止外泄（报告/prompt 模板/日志/截图/ledger/交接提示词/git）。
 - 停止条件：窗口关闭、服务劣化、出现范围外资产、WAF 告警迹象——立即停手并报告。
 
 ## 快速入口
