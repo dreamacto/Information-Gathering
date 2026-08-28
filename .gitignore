@@ -33,7 +33,6 @@ tmp_*.py
 # Large local tools and downloaded dependencies
 tools/
 ai_infra_guard/
-"ai_infra_guard/
 ai-infra-guard.exe
 *.exe
 *.dll

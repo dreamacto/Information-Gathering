@@ -1148,6 +1148,46 @@ def ct_log_names(domain: str, timeout: float = 25.0) -> tuple[list[str], str]:
     return _ct_filter(names, domain), ""
 
 
+def detect_wildcard_parents(parents: list[str], probes: int = 2, timeout: float = 3.0) -> dict[str, list[str]]:
+    """泛解析检测（操作者实测反馈 20260827）：对注册父域用随机不存在前缀做 DNS 探测，
+    能解析即判定该父域开了 wildcard——字典里所有候选都会"解析成功"，全是同 IP 噪声。
+    返回 {parent: [泛解析答案 IP...]}（仅命中者）。"""
+    import secrets
+    result: dict[str, list[str]] = {}
+    for parent in sorted(set(p for p in parents if p)):
+        hits: set[str] = set()
+        for _ in range(max(1, probes)):
+            label = "zx-wc-" + secrets.token_hex(5)
+            try:
+                infos = socket.getaddrinfo(f"{label}.{parent}", None)
+            except OSError:
+                continue
+            for info in infos:
+                ip = str(info[4][0]) if info and info[4] else ""
+                if ip:
+                    hits.add(ip)
+        if hits:
+            result[parent] = sorted(hits)
+    return result
+
+
+def split_wildcard_results(
+    host_ips: dict[str, set[str]], wildcard_map: dict[str, list[str]]
+) -> tuple[list[str], list[str]]:
+    """泛解析过滤：父域命中 wildcard 时，丢弃 IP 完全落在泛解析答案集内的候选；
+    解析到其它 IP 的主机保留（可能是真实站点）。返回 (kept_hosts, dropped_hosts)。"""
+    kept: list[str] = []
+    dropped: list[str] = []
+    for host in sorted(host_ips):
+        wc = wildcard_map.get(registered_parent(host))
+        ips = host_ips.get(host) or set()
+        if wc and ips and ips <= set(wc):
+            dropped.append(host)
+        else:
+            kept.append(host)
+    return kept, dropped
+
+
 def resolve_query(scope_anchor: str, host: str, timeout: float, gate: RateGate) -> dict:
     gate.wait()
     ips, error = resolve_host(host, timeout)
@@ -1220,6 +1260,13 @@ def main() -> int:
               f"结果按后缀过滤，仅 *.根域 内主机进入后续流程", flush=True)
         scope_anchors = _expanded
     words = load_words(args.wordlist, args.max_words)
+    wildcard_map = detect_wildcard_parents(
+        [registered_parent(a) for a in scope_anchors], timeout=args.timeout
+    )
+    if wildcard_map:
+        detail = ", ".join(f"{p} → {'/'.join(ips[:2])}{'…' if len(ips) > 2 else ''}" for p, ips in sorted(wildcard_map.items()))
+        print(f"[!] 检测到泛解析（wildcard DNS）：{detail}", flush=True)
+        print("[!] 字典/被动源命中的候选若仍解析到同一批 IP，将被判为泛解析噪声过滤，不进入自动合并。", flush=True)
     hints = intake_scope_hints(scope_anchors)
     if hints:
         print("[!] 目标作用域预警：以下锚点是主机名而非根域，子域枚举按纪律不扩大范围——", flush=True)
@@ -1315,6 +1362,25 @@ def main() -> int:
         resolved_hosts.append(host)
         host_to_scope_anchor[host] = scope_anchor
     unique_hosts = sorted(set(resolved_hosts))
+    wildcard_dropped_path = args.out_dir / "subdomains_wildcard_dropped.txt"
+    wildcard_dropped: list[str] = []
+    if wildcard_map and unique_hosts:
+        host_ips: dict[str, set[str]] = {}
+        for row in rows:
+            host = str(row.get("host") or "")
+            if row.get("status") == "resolved" and host:
+                host_ips.setdefault(host, set()).update(
+                    x for x in str(row.get("ips") or "").split(",") if x
+                )
+        unique_hosts, wildcard_dropped = split_wildcard_results(
+            {h: host_ips.get(h, set()) for h in unique_hosts}, wildcard_map
+        )
+        wildcard_dropped_path.write_text(
+            "\n".join(wildcard_dropped) + ("\n" if wildcard_dropped else ""), encoding="utf-8"
+        )
+        if wildcard_dropped:
+            print(f"[!] 泛解析过滤：丢弃 {len(wildcard_dropped)} 个仅解析到 wildcard IP 的噪声候选"
+                  f"（完整清单见 {wildcard_dropped_path.name}；原始记录仍保留在 jsonl/csv）", flush=True)
     raw_path.write_text("\n".join(resolved_hosts) + ("\n" if resolved_hosts else ""), encoding="utf-8")
     dedup_path.write_text("\n".join(unique_hosts) + ("\n" if unique_hosts else ""), encoding="utf-8")
     pending_path.write_text(
@@ -1346,7 +1412,10 @@ def main() -> int:
         "registered_parent_widening": False,
         "word_count": len(words),
         "query_count": len(queries),
-        "resolved_count": len(unique_hosts),
+        "resolved_count": len(unique_hosts) + len(wildcard_dropped),
+        "wildcard_detected": bool(wildcard_map),
+        "wildcard_map": wildcard_map,
+        "wildcard_dropped_count": len(wildcard_dropped),
         "out_of_scope_rejected_count": rejected_count,
         "delay": args.delay,
         "qps": args.qps,
@@ -1363,6 +1432,7 @@ def main() -> int:
             "jsonl": str(jsonl_path),
             "csv": str(csv_path),
             "scope_rejections": str(rejected_path),
+            "wildcard_dropped": str(wildcard_dropped_path),
         },
         "default_policy": "input_host_subtree_only_no_parent_or_sibling_widening",
     }

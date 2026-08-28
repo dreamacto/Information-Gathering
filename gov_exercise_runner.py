@@ -31,12 +31,27 @@ from urllib.parse import urljoin
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+_SRC_DIR = Path(__file__).resolve().parent / "src"
+if str(_SRC_DIR) not in sys.path:
+    sys.path.insert(0, str(_SRC_DIR))
+
+from project_paths import config_path
+from authorized_assessment.orchestration.runner_config import (
+    load_config as _load_runner_config,
+    load_tool_strategy as _load_tool_strategy,
+    load_workflow as _load_workflow,
+    resolve_relative_config_path as _resolve_relative_config_path,
+)
+from authorized_assessment.orchestration.stage_runner import run_sync_stage
+from authorized_assessment.orchestration.stage_paths import stage_script
+
 from exercise_runtime import (
     DEFAULT_CONFIG,
     BASE_DIR,
     append_jsonl,
     collect_runtime_inventory,
     create_run_dir,
+    domain_hint_from_targets,
     load_targets,
     now_iso,
     read_json,
@@ -51,11 +66,12 @@ from product_triage import write_outputs as write_product_outputs
 from healthcare_privacy_triage import build_triage as build_healthcare_privacy_triage
 from healthcare_privacy_triage import write_outputs as write_healthcare_privacy_outputs
 from operator_action_hub import build_operator_action_hub
+from weak_credential_review import run_review as run_weak_credential_review
 from policy_engine import load_policy_engine
 
 
-DEFAULT_WORKFLOW = BASE_DIR / "gov_exercise_workflow.json"
-DEFAULT_TOOL_STRATEGY = BASE_DIR / "tool_strategy.json"
+DEFAULT_WORKFLOW = config_path("workflow")
+DEFAULT_TOOL_STRATEGY = config_path("tool_strategy")
 MINIAPP_BURP_DIR_NAME = "07_小程序Burp导入结果"
 
 SAFE_HEADERS = {
@@ -111,36 +127,12 @@ HIGH_VALUE_PATHS = [
 
 
 def load_config(path: Path) -> dict:
-    cfg = read_json(path)
-    cfg.setdefault("label", "gx_gov")
-    cfg.setdefault("max_targets", 500)
-    cfg.setdefault("default_delay_seconds", 2.0)
-    cfg.setdefault("probe_timeout_seconds", 8)
-    cfg.setdefault("rate_control", {
-        "default_delay_seconds": 2.0,
-        "jitter_ratio": 0.25,
-        "per_host_min_interval_seconds": 2.0,
-        "backoff_status_codes": [429, 500, 502, 503, 504],
-        "backoff_seconds": 10,
-        "max_concurrency_default": 1,
-        "stop_on_repeated_errors_per_host": 5,
-    })
-    cfg.setdefault("allowed_modes", ["check", "probe"])
-    cfg.setdefault("workflow", str(DEFAULT_WORKFLOW))
-    cfg.setdefault("tool_strategy", str(DEFAULT_TOOL_STRATEGY))
-    cfg.setdefault("blocked_actions", [
-        "password_spray",
-        "bruteforce",
-        "webshell",
-        "c2",
-        "tunnel",
-        "data_export",
-        "destructive_write",
-        "ddos",
-        "social_engineering",
-        "near_field",
-    ])
-    return cfg
+    return _load_runner_config(
+        path,
+        read_json=read_json,
+        default_workflow=DEFAULT_WORKFLOW,
+        default_tool_strategy=DEFAULT_TOOL_STRATEGY,
+    )
 
 
 class RateController:
@@ -181,24 +173,15 @@ class RateController:
 
 
 def load_workflow(path: Path) -> dict:
-    workflow = read_json(path)
-    if not workflow:
-        raise SystemExit(f"Workflow file is missing or empty: {path}")
-    return workflow
+    return _load_workflow(path, read_json=read_json)
 
 
 def load_tool_strategy(path: Path) -> dict:
-    strategy = read_json(path)
-    if not strategy:
-        raise SystemExit(f"Tool strategy file is missing or empty: {path}")
-    return strategy
+    return _load_tool_strategy(path, read_json=read_json)
 
 
-def resolve_relative_config_path(config_path: Path, configured: str | Path | None, default: Path) -> Path:
-    path = Path(configured) if configured else default
-    if not path.is_absolute():
-        path = config_path.resolve().parent / path
-    return path
+def resolve_relative_config_path(config_file: Path, configured: str | Path | None, default: Path) -> Path:
+    return _resolve_relative_config_path(config_file, configured, default)
 
 
 def write_compliance_files(run_dir: Path, cfg: dict, args: argparse.Namespace) -> None:
@@ -1267,7 +1250,7 @@ def run_subdomain_bruteforce_stage(run_dir: Path, args: argparse.Namespace) -> N
 
     cmd = [
         sys.executable,
-        str(BASE_DIR / "subdomain_bruteforce_controlled.py"),
+        str(stage_script(BASE_DIR, "subdomain_bruteforce")),
         "--targets",
         str(args.targets),
         "--out-dir",
@@ -1344,7 +1327,7 @@ def run_subdomain_bruteforce_stage(run_dir: Path, args: argparse.Namespace) -> N
 def run_tool_fingerprint_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "tool_fingerprint_httpx.py"),
+        str(stage_script(BASE_DIR, "tool_fingerprint")),
         "--run-dir",
         str(run_dir),
         "--targets",
@@ -1394,7 +1377,7 @@ def run_api_discovery_stage(run_dir: Path, args: argparse.Namespace, delay: floa
         return
     cmd = [
         sys.executable,
-        str(BASE_DIR / "api_discovery.py"),
+        str(stage_script(BASE_DIR, "api_discovery")),
         "--targets",
         str(api_targets),
         "--out-dir",
@@ -1423,7 +1406,7 @@ def run_api_discovery_stage(run_dir: Path, args: argparse.Namespace, delay: floa
 def run_api_confirm_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "api_endpoint_confirm.py"),
+        str(stage_script(BASE_DIR, "api_confirm")),
         "--run-dir",
         str(run_dir),
         "--delay",
@@ -1452,7 +1435,7 @@ def run_api_confirm_stage(run_dir: Path, args: argparse.Namespace, delay: float)
 def run_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "sqli_triage.py"),
+        str(stage_script(BASE_DIR, "sqli_triage")),
         "--run-dir",
         str(run_dir),
         "--delay",
@@ -1485,7 +1468,7 @@ def run_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float)
 def run_header_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "header_reflection_probe.py"),
+        str(stage_script(BASE_DIR, "header_sqli_triage")),
         "--run-dir",
         str(run_dir),
         "--delay",
@@ -1514,7 +1497,7 @@ def run_header_sqli_triage_stage(run_dir: Path, args: argparse.Namespace, delay:
 def run_xss_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "xss_candidate_triage.py"),
+        str(stage_script(BASE_DIR, "xss_triage")),
         "--run-dir",
         str(run_dir),
         "--delay",
@@ -1547,7 +1530,7 @@ def run_xss_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) 
 def run_shiro_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "shiro_triage.py"),
+        str(stage_script(BASE_DIR, "shiro_triage")),
         "--run-dir",
         str(run_dir),
         "--delay",
@@ -1582,20 +1565,17 @@ def run_asset_fingerprint_ingest(run_dir: Path) -> None:
     """
     cmd = [
         sys.executable,
-        str(BASE_DIR / "asset_fingerprint_ingest.py"),
+        str(stage_script(BASE_DIR, "asset_fingerprint_ingest")),
         "--run-dir",
         str(run_dir),
     ]
-    with (run_dir / "asset_fingerprint_ingest.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
-        run_dir / "asset_fingerprint_ingest.err.log"
-    ).open("w", encoding="utf-8", errors="ignore") as err:
-        proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
-    if proc.returncode != 0:
-        append_jsonl(run_dir / "asset_fingerprint_ingest_errors.jsonl", {
-            "checked_at": now_iso(),
-            "returncode": proc.returncode,
-            "cmd": cmd,
-        })
+    proc = run_sync_stage(
+        cmd,
+        cwd=BASE_DIR,
+        run_dir=run_dir,
+        stage="asset_fingerprint_ingest",
+        error_artifact="asset_fingerprint_ingest_errors.jsonl",
+    )
 
 
 def run_authenticated_review_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
@@ -1614,7 +1594,7 @@ def run_authenticated_review_stage(run_dir: Path, args: argparse.Namespace, dela
         return
     cmd = [
         sys.executable,
-        str(BASE_DIR / "authenticated_session_review.py"),
+        str(stage_script(BASE_DIR, "authenticated_review")),
         "--run-dir",
         str(run_dir),
         "--cookie-file",
@@ -1672,7 +1652,7 @@ def run_miniapp_source_stage(run_dir: Path, args: argparse.Namespace) -> None:
         out_dir = run_dir / "miniapp_source_offline" / f"{index:02d}_{safe_stage_name(source_dir)}"
         cmd = [
             sys.executable,
-            str(BASE_DIR / "miniapp_endpoint_offline.py"),
+            str(stage_script(BASE_DIR, "miniapp_source")),
             "--source-dir",
             str(source_dir),
             "--out-dir",
@@ -1707,7 +1687,7 @@ def run_miniapp_manual_stage(run_dir: Path, args: argparse.Namespace) -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     cmd = [
         sys.executable,
-        str(BASE_DIR / "miniapp_manual_search_helper.py"),
+        str(stage_script(BASE_DIR, "miniapp_manual")),
         "--targets",
         str(run_dir / "targets.csv"),
         "--out-dir",
@@ -1777,20 +1757,17 @@ def run_fingerprint_deepening_stage(run_dir: Path) -> None:
     """Build offline product-specific next-step queues without sending requests."""
     cmd = [
         sys.executable,
-        str(BASE_DIR / "fingerprint_deepening.py"),
+        str(stage_script(BASE_DIR, "fingerprint_deepening")),
         "--run-dir",
         str(run_dir),
     ]
-    with (run_dir / "fingerprint_deepening.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
-        run_dir / "fingerprint_deepening.err.log"
-    ).open("w", encoding="utf-8", errors="ignore") as err:
-        proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
-    if proc.returncode != 0:
-        append_jsonl(run_dir / "fingerprint_deepening_errors.jsonl", {
-            "checked_at": now_iso(),
-            "returncode": proc.returncode,
-            "cmd": cmd,
-        })
+    proc = run_sync_stage(
+        cmd,
+        cwd=BASE_DIR,
+        run_dir=run_dir,
+        stage="fingerprint_deepening",
+        error_artifact="fingerprint_deepening_errors.jsonl",
+    )
 
 
 def run_healthcare_privacy_stage(run_dir: Path) -> None:
@@ -1808,7 +1785,7 @@ def run_healthcare_privacy_stage(run_dir: Path) -> None:
 def run_second_pass_triage_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "second_pass_triage.py"),
+        str(stage_script(BASE_DIR, "second_pass_triage")),
         "--run-dir",
         str(run_dir),
         "--delay",
@@ -1844,26 +1821,23 @@ def run_second_pass_triage_stage(run_dir: Path, args: argparse.Namespace, delay:
 def run_review_intelligence_stage(run_dir: Path) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "review_intelligence.py"),
+        str(stage_script(BASE_DIR, "review_intelligence")),
         "--run-dir",
         str(run_dir),
     ]
-    with (run_dir / "review_intelligence.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
-        run_dir / "review_intelligence.err.log"
-    ).open("w", encoding="utf-8", errors="ignore") as err:
-        proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
-    if proc.returncode != 0:
-        append_jsonl(run_dir / "review_intelligence_errors.jsonl", {
-            "checked_at": now_iso(),
-            "returncode": proc.returncode,
-            "cmd": cmd,
-        })
+    proc = run_sync_stage(
+        cmd,
+        cwd=BASE_DIR,
+        run_dir=run_dir,
+        stage="review_intelligence",
+        error_artifact="review_intelligence_errors.jsonl",
+    )
 
 
 def run_wechat_miniapp_stage(run_dir: Path, args: argparse.Namespace, delay: float) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "wechat_miniapp_discovery.py"),
+        str(stage_script(BASE_DIR, "wechat_miniapp")),
         "--run-dir",
         str(run_dir),
         "--out-dir",
@@ -1894,21 +1868,18 @@ def run_wechat_miniapp_stage(run_dir: Path, args: argparse.Namespace, delay: flo
 def run_evidence_builder_stage(run_dir: Path, args: argparse.Namespace) -> None:
     cmd = [
         sys.executable,
-        str(BASE_DIR / "evidence_builder.py"),
+        str(stage_script(BASE_DIR, "evidence_builder")),
         str(run_dir),
         "--config",
         str(args.config),
     ]
-    with (run_dir / "evidence_builder.out.log").open("w", encoding="utf-8", errors="ignore") as out, (
-        run_dir / "evidence_builder.err.log"
-    ).open("w", encoding="utf-8", errors="ignore") as err:
-        proc = subprocess.run(cmd, cwd=str(BASE_DIR), stdout=out, stderr=err)
-    if proc.returncode != 0:
-        append_jsonl(run_dir / "evidence_builder_errors.jsonl", {
-            "checked_at": now_iso(),
-            "returncode": proc.returncode,
-            "cmd": cmd,
-        })
+    proc = run_sync_stage(
+        cmd,
+        cwd=BASE_DIR,
+        run_dir=run_dir,
+        stage="evidence_builder",
+        error_artifact="evidence_builder_errors.jsonl",
+    )
 
 
 def main() -> int:
@@ -1930,6 +1901,10 @@ def main() -> int:
         raise SystemExit(f"Refusing {len(targets)} targets; max_targets is {max_targets}")
 
     run_label = args.label or cfg.get("label", "gx_gov")
+    # run 目录名带输入主域（操作者检索体验 20260827）：如 20260827_155900_taizhou.gov.cn_one_click_full_weak
+    _hint = domain_hint_from_targets(targets)
+    if _hint and _hint not in run_label:
+        run_label = f"{_hint}_{run_label}"
     if args.resume_run_dir:
         run_dir = args.resume_run_dir
         if not run_dir.exists():
@@ -1945,25 +1920,6 @@ def main() -> int:
     )
     if not policy.valid:
         raise SystemExit("Policy configuration is invalid; refusing to run")
-    requested_actions = {
-        "subdomain_bruteforce": "active_discovery",
-        "tool_fingerprint": "metadata_read",
-        "high_value_paths": "metadata_read",
-        "api_discovery": "metadata_read",
-        "api_confirm": "metadata_read",
-        "xss_triage": "input_testing",
-        "sqli_triage": "input_testing",
-        "header_sqli_triage": "input_testing",
-        "shiro_triage": "rce",
-        "idor_triage": "authorization_testing",
-        "weak_credential_review": "password_spray",
-        "auth_review": "authenticated_testing",
-    }
-    for flag, action in requested_actions.items():
-        if getattr(args, flag, False):
-            decision = policy.authorize_action(action, phase=flag)
-            if not decision.allowed:
-                raise SystemExit(f"{flag} refused by policy: {decision.reason}")
     if args.probe:
         for target in targets:
             decision = policy.authorize_action("probe", target.url, "active_discovery")
@@ -1993,18 +1949,30 @@ def main() -> int:
                 "continuing": True,
             })
             print(f"[!] 子域名阶段未捕获异常，已记录并继续后续流程: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
-    # Newly discovered hosts remain pending until separately authorized.
+    # 子域结果自动接入主流程（20260823 操作者需求）：解析成功的域内子域直接并入本次 run
+    # 的目标集继续探测，不再需要手动拿 subdomains_for_next_run.txt 去跑第二个 bat。
+    # 并入动作本身记录审计事件，便于事后追溯合并来源与数量。
     auto_merged_path = run_dir / "targets_with_auto_subdomains.txt"
     if auto_merged_path.is_file():
-        pending_targets = load_targets(auto_merged_path)
-        if len(pending_targets) > len(targets):
-            append_jsonl(run_dir / "pending_scope_assets.jsonl", {
+        merged_targets = load_targets(auto_merged_path)
+        if len(merged_targets) > len(targets):
+            print(f"[+] 子域自动接入主流程：目标 {len(targets)} → {len(merged_targets)}"
+                  f"（新增 {len(merged_targets) - len(targets)}），后续阶段直接续跑", flush=True)
+            targets = merged_targets
+            write_targets(run_dir, targets, auto_merged_path)
+            append_jsonl(run_dir / "auto_merge_audit.jsonl", {
                 "checked_at": now_iso(),
                 "source": str(auto_merged_path),
-                "count": len(pending_targets) - len(targets),
-                "reason": "new assets require ownership and scope confirmation before probing",
+                "before": len(load_targets(Path(args.targets))),
+                "after": len(targets),
+                "policy": "operator_requirement_20260823_auto_merge",
             })
-            print("[!] 发现新子域，已进入 pending 队列；未自动并入本次探测。", flush=True)
+    # 子域脚本输出被写进日志文件，控制台看不到过滤过程——这里把泛解析结论回显给操作者。
+    _wc_manifest = read_json(run_dir / "subdomain_bruteforce_manifest.json")
+    if isinstance(_wc_manifest, dict) and _wc_manifest.get("wildcard_detected"):
+        print(f"[i] 子域泛解析过滤已生效：检出 wildcard {_wc_manifest.get('wildcard_map')}，"
+              f"丢弃 {_wc_manifest.get('wildcard_dropped_count', 0)} 个同 IP 噪声候选"
+              f"（明细见 subdomains_wildcard_dropped.txt）", flush=True)
     if args.probe:
         run_probe(run_dir, targets, cfg, args.limit or None, float(delay), force=args.force)
     if args.fingerprint or args.probe:
@@ -2055,20 +2023,28 @@ def main() -> int:
         run_shiro_triage_stage(run_dir, args, float(delay))
 
     if args.idor_triage:
-        cmd = [
-            sys.executable,
-            str(BASE_DIR / "idor_triage.py"),
-            "--run-dir", str(run_dir),
-            "--delay", str(args.idor_delay),
-            "--max-per-host", str(args.idor_max_per_host),
-        ]
-        if args.idor_sessions:
-            cmd.extend(["--sessions", str(args.idor_sessions)])
-        if args.idor_requests:
-            cmd.extend(["--requests", str(args.idor_requests)])
-        proc = subprocess.run(cmd, cwd=str(BASE_DIR))
-        if proc.returncode != 0:
-            append_jsonl(run_dir / "phase_errors.jsonl", {"checked_at": now_iso(), "phase": "idor_diff", "returncode": proc.returncode})
+        if not (args.idor_sessions and args.idor_requests):
+            print("[!] 跳过 IDOR 越权差分：该阶段需要认证会话与请求清单"
+                  "（--idor-sessions / --idor-requests，人工复核后提供），本次不执行", flush=True)
+            append_jsonl(run_dir / "phase_errors.jsonl", {
+                "checked_at": now_iso(),
+                "phase": "idor_diff",
+                "skipped": True,
+                "reason": "missing_required_inputs_idor_sessions_or_requests",
+            })
+        else:
+            cmd = [
+                sys.executable,
+                str(stage_script(BASE_DIR, "idor_diff")),
+                "--run-dir", str(run_dir),
+                "--delay", str(args.idor_delay),
+                "--max-per-host", str(args.idor_max_per_host),
+                "--sessions", str(args.idor_sessions),
+                "--requests", str(args.idor_requests),
+            ]
+            proc = subprocess.run(cmd, cwd=str(BASE_DIR))
+            if proc.returncode != 0:
+                append_jsonl(run_dir / "phase_errors.jsonl", {"checked_at": now_iso(), "phase": "idor_diff", "returncode": proc.returncode})
 
     if args.wechat_miniapp:
         # Mini-program clue generation is offline by default.  Do not silently

@@ -134,7 +134,12 @@ Give every `not_applicable` or `blocked` phase a specific reason. Use these revi
 Never delete an old row to make the engagement look complete. Mark stale rows inactive and retain
 their history or source reference.
 
-## Handle authenticated and higher-impact branches
+## Authentication preflight
+
+Before entering `authenticated_session_review` or another authentication-state phase, check whether the operator has just logged in and clicked through the target in `browser-edge` or `browser-firefox`. Prefer the local `burp-local` MCP to list available tools and use its read-only HTTP-history capability. Filter by the engagement's exact scheme/host/port and select only recent relevant requests. Never put raw history, cookies, Authorization values, JWTs, or request bodies into conversation, run artifacts, logs, reports, ledgers, screenshots, or handoff prompts. Pass matched credentials only in memory to the existing local session handling, or write them to the git-excluded `auth_sessions.local.json`. Record only non-sensitive status in `auth_preflight.json`: `found`, `not_found`, `mcp_unavailable`, `host_mismatch`, or `pending`. An unavailable MCP or unmatched history leaves an operator queue; it never implies authenticated or unauthenticated status. Authentication-state review remains same-host, GET-only, metadata-limited, and is a heavyweight stop point.
+
+Tool roles: `browser-edge`/`browser-firefox` are for operator login and page interaction; `burp-local` is for local HTTP-history inspection; `authenticated_session_review.py` performs bounded same-host read-only review.
+
 
 1. Use designated test accounts and the minimum number of roles needed to examine boundaries.
 2. Keep secrets in an excluded local session store (`auth_sessions.local.json`). When the operator

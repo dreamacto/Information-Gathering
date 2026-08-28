@@ -23,9 +23,11 @@ from typing import Iterable, Sequence
 from urllib.parse import urlparse
 
 
-BASE_DIR = Path(__file__).resolve().parent
-RUNS_DIR = BASE_DIR / "runs"
-DEFAULT_CONFIG = BASE_DIR / "gov_exercise_config.json"
+from project_paths import ROOT, RUNS_DIR, config_path
+
+
+BASE_DIR = ROOT
+DEFAULT_CONFIG = config_path("exercise")
 
 HEADER_TOKENS = {
     "url",
@@ -240,6 +242,29 @@ def target_fingerprint(targets: Sequence[Target]) -> str:
         h.update(target.url.encode("utf-8", "replace"))
         h.update(b"\n")
     return h.hexdigest()
+
+
+_COMMON_SECOND_LEVEL_SUFFIXES = {
+    "com.cn", "net.cn", "org.cn", "gov.cn", "edu.cn", "ac.cn", "mil.cn",
+}
+
+
+def domain_hint_from_targets(targets: Sequence[Target]) -> str:
+    """操作者检索体验（20260827）：从首个目标主机提取注册主域，用作 run 目录名前缀。
+
+    输入 www.taizhou.gov.cn → taizhou.gov.cn；www.gxcic.net → gxcic.net。
+    无可解析主机时返回空串，调用方保持原命名不变。
+    """
+    if not targets:
+        return ""
+    host = str(getattr(targets[0], "host", "") or "").strip(".").lower()
+    parts = [p for p in host.split(".") if p]
+    if len(parts) < 2:
+        return ""
+    candidate = ".".join(parts[-2:])
+    if len(parts) >= 3 and candidate in _COMMON_SECOND_LEVEL_SUFFIXES:
+        candidate = ".".join(parts[-3:])
+    return candidate
 
 
 def create_run_dir(label: str) -> Path:

@@ -12,7 +12,7 @@
 2. 只调 AGENT_MANIFEST.md 中该 phase 允许的工具；目标与参数一律从盘上文件取，不发明范围。
 3. 默认只读：只发只读 GET/HEAD；写操作（弱口令/上传/SQLMap/ShiroAttack2/竞态写端点）属于审批门，必须停下等你显式确认——双钥匙缺一不可。
 4. 原始响应/HAR/JS 不进对话，只写盘 + 引用"路径:行号"。
-5. 凭证纪律：auth_sessions.local.json / sessions.jsonl 只存本地（git 已排除）。**操作员在会话中主动提供凭证（cookie/token/Authorization）时：接收并写入 auth_sessions.local.json（按 host 组织），随后用该凭证做认证态测试**；回复只确认"已写入（host=xxx）"，不复述值。AI 不主动索要凭证。凭证值禁止进 report、进 prompt 模板、进日志、进交接提示词、进 git。
+5. 认证前置：在进入 authenticated_session_review 或其他认证态阶段前，先确认操作者刚刚是否已在 browser-edge/browser-firefox 中登录并点击目标页面。若是，使用 `burp-local` MCP 先列工具，再选择只读 HTTP history 查询工具；按当前 engagement 的精确 scheme/host/port 只取最近相关请求。仅在 host 匹配时，将 Cookie/Authorization 在 agent 内存中交给现有本地 session 处理，或写入被 git 排除的 `auth_sessions.local.json`；不要把原始 history、凭证值或请求体写入对话、run、日志、报告或交接提示词。记录 `auth_preflight.json` 的非敏感状态（found/not_found/mcp_unavailable/host_mismatch），失败时保留人工队列，不伪造已认证。
 6. 每个阶段完成后依次做三件事：① 写盘游标；② 更新阶段记录——必须 handoff-complete：维护累积的目标理解快照（host 地图/技术栈/入口/认证拓扑 + 每个考虑过的攻击面状态：开放/已排除含理由/被审批门挡住），并记录本阶段测了什么、**没测什么及原因（负面空间）**、证据以"路径:行号"引用——负面结果与已排除面同等重要，漏记它们就是让下个会话漏攻击面；③ **询问操作者**："本阶段已完成——继续本会话，还是交接新会话？"要交接就给自包含交接提示词（只导航盘上事实源：phase_status.json 游标、目标理解快照、台账、端点清单、安全控件，外加下一阶段与优先项——绝不凭对话记忆总结）；说继续就在原会话接着推。撞停点（审批门/重量级/70%）则收尾写盘并打印推进清单与下一游标。
 7. 上下文预算三档线：建议交接线 ~12万 token（重推理阶段）/~15万（轻量脚本阶段）——阶段边界推荐交接；硬收尾线 min(20万, 窗口70%)——立即完成当前阶段记录并写盘，主动给交接提示词并建议开新会话；操作者明确确认要继续后方可继续，不得无声续跑。
 

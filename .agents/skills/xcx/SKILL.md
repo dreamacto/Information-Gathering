@@ -148,7 +148,12 @@ Keep `package_inventory`, `package_unpack_decompile`, and `source_reconstruction
 phases whenever package material exists. A failed extractor leaves the package branch blocked; it does
 not make the branch not applicable.
 
-## Protect accounts, devices, transactions, and data
+## Authentication preflight from browser and Burp history
+
+After the operator logs in and clicks through the mini-program in `browser-edge` or `browser-firefox`, inspect the most recent local requests through `burp-local` MCP. First list available tools, then choose the read-only HTTP-history query; do not assume a tool name. Match the mini-program's exact backend scheme/host/port against `hosts.csv`, `wechat_auth_domains.json`, Burp import artifacts, and the target model. Only a resolved in-scope host may supply authentication material. Platform-shared, third-party, unclassified, or confirmation-required hosts remain pending. Keep Cookie/Authorization/JWT values in memory or pass them to the existing local `auth_sessions.local.json` handling; never place raw history, request bodies, or credential values in conversation, reports, logs, ledgers, screenshots, or handoff prompts. Persist only non-sensitive `auth_preflight.json` status: `found`, `not_found`, `mcp_unavailable`, `host_mismatch`, or `pending`. This feeds the existing `wechat_auth_domains` → `manual_auth_queue` → `auth_sessions.local.json` → `gov_exercise_runner --auth-review` chain and does not replace scope classification or Burp XML/TXT offline import. Authentication-state review remains a heavyweight stop point.
+
+Tool roles: `browser-edge`/`browser-firefox` handle operator login and page interaction; `burp-local` reads local HTTP history; `authenticated_session_review.py` performs bounded same-host read-only review.
+
 
 1. Use designated test accounts, devices, phone numbers, identities, tenants, and payment sandboxes.
 2. When the operator actively provides credentials/session tokens/cookies in the conversation, ACCEPT

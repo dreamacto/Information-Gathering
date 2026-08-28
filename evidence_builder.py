@@ -13,8 +13,10 @@ from exercise_runtime import now_iso, write_json
 from artifact_manifest import create_manifest
 from screenshot_queue_builder import build_screenshot_queue
 
+from project_paths import config_path
+
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = BASE_DIR / "gov_exercise_config.json"
+DEFAULT_CONFIG = config_path("exercise")
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp"}
 
 

@@ -16,10 +16,16 @@ import json
 import datetime
 import pathlib
 import re
+import sys
 
 BASE = pathlib.Path(__file__).resolve().parent.parent
-TOOL_STRATEGY = BASE / "tool_strategy.json"
-GOV_CONFIG = BASE / "gov_exercise_config.json"
+if str(BASE) not in sys.path:
+    sys.path.insert(0, str(BASE))
+
+from project_paths import config_path
+
+TOOL_STRATEGY = config_path("tool_strategy")
+GOV_CONFIG = config_path("exercise")
 OUTPUT = BASE / "AGENT_MANIFEST.md"
 
 # 桌面 bat 入口（逐条登记触发场景）

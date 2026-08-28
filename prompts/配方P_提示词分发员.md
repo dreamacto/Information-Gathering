@@ -37,7 +37,7 @@
    python fh_review_dispatch.py --run-dir {RUN_DIR} --recommend --top 5
 6. 把 深挖推荐.md 的表格展示给我，由我拍板选哪几个目标进单目标流程。
 
-纪律：零网络请求；confirmed 必须有卷宗内确定性证据，证据不足一律降级；rejected 记 fp_pattern；
+纪律：允许受限的只读现场复核——单目标、并发 1、同 host 请求间隔 ≥3s、每目标最多 10 次只读 GET/HEAD（超出需我加预算）；禁止一切主动测试/写操作/爆破/SQLMap/RCE/枚举/WAF 触发，遇 CAPTCHA/限流/报错尖峰/慢响应立即停。confirmed 必须有卷宗内确定性证据（或现场复核的确定性差分），证据不足一律降级；rejected 记 fp_pattern；
 每个目标 verdict 写完即落盘；上下文预算到 ~12万（建议交接）/ min(20万, 窗口70%)（硬收尾）即停。
 ```
 

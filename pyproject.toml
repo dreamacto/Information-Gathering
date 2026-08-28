@@ -33,4 +33,14 @@ markers = [
 ]
 
 [tool.setuptools]
-py-modules = ["exercise_runtime", "policy_engine", "artifact_manifest", "gov_exercise_runner"]
+py-modules = ["exercise_runtime", "policy_engine", "artifact_manifest", "auth_preflight", "gov_exercise_runner", "api_endpoint_confirm", "tool_fingerprint_httpx", "product_triage", "healthcare_privacy_triage", "fingerprint_deepening", "review_intelligence", "readonly_endpoint_confirm", "deep_readonly_triage", "miniapp_endpoint_offline", "analyze_wx_miniapp_source", "one_click_workflow", "parallel_flow_runner", "project_paths", "asset_fingerprint_ingest", "second_pass_triage", "miniapp_manual_search_helper", "decrypt_wxapkg", "full_unpack_wxapkg"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["authorized_assessment*"]
+
+[tool.setuptools.package-data]
+authorized_assessment = ["**/*.md"]
+
+[tool.setuptools.package-dir]
+"" = "src"

@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "source": "burp_local_history",
+  "target_host": "",
+  "status": "found|not_found|mcp_unavailable|host_mismatch|pending",
+  "request_count": 0,
+  "selected_at": "",
+  "credential_fields": [],
+  "credential_value_hashes": [],
+  "credential_values_persisted": false,
+  "raw_history_persisted": false,
+  "notes": "Only metadata is persisted; credential values and raw history are never written."
+}

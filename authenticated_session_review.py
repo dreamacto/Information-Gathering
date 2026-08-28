@@ -534,6 +534,17 @@ def run_authenticated_review_with_sessions(
     return manifest
 
 
+def auth_preflight_allows_review(run_dir: Path) -> bool:
+    """Require a non-sensitive preflight marker for automatic session review."""
+    path = run_dir / "auth_preflight.json"
+    if not path.is_file():
+        return True
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and payload.get("status") == "found" and payload.get("raw_history_persisted") is False
+
 def run_authenticated_review(
     run_dir: Path,
     cookie_file: Path,
@@ -542,6 +553,8 @@ def run_authenticated_review(
     max_js: int,
     max_endpoints: int,
 ) -> dict:
+    if not auth_preflight_allows_review(run_dir):
+        return {"status": "pending", "reason": "auth_preflight_not_found_or_invalid", "credential_values_persisted": False}
     sessions = load_sessions(cookie_file)
     return run_authenticated_review_with_sessions(
         run_dir=run_dir,

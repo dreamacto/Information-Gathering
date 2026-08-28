@@ -13,7 +13,13 @@
 - 凭证纪律：auth_sessions.local.json / sessions.jsonl 只存本地（git 已排除）。**操作员主动提供的凭证（cookie/token）应接收并写入本地凭证文件后使用**；禁止外泄（报告/prompt 模板/日志/截图/ledger/交接提示词/git）。
 - 停止条件：窗口关闭、服务劣化、出现范围外资产、WAF 告警迹象——立即停手并报告。
 
-## 快速入口
+## 项目结构地图
+
+- 目录归类、入口规范、兼容层和本地资产边界：`docs/PROJECT_STRUCTURE.md`
+- Windows 规范启动器：`launchers/`；根目录同名 BAT/CMD 仅为兼容转发器
+- 维护/导入/浏览器/报告辅助脚本：`scripts/` 下按职责归类
+- 生产 Python 当前保留根目录兼容路径；新模块不得继续无分类地放在根目录
+
 
 | 入口 | 用途 |
 |---|---|

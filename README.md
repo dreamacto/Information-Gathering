@@ -2,7 +2,15 @@
 
 这个项目的定位是：把授权范围内的目标整理成低频、只读、证据友好的复核流程，帮你更快找到“值得人工确认”的接口泄露、越权、产品漏洞候选、弱口令入口和报告素材。
 
-## 推荐入口
+## 项目结构
+
+仓库的归类地图、入口规范、代码放置规则和本地资产边界见 [`docs/PROJECT_STRUCTURE.md`](docs/PROJECT_STRUCTURE.md)。
+
+- 新的 Windows 入口统一放在 `launchers/`；根目录同名 BAT/CMD 仅用于兼容旧快捷方式。
+- 生产 Python 文件当前保留根目录兼容路径，避免破坏既有裸导入；新模块不要继续堆到根目录。
+- `runs/`、`engagements/`、`reports/`、`outputs/`、`tools/` 和 `unpacked/` 是本地资产，不要提交。
+- 根目录逐文件归类清单：`docs/ROOT_FILE_CLASSIFICATION.json`。
+
 
 桌面批处理是最适合新手的一键入口：
 
