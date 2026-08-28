@@ -1,6 +1,6 @@
 # AGENT_MANIFEST.md — 机器可读工具清单
 
-> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-28 11:39）
+> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-28 19:09）
 
 > 用法：AI 选工具前先查本清单；所有新工具/新 phase 由生成器登记，不手写本文件。
 
@@ -105,7 +105,7 @@
 - primary：`runner_http_probe`；backup：`httpx`（mode=sample_failures_and_edge_cases）
 - 说明：Do not run two liveness probes full-scope unless the first output is incomplete.
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
-- backup：`httpx`（风险级 **只读**）；路径：D:\PythonSource\PythonProjects\PythonProject4/tools/managed/httpx/1.9.0/httpx.exe（存在）; D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/fcke/httpx.exe（存在）
+- backup：`httpx`（风险级 **只读**）；路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\httpx\1.9.0\httpx.exe（存在）; D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\fcke\httpx.exe（存在）
 
 ### fingerprint
 - primary：`tool_fingerprint_httpx.py`；backup：`runner_rules_or_ehole_tidefinger_sample`（mode=rate_controlled_tool_first）
@@ -175,8 +175,8 @@
 ### template_validation
 - primary：`nuclei`；backup：`afrog`（mode=confirm_verified_candidates）
 - 说明：Use the pinned managed Nuclei engine and reviewed templates as the general core; use afrog mainly for confirmed Chinese OA products. Filter by technology, severity, and intrusiveness, and never run approval-gated templates automatically.
-- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4/tools/managed/nuclei/3.8.0/nuclei.exe（存在）; D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/nuclei/nuclei.exe（存在）；输出：nuclei_results.jsonl
-- backup：`afrog`（风险级 **只读**）；路径：D:\PythonSource\PythonProjects\PythonProject4/tools/managed/afrog/3.5.3/afrog.exe（存在）; D:\PythonSource\PythonProjects\PythonProject4/tools/afrog.exe（存在）
+- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\nuclei\3.8.0\nuclei.exe（存在）; D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\nuclei\nuclei.exe（存在）；输出：nuclei_results.jsonl
+- backup：`afrog`（风险级 **只读**）；路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\afrog\3.5.3\afrog.exe（存在）; D:\PythonSource\PythonProjects\PythonProject4\tools\afrog.exe（存在）
 
 ### shiro_candidate_screening
 - primary：`shiro_triage.py`；backup：`manual_browser_or_proxy`（mode=review_positive_candidates）
@@ -197,7 +197,7 @@
 ### sqli_validation
 - primary：`sqlmap`；backup：`manual_request_diff_review`（mode=confirm_single_candidate_only）
 - 说明：Use only on one high-probability or operator-approved candidate URL at a time with risk=1, level=1, technique BE, delay, request caps, and no database dumping or destructive options.
-- primary 风险级：**审批门**；外部工具路径：D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/sqlmap/sqlmap.py（存在）; D:\PythonSource\PythonProjects\PythonProject4/sqlmap/sqlmap.py（缺失）；输出：sqlmap 会话目录（无 dump）
+- primary 风险级：**审批门**；外部工具路径：D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\sqlmap\sqlmap.py（存在）; 备用缺失 1 条；输出：sqlmap 会话目录（无 dump）
 - backup：`manual_request_diff_review`（风险级 **只读**）；路径：—
 
 ### springboot_candidate_screening
@@ -241,7 +241,7 @@
 ### tomcat_weblogic_validation
 - primary：`nuclei`；backup：`manual_request_review`（mode=confirm_single_candidate_only）
 - 说明：Pinned managed Nuclei engine with reviewed templates only: ghostcat CVE-2020-1938 (network), weblogic CVE-2019-2725/CVE-2020-14882/CVE-2018-2894/CVE-2023-21839, tomcat manager/default-login/jolokia-creds-leak. Verified end-to-end on local sim: ghostcat critical hit; CVE-2020-14882 critical hit and CVE-2023-21839 high hit via self-hosted interactsh (public oast.pro unreachable from this network). Local OOB stack: interactsh-server -d 127.0.0.1 -http-port 8000 -dns-port 30053 -lip 127.0.0.1 -sa (domain MUST equal the nuclei server IP form, i.e. -d 127.0.0.1, else DNS callbacks are not matched), then nuclei -iserver http://127.0.0.1:8000. Independent CLI for 21839: tools\managed\weblogic21839\POC_CVE-2023-21839\CVE-2023-21839.py -ip <t> -p 7001 -l ldap://<oast>/x (pure T3/IIOP handshake, verified 7/7 steps on sim). Approval-gated RCE templates never auto-run; per-host template caps apply.
-- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4/tools/managed/nuclei/3.8.0/nuclei.exe（存在）; D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/nuclei/nuclei.exe（存在）；输出：nuclei_results.jsonl
+- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\nuclei\3.8.0\nuclei.exe（存在）; D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\nuclei\nuclei.exe（存在）；输出：nuclei_results.jsonl
 
 ### nacos_candidate_screening
 - primary：`nacos_triage.py`；backup：`manual_browser_or_proxy`（mode=review_positive_candidates）
@@ -251,7 +251,7 @@
 ### nacos_validation
 - primary：`nuclei`；backup：`manual_request_review`（mode=confirm_single_candidate_only）
 - 说明：Pinned managed Nuclei templates only: nacos-auth-bypass, nacos-authentication-bypass, nacos-info-leak, nacos-create-user, nacos-default-login. Do not create users or mutate configuration in the default flow; those require explicit approval.
-- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4/tools/managed/nuclei/3.8.0/nuclei.exe（存在）; D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/nuclei/nuclei.exe（存在）；输出：nuclei_results.jsonl
+- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\nuclei\3.8.0\nuclei.exe（存在）; D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\nuclei\nuclei.exe（存在）；输出：nuclei_results.jsonl
 
 ### redis_es_zk_candidate_screening
 - primary：`redis_triage.py`；backup：`manual_browser_or_proxy`（mode=review_positive_candidates）
@@ -261,7 +261,7 @@
 ### redis_es_zk_validation
 - primary：`nuclei`；backup：`manual_request_review`（mode=confirm_single_candidate_only）
 - 说明：Pinned managed Nuclei templates only: exposed-redis/redis-config/redis-info, elasticsearch detect and known info-leak templates. Actual key/value reads or config writes require explicit approval.
-- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4/tools/managed/nuclei/3.8.0/nuclei.exe（存在）; D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/nuclei/nuclei.exe（存在）；输出：nuclei_results.jsonl
+- primary 风险级：**只读**；外部工具路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\nuclei\3.8.0\nuclei.exe（存在）; D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\nuclei\nuclei.exe（存在）；输出：nuclei_results.jsonl
 
 ### custom_probe_policy
 - primary：`mature_tool_or_manual_review_for_validation`；backup：`custom_scripts_for_candidate_screening`（mode=candidate_screening_only）

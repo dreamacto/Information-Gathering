@@ -479,14 +479,22 @@ def build_root_entries():
 
 
 def external_path(tool_name, config_tools, tianhu_base):
-    """从 gov_exercise_config.json tools 里找工具候选路径（展开 {base}/{tianhu}）。"""
+    """展开候选路径并标出命中项；至少一条存在即视为工具可用。"""
     cands = config_tools.get(tool_name, [])
-    paths = []
+    expanded = []
     for c in cands:
-        p = c.replace("{base}", str(BASE)).replace("{tianhu}", tianhu_base)
-        exists = "存在" if pathlib.Path(p).exists() else "缺失"
-        paths.append(f"{p}（{exists}）")
-    return "; ".join(paths[:2]) if paths else "—"
+        p = pathlib.Path(c.replace("{base}", str(BASE)).replace("{tianhu}", tianhu_base))
+        expanded.append((p, p.is_file() or p.is_dir()))
+    if not expanded:
+        return "—"
+    existing = [p for p, ok in expanded if ok]
+    missing = [p for p, ok in expanded if not ok]
+    parts = [f"{p}（存在）" for p in existing[:2]]
+    if not existing:
+        parts.append("无候选路径存在")
+    elif missing:
+        parts.append(f"备用缺失 {len(missing)} 条")
+    return "; ".join(parts)
 
 
 def build_manifest():
