@@ -107,6 +107,7 @@
       "{tianhu}/tools/gui_scan/apitool/API-Explorer_v1.0.1.exe"
     ],
     "tidefinger": [
+      "{base}/tools/managed/tidefinger/3.2.3/TideFinger_windows_amd64_v3.2.3.exe",
       "{tianhu}/tools/gui_shouji/tide/TideFinger_windows_amd64_v3.2.3.exe"
     ]
   }

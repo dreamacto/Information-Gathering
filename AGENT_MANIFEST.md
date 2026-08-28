@@ -1,6 +1,6 @@
 # AGENT_MANIFEST.md — 机器可读工具清单
 
-> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-28 19:09）
+> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-28 19:26）
 
 > 用法：AI 选工具前先查本清单；所有新工具/新 phase 由生成器登记，不手写本文件。
 
