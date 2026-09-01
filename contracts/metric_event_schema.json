@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "contract": "metric_event",
+  "description": "Offline lineage-aware metric observation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["metric_event_id", "metric_name", "value", "unit", "dimensions", "window", "source_refs", "quality_status", "created_at"],
+  "properties": {
+    "metric_event_id": {"type": "string", "pattern": "^metric_[A-Za-z0-9._-]+$"}, "metric_name": {"type": "string"},
+    "value": {"type": ["number", "string", "null"]}, "unit": {"type": "string", "enum": ["count", "ratio", "seconds", "boolean", "text"]},
+    "dimensions": {"type": "object", "additionalProperties": false, "properties": {"assessment_id": {"type": "string"}, "workflow": {"type": "string"}, "phase": {"type": "string"}, "target_ref_hash": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "window": {"type": "object", "required": ["start", "end"], "properties": {"start": {"type": "string", "format": "date-time"}, "end": {"type": "string", "format": "date-time"}}},
+    "source_refs": {"type": "array", "items": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "dedup_key": {"type": ["string", "null"]}, "retry_of": {"type": ["string", "null"]}, "quality_status": {"type": "string", "enum": ["VALID", "PARTIAL", "INCONCLUSIVE", "FAILED", "BLOCKED", "UNKNOWN"]}, "coverage_status": {"type": ["string", "null"]}, "created_at": {"type": "string", "format": "date-time"}
+  },
+  "invariants": ["historical metrics are not current facts", "retry lineage uses dedup_key and latest-attempt semantics", "unknown/N/A is explicit", "plain target, credential, session and raw response values are forbidden"]
+}

@@ -71,6 +71,24 @@ REQUIRED_SNAPSHOT_FIELDS = (
     "created_at",
 )
 
+ORCHESTRATION_CONTRACTS = (
+    "assessment_schema.json",
+    "worker_manifest_schema.json",
+    "task_envelope_schema.json",
+    "worker_result_schema.json",
+    "policy_decision_schema.json",
+    "checkpoint_schema.json",
+    "event_schema.json",
+    "metric_event_schema.json",
+    "approval_schema.json",
+    "graph_schema.json",
+    "worker_error_schema.json",
+)
+ORCHESTRATION_FORBIDDEN_PROPERTY_NAMES = {
+    "cookie", "token", "password", "secret", "session", "session_key",
+    "raw_response", "har", "traceback",
+}
+
 EXPECTED_IDENTITY_KEY_FIELDS = {
     "generic": ("canonical_target", "endpoint", "http_method", "parameter_name",
                 "input_location", "test_family"),
@@ -107,6 +125,82 @@ def _load_json(path: Path) -> tuple[object, str | None]:
         return json.loads(path.read_text(encoding="utf-8")), None
     except json.JSONDecodeError as exc:
         return None, f"unparseable contract file {path.name}: {exc}"
+
+
+def check_orchestration_contract(path: Path) -> list[str]:
+    data, err = _load_json(path)
+    if err:
+        return [err]
+    if not isinstance(data, dict):
+        return [f"{path.name} must be an object"]
+    violations: list[str] = []
+    for field in ("schema_version", "contract", "type", "required", "properties", "invariants"):
+        if field not in data:
+            violations.append(f"{path.name} missing {field}")
+    if data.get("schema_version") != "1.0":
+        violations.append(f"{path.name} schema_version drift")
+    if data.get("type") != "object":
+        violations.append(f"{path.name} type must be object")
+    if not isinstance(data.get("required"), list) or not data["required"]:
+        violations.append(f"{path.name}.required missing or empty")
+    if not isinstance(data.get("properties"), dict) or not data["properties"]:
+        violations.append(f"{path.name}.properties missing or empty")
+    if not isinstance(data.get("invariants"), list) or not data["invariants"]:
+        violations.append(f"{path.name}.invariants missing or empty")
+
+    def walk_keys(node: object):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                yield str(key).lower()
+                yield from walk_keys(value)
+        elif isinstance(node, list):
+            for value in node:
+                yield from walk_keys(value)
+
+    forbidden = sorted(
+        set(walk_keys(data.get("properties", {}))) & ORCHESTRATION_FORBIDDEN_PROPERTY_NAMES
+    )
+    if forbidden:
+        violations.append(f"{path.name} forbidden sensitive property names: {forbidden}")
+
+    props = data.get("properties", {})
+    if path.name == "worker_manifest_schema.json":
+        permissions = props.get("permissions", {}).get("properties", {})
+        for field in ("write_scope", "write_approval", "write_cursor", "write_confirmed"):
+            if permissions.get(field, {}).get("const") is not False:
+                violations.append(f"worker_manifest_schema.permissions.{field} must be false")
+    if path.name == "task_envelope_schema.json":
+        actions = props.get("action", {}).get("enum")
+        if actions != ["offline", "read_only", "metadata"]:
+            violations.append(f"task_envelope_schema.action enum drift: {actions!r}")
+    if path.name == "worker_result_schema.json":
+        if "gate" not in props:
+            violations.append("worker_result_schema missing gate")
+        for field in ("facts_used", "reasoning_summary", "alternative_explanations", "hypotheses", "unknowns", "coverage", "not_tested", "next_hints"):
+            if field not in props:
+                violations.append(f"worker_result_schema missing analyst field: {field}")
+    if path.name == "checkpoint_schema.json":
+        status_files = props.get("status_file", {}).get("enum", [])
+        for value in ("phase_status.json", "phase_status.miniapp.json"):
+            if value not in status_files:
+                violations.append(f"checkpoint_schema.status_file missing {value}")
+    if path.name == "approval_schema.json":
+        for field in ("script_gate", "human_confirmation"):
+            if field not in props:
+                violations.append(f"approval_schema missing {field}")
+    if path.name == "graph_schema.json":
+        for field in ("nodes", "edges"):
+            if field not in props:
+                violations.append(f"graph_schema missing {field}")
+    return violations
+
+
+def check_orchestration_contracts(root: Path) -> list[str]:
+    contracts = root / "contracts"
+    violations: list[str] = []
+    for name in ORCHESTRATION_CONTRACTS:
+        violations.extend(check_orchestration_contract(contracts / name))
+    return violations
 
 
 def check_workflow_schema(contracts: Path) -> list[str]:
@@ -1499,6 +1593,7 @@ def collect_violations(root: Path = SCRIPT_ROOT, *, include_reporting: bool = Fa
     violations += check_miniapp_reconciliation_schema(root)
     violations += check_miniapp_cloud_schema(root)
     violations += check_miniapp_webview_schema(root)
+    violations += check_orchestration_contracts(root)
     if include_reporting:
         violations += check_report_policy_schema(root)
     violations += check_state_model_drift(root)

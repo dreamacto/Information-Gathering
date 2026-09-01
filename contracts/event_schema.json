@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "contract": "event",
+  "description": "Append-only offline event record with redacted payload references.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["event_id", "event_type", "created_at", "producer", "correlation_id", "aggregate_id", "aggregate_sequence", "status", "summary"],
+  "properties": {
+    "event_id": {"type": "string", "pattern": "^event_[A-Za-z0-9._-]+$"},
+    "event_type": {"type": "string", "enum": ["assessment.created", "task.created", "task.started", "task.completed", "worker.started", "worker.resulted", "checkpoint.saved", "approval.requested", "approval.decided", "verifier.decided", "metric.recorded", "task.cancelled", "task.failed"]},
+    "created_at": {"type": "string", "format": "date-time"}, "producer": {"type": "string"}, "correlation_id": {"type": "string"}, "parent_id": {"type": ["string", "null"]},
+    "aggregate_id": {"type": "string"}, "aggregate_sequence": {"type": "integer", "minimum": 0}, "idempotency_key": {"type": "string"},
+    "status": {"type": "string", "enum": ["accepted", "replayed", "rejected", "blocked"]},
+    "payload_ref": {"type": ["object", "null"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "summary": {"type": "string", "maxLength": 2000}
+  },
+  "invariants": ["append-only and sequence ordered", "replay is idempotent and never replays write actions", "payload is a ref/hash or redacted summary, never raw response or credential"]
+}

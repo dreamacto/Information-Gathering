@@ -1,0 +1,31 @@
+{
+  "schema_version": "1.0",
+  "contract": "task_envelope",
+  "description": "Offline schedulable task envelope; authorization is referenced, never granted here.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["task_id", "assessment_id", "workflow", "phase", "action", "correlation_id", "idempotency_key", "attempt", "target_ref", "context_ref", "policy_ref", "scope_ref", "budget", "created_at"],
+  "properties": {
+    "task_id": {"type": "string", "pattern": "^task_[A-Za-z0-9._-]+$"},
+    "assessment_id": {"type": "string"},
+    "workflow": {"type": "string", "enum": ["wz", "xcx", "fh"]},
+    "phase": {"type": "string", "minLength": 1},
+    "action": {"type": "string", "enum": ["offline", "read_only", "metadata"]},
+    "correlation_id": {"type": "string"},
+    "parent_id": {"type": ["string", "null"]},
+    "idempotency_key": {"type": "string", "minLength": 16},
+    "attempt": {"type": "integer", "minimum": 1},
+    "target_ref": {"$ref": "#/$defs/ref"},
+    "context_ref": {"$ref": "#/$defs/ref"},
+    "policy_ref": {"$ref": "#/$defs/ref"},
+    "scope_ref": {"$ref": "#/$defs/ref"},
+    "approval_ref": {"anyOf": [{"$ref": "#/$defs/ref"}, {"type": "null"}]},
+    "input_artifact_refs": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "budget": {"type": "object", "additionalProperties": false, "required": ["max_seconds", "max_items"], "properties": {"max_seconds": {"type": "integer", "minimum": 1}, "max_items": {"type": "integer", "minimum": 0}}},
+    "deadline": {"type": ["string", "null"], "format": "date-time"},
+    "cancel_requested": {"type": "boolean", "default": false},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "$defs": {"ref": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {"path": {"type": "string", "pattern": "^(?!.*(?:cookie|token|password|secret|session|har|raw)).+$"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+  "invariants": ["action never grants a blocked or approval-gated capability", "WZ and XCX task contexts must use their own cursor file", "all payloads are references, hashes, or redacted summaries"]
+}

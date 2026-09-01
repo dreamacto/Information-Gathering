@@ -1,0 +1,20 @@
+{
+  "status": "verified",
+  "scope_check": {"status": "pass", "detail": "施工表列明的 17 个文件及统一校验器/验收记录均在本阶段范围内；既有脏文件未修改"},
+  "tests_check": {"status": "pass", "pytest": "115 passed, 1 warning", "validator": "ok=true, violations=[]", "compile": "pass", "json_parse": "pass"},
+  "dual_result_check": {"status": "pass", "detail": "Code Worker 事实结果、Analyst 结构化结果和 Verifier 门控均已落盘；仅 Verifier 可 verified"},
+  "cursor_check": {"status": "pass", "detail": "WZ=phase_status.json；XCX=phase_status.miniapp.json；本阶段未触碰具体 engagement 游标"},
+  "security_check": {"status": "pass", "detail": "无网络、无凭证/session/HAR/raw 读取、无真实目标请求、无审批门动作；敏感字段和路径测试通过"},
+  "issues": [],
+  "evidence": [
+    "construction_tables/00_phase_status.json",
+    "construction_tables/00_code_worker.json",
+    "construction_tables/00_analyst_worker.json",
+    "contracts/assessment_schema.json",
+    "contracts/graph_schema.json",
+    "contracts/worker_result_schema.json",
+    "scripts/maintenance/validate_run_contracts.py",
+    "tests/test_validate_run_contracts.py"
+  ],
+  "created_at": "2026-09-01T00:00:00+00:00"
+}

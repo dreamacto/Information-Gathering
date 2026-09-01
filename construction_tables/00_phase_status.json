@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "00",
+  "status": "complete",
+  "cursor": {"current_phase": "complete", "next_phase": null, "last_completed_phase": "contract_acceptance"},
+  "target_model": {"status": "not_applicable", "reason": "本施工表只冻结离线统一契约，不针对具体网站或小程序目标"},
+  "coverage": {"contracts_total": 11, "contracts_tested": 11, "docs_total": 3, "docs_reviewed": 3, "tests_total": 3, "tests_passed": 3, "validator_tests_passed": 115},
+  "analysis": {"code_worker_ref": "construction_tables/00_code_worker.json", "analyst_worker_ref": "construction_tables/00_analyst_worker.json", "verifier_ref": "construction_tables/00_verifier.json"},
+  "not_tested": [
+    {"item": "真实目标请求", "reason": "施工表要求离线实施"},
+    {"item": "凭证、session、HAR、raw 响应和真实运行产物", "reason": "安全边界明确禁止读取"},
+    {"item": "真实 engagement 的 target-model/coverage/ledger/artifact 实例", "reason": "本施工表不绑定具体目标"},
+    {"item": "全仓 pytest", "reason": "按施工表使用逐文件和定向验收，未以全量测试替代"}
+  ],
+  "operator_tasks": [],
+  "failed": [],
+  "blocked": [],
+  "approval_required": [],
+  "handoff_ready": true,
+  "completed_at": "2026-09-01T00:00:00+00:00"
+}

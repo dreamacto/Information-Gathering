@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0",
+  "contract": "checkpoint",
+  "description": "Atomic, monotonic recovery cursor for local orchestration.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["checkpoint_id", "assessment_id", "task_id", "workflow", "phase", "cursor_kind", "status_file", "sequence", "status", "updated_at"],
+  "properties": {
+    "checkpoint_id": {"type": "string", "pattern": "^checkpoint_[A-Za-z0-9._-]+$"}, "assessment_id": {"type": "string"}, "task_id": {"type": "string"},
+    "workflow": {"type": "string", "enum": ["wz", "xcx", "fh"]}, "phase": {"type": "string"},
+    "cursor_kind": {"type": "string", "enum": ["phase", "task", "batch", "recovery"]},
+    "status_file": {"type": "string", "enum": ["phase_status.json", "phase_status.miniapp.json", "run_status.json"]},
+    "sequence": {"type": "integer", "minimum": 0}, "status": {"type": "string", "enum": ["pending", "running", "complete", "blocked", "failed", "cancelled"]},
+    "completed_task_ids": {"type": "array", "items": {"type": "string"}}, "pending_task_ids": {"type": "array", "items": {"type": "string"}}, "blocked_task_ids": {"type": "array", "items": {"type": "string"}}, "failed_task_ids": {"type": "array", "items": {"type": "string"}},
+    "attempt": {"type": "integer", "minimum": 1}, "last_event_id": {"type": ["string", "null"]}, "last_result_id": {"type": ["string", "null"]}, "cancel_requested": {"type": "boolean"}, "updated_at": {"type": "string", "format": "date-time"}
+  },
+  "invariants": ["sequence is monotonic and writes are atomic", "XCX uses phase_status.miniapp.json only", "checkpoint never grants approval or confirms a finding", "raw payloads and credentials are forbidden"]
+}

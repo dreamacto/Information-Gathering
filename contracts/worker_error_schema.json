@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0",
+  "contract": "worker_error",
+  "description": "Safe structured worker failure without sensitive traceback content.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["error_id", "error_class", "retryable", "safe_reason", "task_id", "worker_id", "created_at"],
+  "properties": {
+    "error_id": {"type": "string", "pattern": "^error_[A-Za-z0-9._-]+$"}, "error_class": {"type": "string", "enum": ["validation", "timeout", "cancelled", "permission_denied", "blocked", "scope_conflict", "transport", "dependency", "internal"]}, "retryable": {"type": "boolean"}, "safe_reason": {"type": "string", "minLength": 1}, "task_id": {"type": "string"}, "worker_id": {"type": "string"}, "event_id": {"type": ["string", "null"]}, "result_id": {"type": ["string", "null"]}, "redacted_detail": {"type": ["string", "null"], "maxLength": 2000}, "operator_action": {"type": ["string", "null"]}, "created_at": {"type": "string", "format": "date-time"}
+  },
+  "invariants": ["permission_denied and blocked are never auto-retried", "tracebacks, credentials, commands and raw responses are not serialized", "scope conflicts require operator review"]
+}

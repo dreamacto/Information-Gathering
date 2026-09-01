@@ -1,0 +1,22 @@
+{
+  "schema_version": "1.0",
+  "contract": "worker_manifest",
+  "description": "Capabilities and permissions of a Code, Analyst, or Verifier worker.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["worker_id", "worker_type", "name", "version", "capabilities", "input_allowlist", "output_contracts", "permissions", "limits", "created_at"],
+  "properties": {
+    "worker_id": {"type": "string", "pattern": "^worker_[A-Za-z0-9._-]+$"},
+    "worker_type": {"type": "string", "enum": ["code", "analyst", "verifier"]},
+    "name": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "capabilities": {"type": "array", "items": {"type": "string"}},
+    "input_allowlist": {"type": "array", "items": {"type": "string"}},
+    "output_contracts": {"type": "array", "items": {"type": "string"}},
+    "permissions": {"type": "object", "additionalProperties": false, "required": ["network", "read_only", "write_scope", "write_approval", "write_cursor", "write_confirmed"], "properties": {"network": {"type": "string", "enum": ["none", "metadata_only"]}, "read_only": {"type": "boolean"}, "write_scope": {"const": false}, "write_approval": {"const": false}, "write_cursor": {"const": false}, "write_confirmed": {"const": false}}},
+    "limits": {"type": "object", "additionalProperties": false, "required": ["timeout_seconds", "cancellation_supported"], "properties": {"timeout_seconds": {"type": "integer", "minimum": 1}, "cancellation_supported": {"type": "boolean"}}},
+    "producer": {"type": "string"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "invariants": ["Analyst must expose structured analysis fields", "Verifier consumes Code and Analyst results", "No worker may write scope, approval, phase cursor, or confirmed findings"]
+}

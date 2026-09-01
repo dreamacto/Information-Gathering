@@ -1,0 +1,30 @@
+{
+  "schema_version": "1.0",
+  "contract": "worker_result",
+  "description": "Result envelope for Code, Analyst and Verifier workers with a mandatory dual-result gate.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["result_id", "task_id", "worker_id", "worker_type", "status", "created_at", "lineage", "gate"],
+  "properties": {
+    "result_id": {"type": "string", "pattern": "^result_[A-Za-z0-9._-]+$"},
+    "task_id": {"type": "string"}, "worker_id": {"type": "string"},
+    "worker_type": {"type": "string", "enum": ["code", "analyst", "verifier"]},
+    "status": {"type": "string", "enum": ["ok", "partial", "blocked", "cancelled", "failed", "needs_manual_validation"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "lineage": {"type": "object", "additionalProperties": false, "required": ["assessment_id", "correlation_id"], "properties": {"assessment_id": {"type": "string"}, "correlation_id": {"type": "string"}, "parent_id": {"type": ["string", "null"]}}},
+    "facts": {"type": "array", "items": {"type": "string"}},
+    "facts_used": {"type": "array", "items": {"type": "string"}},
+    "reasoning_summary": {"type": "string"},
+    "alternative_explanations": {"type": "array", "items": {"type": "string"}},
+    "hypotheses": {"type": "array", "items": {"type": "string"}},
+    "unknowns": {"type": "array", "items": {"type": "string"}},
+    "coverage": {"type": "object"},
+    "not_tested": {"type": "array", "items": {"type": "string"}},
+    "next_hints": {"type": "array", "items": {"type": "string"}},
+    "disposition": {"type": "string", "enum": ["verified", "blocked", "needs_manual_validation", "rejected"]},
+    "finding_status": {"type": "string", "enum": ["signal", "candidate", "proven", "needs_manual_validation", "inconclusive", "blocked", "rejected", "duplicate"]},
+    "artifact_refs": {"type": "array", "items": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}}},
+    "gate": {"type": "object", "additionalProperties": false, "required": ["code_result_id", "analyst_result_id", "verifier_result_id", "dual_result_satisfied"], "properties": {"code_result_id": {"type": ["string", "null"]}, "analyst_result_id": {"type": ["string", "null"]}, "verifier_result_id": {"type": ["string", "null"]}, "dual_result_satisfied": {"type": "boolean"}}}
+  },
+  "invariants": ["Analyst requires facts_used, reasoning_summary, alternative_explanations, hypotheses, unknowns, coverage, not_tested, next_hints", "Code and Analyst results must exist before Verifier can be verified", "Code or Analyst cannot emit proven/confirmed directly", "only Verifier may set disposition=verified"]
+}

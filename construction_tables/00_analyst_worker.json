@@ -1,0 +1,40 @@
+{
+  "worker_type": "analyst",
+  "status": "ok",
+  "facts_used": [
+    "construction_tables/00_施工表_统一契约与版本基线.md:8-48",
+    "AGENTS.md:2-13,39-46",
+    "ROE.md:12-21,24-60,70-84",
+    "docs/RULE_PRECEDENCE.md:5-29",
+    "docs/CONTEXT_LOADING_MAP.yaml:1-37,227-236",
+    "contracts/assessment_schema.json",
+    "contracts/worker_manifest_schema.json",
+    "contracts/task_envelope_schema.json",
+    "contracts/worker_result_schema.json",
+    "contracts/policy_decision_schema.json",
+    "contracts/checkpoint_schema.json",
+    "contracts/event_schema.json",
+    "contracts/metric_event_schema.json",
+    "contracts/approval_schema.json",
+    "contracts/graph_schema.json",
+    "contracts/worker_error_schema.json",
+    "tests/test_agent_contracts.py",
+    "tests/test_graph_contracts.py",
+    "tests/test_worker_contracts.py",
+    "tests/test_validate_run_contracts.py",
+    "scripts/maintenance/validate_run_contracts.py",
+    "runtime/policy_snapshot.json (仅摘要，不读取敏感内容)"
+  ],
+  "reasoning_summary": "本阶段已将统一编排契约接入离线校验入口；Code/Analyst/Verifier 双结果门、Worker 写权限限制、WZ/XCX 游标隔离、DAG fail-closed 和敏感字段拒绝均由契约及负例测试覆盖。该施工表不绑定具体目标，因此 target-model、真实 coverage、候选/ledger 和真实 artifact 实例不适用。",
+  "alternative_explanations": ["target-model/coverage/ledger/artifact 由具体 engagement 动态提供，本阶段不应创建伪实例"],
+  "hypotheses": ["后续具体 workflow 可复用本阶段契约并通过引用/哈希装配完整 Analyst context bundle"],
+  "unknowns": ["未验证具体 engagement 的实例化上下文装配", "未执行真实目标或认证态流程"],
+  "coverage": {"contract_files": 11, "architecture_docs": 3, "test_files": 3, "validator_negative_cases": true, "pytest_passed": 115},
+  "not_tested": [
+    {"item": "真实目标、凭证、session、HAR/raw 响应、真实运行产物", "reason": "施工表和 ROE 禁止"},
+    {"item": "具体目标的 target-model、coverage、候选/ledger、阶段摘要、artifact refs", "reason": "本阶段无具体 engagement"},
+    {"item": "全仓 pytest", "reason": "按逐文件/定向验收执行"}
+  ],
+  "next_hints": ["具体 WZ/XCX/FH 阶段应读取完整游标和脱敏索引，再使用本阶段 task/result/event/checkpoint 契约"],
+  "created_at": "2026-09-01T00:00:00+00:00"
+}

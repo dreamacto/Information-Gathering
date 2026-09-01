@@ -590,6 +590,63 @@ def test_run_contracts_detects_miniapp_storage_package_row_fields_drift(tmp_path
 
 
 # ---------------------------------------------------------------------------
+# Construction table 00: orchestration contracts
+# ---------------------------------------------------------------------------
+
+ORCHESTRATION_CONTRACT_FILES = (
+    "assessment_schema.json", "worker_manifest_schema.json", "task_envelope_schema.json",
+    "worker_result_schema.json", "policy_decision_schema.json", "checkpoint_schema.json",
+    "event_schema.json", "metric_event_schema.json", "approval_schema.json",
+    "graph_schema.json", "worker_error_schema.json",
+)
+
+
+def _copy_orchestration_contracts(tmp_path: Path) -> Path:
+    root = _copy_contracts(tmp_path)
+    for name in ORCHESTRATION_CONTRACT_FILES:
+        shutil.copy(ROOT / "contracts" / name, root / "contracts" / name)
+    return root
+
+
+@pytest.mark.parametrize("name", ORCHESTRATION_CONTRACT_FILES)
+def test_orchestration_contracts_are_checked(name, tmp_path):
+    root = _copy_orchestration_contracts(tmp_path)
+    (root / "contracts" / name).unlink()
+    violations = collect_violations(root)
+    assert any(f"missing contract file: {name}" in item for item in violations)
+
+
+def test_orchestration_worker_permission_drift_is_detected(tmp_path):
+    root = _copy_orchestration_contracts(tmp_path)
+    path = root / "contracts" / "worker_manifest_schema.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["properties"]["permissions"]["properties"]["write_scope"] = {"const": True}
+    path.write_text(json.dumps(data), encoding="utf-8")
+    violations = collect_violations(root)
+    assert any("worker_manifest_schema.permissions.write_scope must be false" in item for item in violations)
+
+
+def test_orchestration_task_action_drift_is_detected(tmp_path):
+    root = _copy_orchestration_contracts(tmp_path)
+    path = root / "contracts" / "task_envelope_schema.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["properties"]["action"]["enum"] = ["shell"]
+    path.write_text(json.dumps(data), encoding="utf-8")
+    violations = collect_violations(root)
+    assert any("task_envelope_schema.action enum drift" in item for item in violations)
+
+
+def test_orchestration_sensitive_property_is_detected(tmp_path):
+    root = _copy_orchestration_contracts(tmp_path)
+    path = root / "contracts" / "event_schema.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    data["properties"]["token"] = {"type": "string"}
+    path.write_text(json.dumps(data), encoding="utf-8")
+    violations = collect_violations(root)
+    assert any("event_schema.json forbidden sensitive property names" in item for item in violations)
+
+
+# ---------------------------------------------------------------------------
 # Batch 12（batch12_5）：miniapp_reconciliation + miniapp_cloud 契约纳入 run 契约
 # 校验（第 12/13 契约）
 # ---------------------------------------------------------------------------

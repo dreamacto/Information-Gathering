@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "contract": "assessment",
+  "description": "Offline control-plane identity and references for one authorized assessment.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["assessment_id", "workflow", "status", "created_at", "updated_at", "policy_ref", "scope_ref", "cursor_ref", "coverage_ref", "artifact_refs"],
+  "properties": {
+    "assessment_id": {"type": "string", "pattern": "^asmt_[A-Za-z0-9._-]+$"},
+    "workflow": {"type": "string", "enum": ["wz", "xcx", "fh"]},
+    "status": {"type": "string", "enum": ["draft", "ready", "running", "blocked", "completed", "closed"]},
+    "created_at": {"type": "string", "format": "date-time"},
+    "updated_at": {"type": "string", "format": "date-time"},
+    "policy_ref": {"$ref": "#/$defs/ref"},
+    "scope_ref": {"$ref": "#/$defs/ref"},
+    "cursor_ref": {"type": "object", "additionalProperties": false, "required": ["path", "stream"], "properties": {"path": {"type": "string"}, "stream": {"type": "string", "enum": ["wz", "miniapp_xcx", "fh"]}}},
+    "target_model_ref": {"$ref": "#/$defs/ref"},
+    "coverage_ref": {"$ref": "#/$defs/ref"},
+    "ledger_ref": {"$ref": "#/$defs/ref"},
+    "artifact_refs": {"type": "array", "items": {"$ref": "#/$defs/ref"}},
+    "approval_ref": {"$ref": "#/$defs/ref"},
+    "stop_state": {"type": "string", "enum": ["clear", "stopped", "window_closed", "service_degraded", "waf_signal", "scope_conflict"]}
+  },
+  "$defs": {"ref": {"type": "object", "additionalProperties": false, "required": ["path", "sha256"], "properties": {"path": {"type": "string", "pattern": "^(?!.*(?:cookie|token|password|secret|session|har|raw)).+$"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}, "label": {"type": "string"}}}},
+  "invariants": ["WZ cursor path must end in phase_status.json and stream=wz", "XCX cursor path must end in phase_status.miniapp.json and stream=miniapp_xcx", "scope and approval are control-plane references, never worker-writable", "no credential, session, HAR or raw response content"]
+}

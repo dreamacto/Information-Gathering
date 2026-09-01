@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "contract": "approval",
+  "description": "Two-key approval record for gated actions; blocked actions remain prohibited.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["approval_id", "requested_action", "assessment_id", "phase", "target_ref", "roe_ref", "script_gate", "human_confirmation", "decision", "created_at"],
+  "properties": {
+    "approval_id": {"type": "string", "pattern": "^approval_[A-Za-z0-9._-]+$"}, "requested_action": {"type": "string", "enum": ["credential_testing", "sqlmap_single_candidate", "shiro_single_candidate", "write_endpoint", "upload", "delete", "import_export", "transaction", "race_write", "other_gated"]}, "assessment_id": {"type": "string"}, "phase": {"type": "string"},
+    "target_ref": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "requester_ref": {"type": "string"}, "operator_ref": {"type": "string"}, "roe_ref": {"type": "object", "required": ["path", "sha256"], "properties": {"path": {"type": "string"}, "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "script_gate": {"type": "object", "required": ["passed", "checked_at"], "properties": {"passed": {"type": "boolean"}, "checked_at": {"type": "string", "format": "date-time"}, "ref": {"type": "string"}}},
+    "human_confirmation": {"type": "object", "required": ["confirmed", "confirmed_at"], "properties": {"confirmed": {"type": "boolean"}, "confirmed_at": {"type": "string", "format": "date-time"}, "operator_ref": {"type": "string"}}},
+    "decision": {"type": "string", "enum": ["deny", "approved", "expired", "revoked", "blocked"]}, "expires_at": {"type": ["string", "null"], "format": "date-time"}, "audit_refs": {"type": "array", "items": {"type": "string"}}, "revoked_at": {"type": ["string", "null"], "format": "date-time"}, "created_at": {"type": "string", "format": "date-time"}
+  },
+  "invariants": ["approved requires script_gate.passed=true and human_confirmation.confirmed=true", "blocked_actions cannot be approved", "approval never changes scope or stop state"]
+}

@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0",
+  "contract": "policy_decision",
+  "description": "Read-only policy decision and its provenance.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["decision_id", "decision", "assessment_id", "policy_digest", "scope_state", "authorization_state", "stop_state", "matched_rules", "reason", "created_at"],
+  "properties": {
+    "decision_id": {"type": "string", "pattern": "^decision_[A-Za-z0-9._-]+$"},
+    "decision": {"type": "string", "enum": ["allow", "deny", "approval_required", "confirmation_required", "blocked"]},
+    "assessment_id": {"type": "string"},
+    "policy_digest": {"type": "object", "required": ["sha256"], "properties": {"sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}}},
+    "scope_state": {"type": "string", "enum": ["in_scope", "confirmation_required", "third_party", "platform_shared", "out_of_scope", "invalid", "unclassified"]},
+    "authorization_state": {"type": "string", "enum": ["target_received", "initial_target_recorded", "authorization_evidence_recorded", "active_testing_authorized", "high_risk_action_approved"]},
+    "stop_state": {"type": "string", "enum": ["clear", "stopped", "window_closed", "service_degraded", "waf_signal", "scope_conflict"]},
+    "matched_rules": {"type": "array", "items": {"type": "string"}},
+    "reason": {"type": "string", "minLength": 1},
+    "required_approval": {"type": ["string", "null"]},
+    "expires_at": {"type": ["string", "null"], "format": "date-time"},
+    "created_at": {"type": "string", "format": "date-time"}
+  },
+  "invariants": ["allow is not high-risk authorization", "blocked_actions always override allow", "scope ambiguity yields confirmation_required or blocked"]
+}
