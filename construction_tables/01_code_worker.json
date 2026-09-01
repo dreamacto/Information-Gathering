@@ -1,0 +1,22 @@
+{
+  "worker_type": "code",
+  "status": "ok",
+  "scope": "construction_table_01_only",
+  "facts": {
+    "implementation_files": 6,
+    "test_files": 3,
+    "target_requests": 0,
+    "sensitive_sources_read": 0,
+    "features": ["ordering", "conditional_edges", "fan_out_fan_in", "all_any_barrier", "restricted_loop_metadata", "terminal", "graph_version", "WZ_XCX_FH_stream_factories", "cursor_isolation"],
+    "pytest_result": "21 passed, 1 warning",
+    "compile_result": "six graph modules compiled successfully",
+    "diff_check": "pass"
+  },
+  "commands": [
+    {"command": ".venv/Scripts/python.exe -m py_compile src/authorized_assessment/orchestration/graph.py src/authorized_assessment/orchestration/graph_validation.py src/authorized_assessment/orchestration/graph_builder.py src/authorized_assessment/orchestration/graph_routes.py src/authorized_assessment/orchestration/graph_barriers.py src/authorized_assessment/orchestration/stream_graphs.py", "returncode": 0},
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q tests/test_graph.py tests/test_graph_routes.py tests/test_graph_barriers.py tests/test_graph_contracts.py", "returncode": 0, "summary": "21 passed, 1 warning"},
+    {"command": "git diff --check", "returncode": 0}
+  ],
+  "security": {"network": false, "tools_executed": false, "credentials_read": false, "sessions_read": false, "har_raw_read": false, "real_runs_read": false, "out_of_scope_files_modified": false},
+  "created_at": "2026-09-02T00:45:00+00:00"
+}

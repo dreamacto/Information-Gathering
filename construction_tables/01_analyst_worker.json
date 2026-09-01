@@ -1,0 +1,67 @@
+{
+  "worker_type": "analyst",
+  "status": "ok",
+  "facts_used": [
+    "construction_tables/01_施工表_图模型与静态规划.md:1-41",
+    "AGENTS.md:1-68",
+    "ROE.md:1-84",
+    "docs/RULE_PRECEDENCE.md:1-29",
+    "docs/CONTEXT_LOADING_MAP.yaml:1-37,227-236",
+    "contracts/graph_schema.json:1-13",
+    "tests/test_graph_contracts.py:1-95",
+    "src/authorized_assessment/orchestration/graph.py",
+    "src/authorized_assessment/orchestration/graph_builder.py",
+    "src/authorized_assessment/orchestration/graph_routes.py",
+    "src/authorized_assessment/orchestration/graph_validation.py",
+    "src/authorized_assessment/orchestration/graph_barriers.py",
+    "src/authorized_assessment/orchestration/stream_graphs.py",
+    "tests/test_graph.py",
+    "tests/test_graph_routes.py",
+    "tests/test_graph_barriers.py",
+    "construction_tables/01_code_worker.json"
+  ],
+  "reasoning_summary": "本阶段实现了纯离线图模型和静态规划：GraphSpec/NodeSpec/EdgeSpec 提供稳定拓扑与序列化；GraphBuilder 支持顺序边、条件边、fan-out/fan-in、受限 loop metadata 和 terminal；routes/barriers 对缺失上下文、失败、超时、取消和权限拒绝 fail-closed；WZ、XCX、FH 工厂保持独立 stream 与 cursor 约束。严格 v3 graph contract 通过 to_dict 投影保留，planning-only 元数据通过独立 planning serializer 保留。",
+  "alternative_explanations": [
+    "loop metadata 由本表静态规划产生，实际迭代执行和终止由后续 Runtime 施工表消费",
+    "FH 不绑定 WZ/XCX phase cursor，因为 FH 是独立复核流；其静态图仍显式包含 authorization、scope、approval、verifier 控制节点",
+    "严格 contract 与 planning metadata 分离是为了兼容 graph_schema.json 的 additionalProperties=false"
+  ],
+  "hypotheses": [
+    "后续 Runtime 应将 fan-in join readiness、loop termination 和 approval 状态接入执行前置门",
+    "若后续需要跨进程持久化规划语义，应继续使用独立、版本化的 planning schema，而不是扩展当前 v3 contract",
+    "WZ/XCX cursor 隔离必须由后续 Supervisor/Worker 接线继续保持"
+  ],
+  "unknowns": [
+    "后续 Runtime/Supervisor 的实际 loop、join、approval 消费接口",
+    "独立 JSON Schema 引擎是否由后续施工表接入",
+    "真实执行期的取消、超时、重试和权限拒绝行为"
+  ],
+  "coverage": {
+    "graph_model": true,
+    "deterministic_topology": true,
+    "ordering_edges": true,
+    "conditional_edges": true,
+    "fan_out_fan_in": true,
+    "all_any_barrier": true,
+    "restricted_loop_metadata": true,
+    "termination_metadata": true,
+    "terminal_nodes": true,
+    "graph_version": true,
+    "dag_cycle_rejection": true,
+    "wz_xcx_fh_factories": true,
+    "cursor_isolation": true,
+    "fail_closed_routes_and_barriers": true,
+    "negative_inputs": true
+  },
+  "not_tested": [
+    {"item": "真实目标请求、网络、工具执行", "reason": "施工表和 ROE 要求离线实施"},
+    {"item": "凭证、真实 session、HAR/raw 响应和真实运行产物", "reason": "安全边界明确禁止读取"},
+    {"item": "Runtime/Supervisor 执行期 loop、join、approval 消费", "reason": "不属于施工表01"},
+    {"item": "独立 JSON Schema 引擎端到端验证", "reason": "当前定向验收使用生产 validator 与既有 contract 测试"}
+  ],
+  "next_hints": [
+    "施工表02/后续 Runtime 接入时补测 loop termination、join readiness、前置依赖状态和 approval 消费",
+    "施工表04启动前继续以 construction_tables/01_phase_status.json、01_code_worker.json、01_analyst_worker.json、01_verifier.json 为事实源"
+  ],
+  "created_at": "2026-09-02T00:45:00+00:00"
+}

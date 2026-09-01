@@ -1,0 +1,33 @@
+{
+  "status": "verified",
+  "scope": "construction_table_01_only",
+  "tests_check": {"status": "pass", "pytest": "21 passed, 1 warning", "compile": "pass", "diff_check": "pass"},
+  "dual_result_check": {"status": "pass", "detail": "Code Worker、Analyst Worker 和 Verifier 记录均已正式落盘；本阶段不写 scope、approval、phase cursor 或 confirmed"},
+  "graph_check": {"status": "pass", "detail": "顺序/条件边、fan-out/fan-in、all/any/barrier、DAG 环检测、受限 loop metadata、terminal、图版本和确定性拓扑均有实现与定向测试"},
+  "stream_check": {"status": "pass", "detail": "WZ 使用 phase_status.json；XCX 使用 phase_status.miniapp.json；FH 不复用 WZ/XCX cursor；工厂显式包含 authorization/scope/approval/verifier"},
+  "schema_check": {"status": "pass_with_boundary", "detail": "to_dict 保持 v3 graph_schema.json contract 投影；planning-only 字段通过独立 to_planning_dict/from_planning_dict 保留，不污染严格 contract"},
+  "security_check": {"status": "pass", "detail": "无网络、无工具、无 subprocess、无凭证/session/HAR/raw/真实运行产物读取，未修改范围外既有文件"},
+  "issues": [],
+  "remaining_risks": [
+    "loop 的执行期迭代和终止由后续 Runtime 施工表负责",
+    "join readiness、前置依赖完成态和 approval 消费由后续 Supervisor/Verifier 接线负责",
+    "planning 嵌套字段与独立 JSON Schema 引擎端到端校验尚未纳入本表"
+  ],
+  "evidence": [
+    "construction_tables/01_phase_status.json",
+    "construction_tables/01_code_worker.json",
+    "construction_tables/01_analyst_worker.json",
+    ".zcode/table01_graph_static_handoff.json",
+    "src/authorized_assessment/orchestration/graph.py",
+    "src/authorized_assessment/orchestration/graph_validation.py",
+    "src/authorized_assessment/orchestration/graph_builder.py",
+    "src/authorized_assessment/orchestration/graph_routes.py",
+    "src/authorized_assessment/orchestration/graph_barriers.py",
+    "src/authorized_assessment/orchestration/stream_graphs.py",
+    "tests/test_graph.py",
+    "tests/test_graph_routes.py",
+    "tests/test_graph_barriers.py",
+    "tests/test_graph_contracts.py"
+  ],
+  "created_at": "2026-09-02T00:45:00+00:00"
+}

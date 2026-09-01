@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "01",
+  "baseline": "74ab28c",
+  "status": "complete",
+  "cursor": {"current_phase": "complete", "next_phase": null, "last_completed_phase": "graph_static_acceptance"},
+  "target_model": {"status": "not_applicable", "reason": "本施工表只实现离线图模型与静态规划，不绑定具体网站、小程序或 engagement"},
+  "coverage": {
+    "implementation_files_total": 6,
+    "implementation_files_compiled": 6,
+    "implementation_files_imported": 6,
+    "test_files_total": 3,
+    "test_files_passed": 3,
+    "contract_tests_included": true,
+    "targeted_tests_passed": 21,
+    "warnings": 1,
+    "network_requests": 0,
+    "tools_executed": 0,
+    "credentials_or_sessions_read": 0,
+    "har_or_raw_responses_read": 0,
+    "real_run_artifacts_read": 0
+  },
+  "analysis": {
+    "code_worker_ref": "construction_tables/01_code_worker.json",
+    "analyst_worker_ref": "construction_tables/01_analyst_worker.json",
+    "verifier_ref": "construction_tables/01_verifier.json"
+  },
+  "not_tested": [
+    {"item": "真实目标请求、网络、主动探测", "reason": "施工表要求纯离线静态规划"},
+    {"item": "凭证、真实 session、HAR/raw 响应和真实运行产物", "reason": "AGENTS.md 与 ROE.md 明确禁止读取"},
+    {"item": "Runtime/Supervisor 对 loop、join、approval 的执行期消费", "reason": "属于后续施工表，不在表01范围"},
+    {"item": "独立 JSON Schema 引擎端到端校验", "reason": "当前表01使用 contract 兼容测试和生产 validator，未引入新外部校验器"}
+  ],
+  "operator_tasks": [
+    "施工表02已完成；施工表03完成/合并确认后，04才可按波次门控启动",
+    "后续 Runtime 接线时补测 loop termination、join readiness 和 approval 状态消费"
+  ],
+  "failed": [],
+  "blocked": [],
+  "approval_required": [],
+  "handoff_ready": true,
+  "completed_at": "2026-09-02T00:45:00+00:00"
+}
