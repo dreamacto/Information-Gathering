@@ -1,0 +1,38 @@
+{
+  "stage": "03",
+  "worker_type": "code",
+  "status": "ok",
+  "created_at": "2026-09-02T00:00:00+00:00",
+  "facts": [
+    "7 个新增 orchestration worker 模块通过 py_compile 与直接 import",
+    "stage_runner 保留既有 run_sync_stage 并新增 run_fake_worker_stage 兼容入口",
+    "tools/registry.py 仅新增只读 get_tool/list_available_tools，不引入控制字段",
+    "专项测试 tests/test_worker_registry.py、test_worker_executor.py、test_worker_context.py、test_worker_errors.py 共 12 passed",
+    "兼容与契约测试共 67 passed；validate_run_contracts.py --json 返回 ok=true、violations=[]",
+    "git diff --check 通过；本阶段未发网络请求、未读取凭证/session/HAR/raw/真实运行产物"
+  ],
+  "files": [
+    {"path":"src/authorized_assessment/orchestration/worker_manifest.py","compile":"pass","import":"pass","tests":"tests/test_worker_registry.py"},
+    {"path":"src/authorized_assessment/orchestration/task_envelope.py","compile":"pass","import":"pass","tests":"tests/test_worker_executor.py"},
+    {"path":"src/authorized_assessment/orchestration/worker_context.py","compile":"pass","import":"pass","tests":"tests/test_worker_context.py"},
+    {"path":"src/authorized_assessment/orchestration/worker_result.py","compile":"pass","import":"pass","tests":"tests/test_worker_executor.py"},
+    {"path":"src/authorized_assessment/orchestration/worker_errors.py","compile":"pass","import":"pass","tests":"tests/test_worker_errors.py"},
+    {"path":"src/authorized_assessment/orchestration/worker_registry.py","compile":"pass","import":"pass","tests":"tests/test_worker_registry.py"},
+    {"path":"src/authorized_assessment/orchestration/worker_executor.py","compile":"pass","import":"pass","tests":"tests/test_worker_executor.py"},
+    {"path":"src/authorized_assessment/tools/registry.py","compile":"pass","import":"pass","tests":"tests/test_tool_registry.py"},
+    {"path":"src/authorized_assessment/orchestration/stage_runner.py","compile":"pass","import":"pass","tests":"direct compatibility import"},
+    {"path":"tests/test_worker_registry.py","compile":"pass","tests":"3 passed"},
+    {"path":"tests/test_worker_executor.py","compile":"pass","tests":"3 passed"},
+    {"path":"tests/test_worker_context.py","compile":"pass","tests":"3 passed"},
+    {"path":"tests/test_worker_errors.py","compile":"pass","tests":"3 passed"}
+  ],
+  "evidence": [
+    "tests/test_worker_registry.py",
+    "tests/test_worker_executor.py",
+    "tests/test_worker_context.py",
+    "tests/test_worker_errors.py",
+    "tests/test_tool_registry.py",
+    "tests/test_worker_contracts.py",
+    "scripts/maintenance/validate_run_contracts.py"
+  ]
+}

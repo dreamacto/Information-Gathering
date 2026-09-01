@@ -1,0 +1,49 @@
+{
+  "stage": "03",
+  "worker_type": "analyst",
+  "status": "ok",
+  "created_at": "2026-09-02T00:00:00+00:00",
+  "facts_used": [
+    "construction_tables/03_施工表_Worker注册表与执行器.md 的文件清单、双 Worker、逐文件验收与阶段落盘要求",
+    "AGENTS.md、ROE.md、docs/RULE_PRECEDENCE.md、docs/CONTEXT_LOADING_MAP.yaml 的离线/只读/敏感字段/游标隔离约束",
+    "contracts/worker_manifest_schema.json、task_envelope_schema.json、worker_result_schema.json、worker_error_schema.json、checkpoint_schema.json",
+    "src/authorized_assessment/runtime/checkpoint.py、event_journal.py、idempotency.py、task_lineage.py 的既有边界",
+    "03_code_worker.json 与专项/兼容/契约测试结果"
+  ],
+  "reasoning_summary": "实现覆盖 worker manifest、task envelope、受限 context、结果双结果门、安全错误、线程安全 registry、离线 fake executor，以及两个最小兼容入口。权限默认 network=none/read_only=true 且四个写权限恒为 false；task action、workflow cursor 文件和 artifact ref 采用 fail-closed 校验；Analyst 字段完整性与 Verifier 双结果门在生产校验函数中落实。执行器只调用登记的本地 callable，处理取消、超时、阻断、重复与异常脱敏，不修改 scope、approval、phase cursor 或 confirmed finding。",
+  "alternative_explanations": [
+    "当前测试证明的是离线 fake worker 契约和边界行为，不等同于真实工具执行能力已就绪。",
+    "兼容层只验证入口保持可导入；未对真实 subprocess 或真实目标流程做运行验证。",
+    "现有 runtime event journal/task lineage 尚未作为 executor 的强制持久化依赖，因此审计链集成仍需后续阶段或人工复核。"
+  ],
+  "hypotheses": [
+    "后续接入真实 worker 时应继续通过 registry 注册 callable，并保留 network/写权限 fail-closed 门。",
+    "若需要完整审计事件，应在不改变 cursor/scope/approval 的前提下显式注入 EventJournal。"
+  ],
+  "unknowns": [
+    "未验证真实 Supervisor 调度协议，因为施工表03明确不得接 Supervisor。",
+    "未验证多进程 worker 注册持久化与跨进程取消。",
+    "未验证真实工具二进制调用、网络行为或认证态上下文。"
+  ],
+  "coverage": {
+    "manifest": "complete",
+    "task_envelope": "complete",
+    "context": "complete",
+    "result_gate": "complete",
+    "errors": "complete",
+    "registry": "complete",
+    "fake_executor": "complete",
+    "legacy_compatibility": "smoke-tested",
+    "network": "not_invoked",
+    "sensitive_sources": "not_read"
+  },
+  "not_tested": [
+    "真实目标请求、真实 session、凭证、HAR/raw 响应、真实运行产物",
+    "Supervisor、施工表04及后续施工表",
+    "跨进程持久化与生产级并发压力"
+  ],
+  "next_hints": [
+    "由 Verifier 复核逐文件登记、契约校验和工作区边界后再决定 complete。",
+    "真实工具接入必须单独经过授权/审批门，不得由本 fake executor 推断授权。"
+  ]
+}

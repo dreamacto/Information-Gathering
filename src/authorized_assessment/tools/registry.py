@@ -228,3 +228,24 @@ def check_tool_strategy_references(data: object, strategy: object, root: Path) -
                             "（规格 7.1：只能引用状态不是 unavailable 的 tool_id）"
                         )
     return violations
+
+
+def get_tool(data: object, tool_id: str) -> dict | None:
+    """Read-only lookup for a registered tool by exact tool_id."""
+    if not isinstance(data, dict) or not isinstance(tool_id, str):
+        return None
+    for entry in data.get("tools", []):
+        if isinstance(entry, dict) and entry.get("tool_id") == tool_id:
+            return dict(entry)
+    return None
+
+
+def list_available_tools(data: object) -> tuple[dict, ...]:
+    """Return active/hold tool metadata without applying execution policy."""
+    if not isinstance(data, dict):
+        return ()
+    return tuple(
+        dict(entry)
+        for entry in data.get("tools", [])
+        if isinstance(entry, dict) and entry.get("status") in {"active", "hold"}
+    )

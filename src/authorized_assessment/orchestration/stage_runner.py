@@ -34,3 +34,8 @@ def run_sync_stage(
             {"checked_at": now_iso(), "returncode": process.returncode, "cmd": list(command)},
         )
     return process
+
+
+def run_fake_worker_stage(executor, task, context, *, worker_id):
+    """Run a registered offline worker without changing legacy subprocess behavior."""
+    return executor.execute(task, context, worker_id=worker_id)

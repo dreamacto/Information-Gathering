@@ -1,0 +1,27 @@
+{
+  "stage": "03",
+  "worker_type": "verifier",
+  "status": "verified",
+  "created_at": "2026-09-02T00:00:00+00:00",
+  "code_result_id": "construction_tables/03_code_worker.json",
+  "analyst_result_id": "construction_tables/03_analyst_worker.json",
+  "checks": {
+    "code_result_present": true,
+    "analyst_result_present": true,
+    "analyst_fields_complete": true,
+    "special_tests": "12 passed",
+    "compatibility_tests": "67 passed",
+    "contract_check": "ok=true, violations=[]",
+    "diff_check": "pass",
+    "network_requests": 0,
+    "sensitive_sources_read": 0,
+    "scope_approval_cursor_confirmed_writes": 0
+  },
+  "verdict": "verified",
+  "blocking": [],
+  "manual_validation": [
+    "真实工具和真实目标行为未验证；保持在 fake/offline 范围",
+    "Supervisor 与施工表04+未接入，符合施工表边界"
+  ],
+  "handoff_ready": true
+}
