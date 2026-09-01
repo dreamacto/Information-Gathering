@@ -1,0 +1,68 @@
+{
+  "status": "verified",
+  "construction_table": "04",
+  "baseline": "74ab28c",
+  "scope": "construction_table_04_only",
+  "dual_result_check": {
+    "status": "pass",
+    "code_worker": "construction_tables/04_code_worker.json",
+    "analyst_worker": "construction_tables/04_analyst_worker.json",
+    "detail": "Code Worker facts and Analyst structured context are both present; only this Verifier record grants verified"
+  },
+  "tests_check": {
+    "status": "pass",
+    "focused": "23 passed, 1 warning",
+    "compatibility": "179 passed, 1 warning",
+    "combined": "202 passed, 1 warning",
+    "compile": "pass",
+    "direct_import": "7/7 pass",
+    "diff_check": "pass"
+  },
+  "contract_check": {
+    "status": "pass",
+    "detail": "phase/worker/evidence/approval/context/metric validators and fail-closed negative paths pass; existing quality/evidence/context/policy contracts remain compatible"
+  },
+  "gate_check": {
+    "status": "pass",
+    "detail": "six-gate aggregation requires phase, context, worker, evidence, approval and quality plus Code/Analyst dual-result references; conflicts and sensitive paths prevent verified"
+  },
+  "cursor_check": {
+    "status": "pass",
+    "detail": "WZ is bound to phase_status.json and XCX to phase_status.miniapp.json; no concrete engagement cursor was modified"
+  },
+  "security_check": {
+    "status": "pass",
+    "network_requests": 0,
+    "credentials_read": 0,
+    "sessions_read": 0,
+    "har_raw_read": 0,
+    "real_run_artifacts_read": 0,
+    "approval_gated_actions": 0,
+    "sensitive_values_emitted": 0,
+    "detail": "offline-only implementation and tests; sensitive violations retain paths without values"
+  },
+  "issues": [],
+  "remaining_risks": [
+    "旧 .zcode/table01_graph_static_handoff.json 仍记录 needs_manual_validation，与正式表01 verified 记录存在历史状态冲突；本表未覆盖或静默更改它。",
+    "未在真实 engagement 或跨进程 Supervisor 上验证执行期消费。",
+    "独立 JSON Schema engine 端到端校验未执行。"
+  ],
+  "evidence": [
+    "construction_tables/04_phase_status.json",
+    "construction_tables/04_code_worker.json",
+    "construction_tables/04_analyst_worker.json",
+    "src/authorized_assessment/orchestration/verifier.py",
+    "src/authorized_assessment/orchestration/phase_verifier.py",
+    "src/authorized_assessment/orchestration/worker_output_verifier.py",
+    "src/authorized_assessment/orchestration/evidence_verifier.py",
+    "src/authorized_assessment/orchestration/approval_verifier.py",
+    "src/authorized_assessment/orchestration/context_verifier.py",
+    "src/authorized_assessment/analysis/performance_metrics.py",
+    "tests/test_verifier.py",
+    "tests/test_phase_verifier.py",
+    "tests/test_worker_output_verifier.py",
+    "tests/test_context_verifier.py",
+    "tests/test_performance_metrics.py"
+  ],
+  "created_at": "2026-09-02T00:00:00+00:00"
+}

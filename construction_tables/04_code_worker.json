@@ -1,0 +1,53 @@
+{
+  "worker_type": "code",
+  "construction_table": "04",
+  "baseline": "74ab28c",
+  "status": "ok",
+  "scope": "construction_table_04_only",
+  "facts": {
+    "new_production_files": 7,
+    "existing_compatibility_files_checked": 3,
+    "new_test_files": 5,
+    "table04_focused_tests": "23 passed, 1 warning",
+    "adjacent_compatibility_tests": "179 passed, 1 warning",
+    "combined_regression": "202 passed, 1 warning",
+    "compile": "pass",
+    "direct_import": "7 table04 modules pass",
+    "network_requests": 0,
+    "credentials_read": 0,
+    "sessions_read": 0,
+    "har_raw_read": 0,
+    "real_run_artifacts_read": 0
+  },
+  "commands": [
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m py_compile 7 table04 production modules + 5 table04 tests", "returncode": 0, "summary": "compile pass"},
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe direct import of 7 table04 modules", "returncode": 0, "summary": "all imports pass"},
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q --basetemp=.pytest_table04 tests/test_verifier.py tests/test_phase_verifier.py tests/test_worker_output_verifier.py tests/test_context_verifier.py tests/test_performance_metrics.py", "returncode": 0, "summary": "23 passed, 1 warning"},
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q --basetemp=.pytest_table04 table04 focused plus adjacent compatibility suites", "returncode": 0, "summary": "202 passed, 1 warning"},
+    {"command": "git diff --check -- table04 scope", "returncode": 0, "summary": "whitespace check pass"}
+  ],
+  "security": {
+    "network": false,
+    "credentials_read": false,
+    "sessions_read": false,
+    "har_raw_read": false,
+    "real_run_artifacts_read": false,
+    "out_of_scope_files_modified": false,
+    "sensitive_values_emitted": false
+  },
+  "files": [
+    "src/authorized_assessment/orchestration/verifier.py",
+    "src/authorized_assessment/orchestration/phase_verifier.py",
+    "src/authorized_assessment/orchestration/worker_output_verifier.py",
+    "src/authorized_assessment/orchestration/evidence_verifier.py",
+    "src/authorized_assessment/orchestration/approval_verifier.py",
+    "src/authorized_assessment/orchestration/context_verifier.py",
+    "src/authorized_assessment/analysis/performance_metrics.py",
+    "tests/test_verifier.py",
+    "tests/test_phase_verifier.py",
+    "tests/test_worker_output_verifier.py",
+    "tests/test_context_verifier.py",
+    "tests/test_performance_metrics.py"
+  ],
+  "created_at": "2026-09-02T00:00:00+00:00"
+}
