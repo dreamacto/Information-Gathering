@@ -1,64 +1,21 @@
-# Mini-program engagement artifact contract
+# 小程序 engagement artifact contract
 
 ## Required root artifacts
 
-| Path | Purpose |
-|---|---|
-| `engagement.json` | Authorization, timing, rules, input hash, workspace version |
-| `miniapp.json` | Platform, name, AppID/identifier, operator, version, identity status/evidence |
-| `materials.csv` | Original packages, source, cache, images, traffic, hashes, provenance, analysis result |
-| `artifacts/package-inventory.csv` | Main/subpackages, hashes, extractor/version, extraction result, output directory |
-| `artifacts/decoding-ledger.csv` | Local decoding attempts, tools, inputs, recovered clues, failures, output paths |
-| `artifacts/source-map.csv` | Recovered/supplied source files and their material/package/internal-path origin |
-| `hosts.csv` | Every discovered host/service, ownership, scope state, source, permitted action |
-| `endpoints.csv` | Client/backend routes, methods, parameters, auth, roles, state change, test result |
-| `phase_status.json` | Coverage phase, applicability, status, reason, artifacts, timestamps |
-| `review_ledger.csv` | Candidate/finding disposition and evidence links |
-| `notes/tool-inventory.md` | Available tools, versions, configuration, missing capabilities |
-| `notes/coverage.md` | Matrix coverage, accounts, devices, versions, limitations |
-| `notes/safety-controls.md` | Rate limits, read-only automation mode, write-approval gates, stop thresholds |
-| `evidence/index.csv` | Evidence IDs, finding IDs, timestamps, hashes, sensitivity, paths |
-| `reports/攻防成果报告_<engagement>_<日期>.docx` | **Final deliverable（主交付，2026-08-23 起）**：`python report_docx.py` 生成（meta/findings.json 或 --from-ledger 骨架）；红色【需截图】标注补齐前未完成 |
-| `reports/final-report.md` | Working notes（过程稿，不再作为对外交付物） |
+既有 engagement、素材、包清单、hosts/endpoints、阶段游标、review ledger 和 evidence index 等内部产物继续按本契约保存；原始包、原始流量、凭证和 PII 只能留在受限本地目录，报告安全件放在 `evidence/redacted/`。
 
-## Material states
+`reports/攻防成果报告_<engagement>_<日期>.docx` 是主交付物，由 `report_docx.py` 依据模板生成；`reports/final-report.md` 仅为内部工作稿。
 
-Use `pending`, `analyzed`, `failed`, `superseded`, or `not_applicable`. Preserve original hashes and
-paths. Do not overwrite an old package with a new version; add a material row and record relationships.
-A package is `analyzed` only after its package inventory, unpack/decompile result, recovered source map,
-and explicit unreadable/unsupported areas are recorded. URL or string extraction alone is insufficient.
+## Report contract
 
-## Host scope states
+报告必须遵循用户 DOCX 模板的固定结构：资产归属证明网址、备案系统证明网址（模板保留时）、目标信息/基本情况表、成果说明、详细复现命令或操作步骤、返回结果/结果解读、存在问题、整改建议。
 
-Use `unclassified`, `in_scope`, `confirmation_required`, `third_party`, `platform`, `out_of_scope`,
-or `invalid`. Record ownership rationale and source. Only `in_scope` entries may receive active backend
-requests. Every active `unclassified` or `confirmation_required` host prevents full closure unless the
-report clearly records a justified external blocker and the phase remains blocked.
+生成器不得动态生成长标题、团队/日期头部、综述/执行摘要/渗透路径/阶段总结、独立证据截图章节、红色截图语句或证据文件列表。截图由人工插入，生成器只写正常的结果位置。
 
-## Phase and review states
+canonical finding 至少保留 `finding_id`、`title`、`description`、`system`、目标 URL、漏洞类别、风险等级、数据量/影响范围、权限、`commands`、`steps`、`note`、`interpretation`、预期/实际结果、`pagination` 和 `cleanup`。环境准备来自 `meta.env_lines`。完整命令和步骤按原始顺序保留；边界说明归入备注，不能冒充命令；无真实命令时明确显示“【请补充实际复现命令】”。
 
-Use phase states `pending`, `in_progress`, `complete`, `blocked`, or `not_applicable`. Use review states
-`candidate`, `needs_manual_validation`, `approval_required`, `confirmed`, `rejected`, `accepted_risk`,
-`fixed`, `retest_failed`, or `retest_passed`.
+同一规范化资产 + 同一漏洞类别只生成一个成果并合并多个入口；不同资产、不同类别、candidate/安全观察/未测试项必须分开且不得升级为 confirmed。问题和整改建议各最多 2 条；数据量字段遵循有明确条数才显示、否则回退影响范围、两者都无则省略。
 
-Never erase superseded material, hosts, endpoints, or candidates. Mark rows inactive where the schema
-supports it and retain source references and human dispositions.
+## Sensitive storage and closure
 
-## Sensitive storage
-
-- Keep originals and unredacted traffic under `materials/original/` or `evidence/raw/` with restricted access.
-- Analyze copies under `materials/working/`.
-- Put report-safe artifacts under `evidence/redacted/`.
-- Keep credentials and current sessions under `sessions/`; exclude this directory from sharing and version control.
-
-Do not store full login codes, tokens, cookies, open identifiers tied to people, phone numbers,
-addresses, messages, order details, payment data, personal files, or unnecessary business responses.
-
-## Closure state
-
-Close only when the user-supplied initial target basis is recorded; identity and version limitations
-are explicit; initial decoding is complete or justified; package, subpackage, unpack/decompile, and
-source-reconstruction results are recorded; materials have results; hosts are classified; applicable
-client and backend phases are complete; candidates are disposed; confirmed findings have evidence;
-safety controls and write-approval decisions are recorded; cleanup/retest are recorded; and the final
-report exists.
+凭证、会话、密钥、原始 PII 和未脱敏响应不得进入 DOCX、日志、台账或交接文本。交付前由报告人员自行插入脱敏截图并人工审计，之后再闭合 reporting 阶段。

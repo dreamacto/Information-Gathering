@@ -47,6 +47,25 @@ primary outputs are:
 | `approval_gates.md` | Gated actions collected by category | Do not execute these actions without explicit operator approval |
 | `run_inventory.json` | Detected run directories, manual hubs, counters, and workspace metadata | Use for auditability |
 
+## Findings ledger field map (spec 8.2, batch14_4)
+
+`findings_ledger.csv` = legacy 15 columns (order unchanged) + 13 appended spec-8.2 fields
+(`candidate_id`, `asset_type`, `vulnerability_family`, `impact_class`, `quality_status`,
+`recommended_workflow`, `recommended_phase`, `blocked_reason`, `next_action`, `owner`, `sla`,
+`last_seen`, `evidence_ref`). Mapping notes:
+
+| Spec field | Ledger source |
+|---|---|
+| `finding_id` | legacy column (reused, unchanged position) |
+| `candidate_id` | source target queue `review_order` |
+| `quality_status` | `needs_manual_validation` until operator final review |
+| `next_action` | `人工终审` for AI-drafted confirmed rows |
+| `last_seen` | aggregation timestamp |
+| `evidence_ref` | verdict `basis` (file:line evidence); legacy `evidence_paths` keeps the workspace path list |
+| `asset_type` / `vulnerability_family` / `impact_class` | filled from verdict/queue when derivable, else empty |
+
+## Health and scope files
+
 ## Health and scope files
 
 | File | Meaning | Review action |

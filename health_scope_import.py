@@ -11,16 +11,30 @@ import csv
 import hashlib
 import ipaddress
 import json
+import os
 import re
+import sys
 from pathlib import Path
 from urllib.parse import urlsplit, urlunsplit
 
 import pandas as pd
 
-import sys
+# 导入期零全局副作用（batch14_2；batch8_8 subdomain_bruteforce_controlled 先例同型）：
+# 原模块顶层 sys.stdout.reconfigure(...) 会在被导入时（含 pytest 收集）改变全局流
+# 编码，违反"导入期不改全局环境"纪律。输出编码兑底仅对"作为 CLI 入口运行"生效
+# （__main__ guard，main() 调用前）；任何导入方（含进程内调用 main() 的测试）都不
+# 改变全局环境——编码兼容是运行环境设置，非模块正确性前提。
 
-if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+def _configure_cli_output_encoding() -> None:
+    """CLI 入口输出编码兑底（仅 __main__ guard 调用，导入方与进程内 main() 调用均不受影响）。"""
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 
 COLUMNS = [
@@ -160,4 +174,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _configure_cli_output_encoding()
     raise SystemExit(main())

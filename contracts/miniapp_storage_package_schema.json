@@ -1,0 +1,101 @@
+{
+  "schema_version": "1.0",
+  "contract": "miniapp_storage_package_schema",
+  "description": "小程序本地数据、密码学与包完整性契约（实施规格 6.2 拆分 1499-1534 行 + 6.3 包完整性和更新信任 1536-1556 行 + 6.6 本地存储和密码学 1612-1633 行；Batch 11 落地，Batch 11 第 11 契约）。client_storage_crypto 拆为 local_data_exposure / crypto_and_secret_handling 两个 phase；source_reconstruction 后、static_analysis 前新增 package_integrity_update_review phase。每个 phase 产出一份 review JSON 产物（rows=统一筛选模式候选行 8 状态，summaries=分支级汇总，branch_status 为 coverage_substatus 六值之一，由 src/authorized_assessment/triage/injection_candidates.aggregate_category_status 单一引擎聚合）。离线复核域：包完整性复核只分析操作员提供的包副本与既有清单证据，不做重打包、篡改、绕过 pinning 或设备攻击；发现密钥字符串但无法证明有效性时只能是 secret_candidate，不能直接称为密钥泄露漏洞。skill 脚本常量（init/audit）与本契约、三个模块常量的一致性由 tests/test_xcx_storage_package_phase_split.py 与 tests/test_miniapp_storage_crypto.py、tests/test_package_integrity_update.py 锁定。",
+  "type": "object",
+  "phases": {
+    "package_integrity_update_review": {
+      "artifact": "artifacts/miniapp/package/package-integrity-review.json",
+      "description": "包完整性和更新信任（离线检查七项）：主包、子包、插件包版本；清单和资源差异；更新地址和环境切换；调试开关；Source Map；版本漂移；前端是否信任可控更新配置。不做重打包、篡改、绕过 pinning 或设备攻击。",
+      "branches": [
+        "package_version_inventory",
+        "manifest_resource_diff",
+        "update_endpoint_environment",
+        "debug_switches",
+        "source_map_exposure",
+        "version_drift",
+        "trusted_update_config"
+      ]
+    },
+    "local_data_exposure": {
+      "artifact": "artifacts/miniapp/storage/local-data-review.json",
+      "description": "本地数据暴露：token 是否落地；logout 是否清理；本地缓存、数据库、日志、剪贴板、截图、临时文件。",
+      "branches": [
+        "token_persistence",
+        "logout_cleanup",
+        "local_cache_database",
+        "logs_clipboard_screenshots",
+        "temp_files"
+      ]
+    },
+    "crypto_and_secret_handling": {
+      "artifact": "artifacts/miniapp/crypto/secret-review.json",
+      "description": "密码学与密钥处理：AppSecret、固定 token、密钥硬编码；自定义加密、弱随机数、密钥派生；包中调试配置和环境密钥（调试开关本身归 package_integrity_update_review 避免重复计数）。发现密钥字符串但无法证明有效性时只能是 secret_candidate，不能直接称为密钥泄露漏洞。",
+      "branches": [
+        "hardcoded_secrets",
+        "custom_crypto",
+        "weak_random_key_derivation",
+        "debug_config_env_keys"
+      ]
+    }
+  },
+  "coverage_substatus": {
+    "contract_ref": "coverage_substatus_schema",
+    "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+    "proven_values": ["tested", "not_applicable"],
+    "note": "六值枚举与 proven 子集单一来源引用 coverage_substatus_schema（不复定义）；branch_status 由 aggregate_category_status 聚合产生（approval_required 仅由复核显式设置，不由聚合产生）。"
+  },
+  "observation_schema_version": "1.0",
+  "artifact_fields": {
+    "row_fields": [
+      "row_id",
+      "branch",
+      "status",
+      "evidence_kinds",
+      "source",
+      "evidence_ref",
+      "precondition",
+      "reason"
+    ],
+    "summary_fields": [
+      "branch",
+      "branch_status",
+      "applicability_counts",
+      "status_counts",
+      "tested_count",
+      "reason",
+      "source",
+      "precondition"
+    ],
+    "artifact_keys": [
+      "schema_version",
+      "contract",
+      "phase",
+      "observation_schema_version",
+      "row_fields",
+      "summary_fields",
+      "substatuses",
+      "rows",
+      "summaries",
+      "violations",
+      "authorization_basis",
+      "updated_at"
+    ]
+  },
+  "authorization_basis_values": ["operator_supplied_material", "local_traffic"],
+  "red_lines": [
+    "不做重打包、篡改、绕过 pinning 或设备攻击（规格 6.3 红线）；包完整性复核只分析操作员提供的包副本与既有清单证据",
+    "发现密钥字符串但无法证明有效性时只能是 secret_candidate（未证实线索，8 状态模型记 signal），不能直接称为密钥泄露漏洞",
+    "仅在有人工提供的授权材料或本地流量/包副本时分析；token、AppSecret、密钥原文等敏感值不复制到普通日志、报告、prompt、ledger 或交接内容",
+    "confirmed 仍归漏洞成立五门判定；本契约只约束候选层筛选与 phase 完成可证明性"
+  ],
+  "invariants": [
+    "phases 键与 xcx init/audit 脚本的三 phase 名逐一相同（package_integrity_update_review 位于 source_reconstruction 后、static_analysis 前；local_data_exposure/crypto_and_secret_handling 替换 client_storage_crypto 原位置）",
+    "每 phase branches 与 init/audit 的 substatuses 种子键集逐一相同；skill 脚本自包含复制常量，测试锁定无漂移",
+    "artifact 路径与规格 1542/1619/1620 行逐一相同，相对 engagement 工作区根",
+    "rows[].status ∈ finding 8 状态（signal/candidate/needs_manual_validation/confirmed/inconclusive/blocked/rejected/duplicate）；summaries[].branch_status ∈ coverage_substatus 六值",
+    "phase 完成（status=complete/not_applicable）要求：全部分支 substatus 已记录且 ∈ proven_values；产物存在且 phase 匹配；summaries 中该分支 branch_status 与 substatus 一致；not_applicable 分支 reason 非空；tested 分支 evidence_ref 可在工作区内解析",
+    "骨架 substatuses 值为空串=未记录，仅完成时强制；审计不得把空串当作 not_applicable",
+    "6.6 检查项'包中调试配置和环境密钥'与 6.3 '调试开关'去重分配：调试开关归 package_integrity_update_review.debug_switches，crypto_and_secret_handling.debug_config_env_keys 只覆盖环境密钥/调试配置中的密钥材料暴露，不得重复计数"
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "schema_version": "1.0",
+  "contract": "context_snapshot",
+  "description": "Contract for runs/<run>/context_snapshot.json and engagements/<name>/notes/context_snapshot payloads. Fields per implementation spec section 3.8. Executed by src/authorized_assessment/runtime/context_snapshot.py (subset validator, no external dependencies).",
+  "type": "object",
+  "required": [
+    "task_type",
+    "workflow",
+    "phase",
+    "engagement_id",
+    "loaded_sources",
+    "source_hashes",
+    "policy_digest",
+    "current_facts",
+    "historical_inputs",
+    "excluded_sources",
+    "context_conflicts",
+    "created_at"
+  ],
+  "properties": {
+    "task_type": { "type": "string" },
+    "workflow": { "type": ["string", "null"] },
+    "phase": { "type": ["string", "null"] },
+    "engagement_id": { "type": ["string", "null"] },
+    "loaded_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "purpose", "sha256", "loaded_at", "required"],
+        "properties": {
+          "path": { "type": "string" },
+          "purpose": { "type": "string" },
+          "sha256": { "type": "string" },
+          "loaded_at": { "type": "string" },
+          "required": { "type": "boolean" },
+          "layer": { "type": "string", "enum": ["L0", "L1", "L2", "L3"] }
+        }
+      }
+    },
+    "source_hashes": { "type": "object" },
+    "policy_digest": { "type": "object" },
+    "current_facts": { "type": "array", "items": { "type": "string" } },
+    "historical_inputs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "classification"],
+        "properties": {
+          "path": { "type": "string" },
+          "classification": {
+            "type": "string",
+            "enum": ["historical_fact", "derived_pattern", "stale_reference"]
+          }
+        }
+      }
+    },
+    "excluded_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string" },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "credential_file",
+              "raw_response",
+              "screenshot",
+              "not_in_loading_map",
+              "other_workflow",
+              "history_disabled",
+              "out_of_scope",
+              "missing_optional_source",
+              "stale_reference"
+            ]
+          }
+        }
+      }
+    },
+    "context_conflicts": { "type": "array" },
+    "created_at": { "type": "string" }
+  }
+}

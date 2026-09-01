@@ -2,15 +2,21 @@
   "label": "gx_gov",
   "tianhu_base": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0",
   "python": "{tianhu}/python3/python.exe",
+  "python_fallbacks": [
+    {
+      "name": "project_venv",
+      "path": "{base}/.venv/Scripts/python.exe",
+      "role": "primary"
+    },
+    {
+      "name": "tianhu_compat",
+      "path": "{tianhu}/python3/python.exe",
+      "role": "compat_fallback"
+    }
+  ],
   "java": "{tianhu}/Java_path/Java_11_win/bin/java.exe",
   "workflow": "gov_exercise_workflow.json",
   "tool_strategy": "tool_strategy.json",
-  "reporting": {
-    "team_name": "观叶识微",
-    "attack_result_template": "D:/Desktop/claude projects/attack and defend test/攻击成果模版/攻击成果.docx",
-    "auto_generate_attack_report": true,
-    "screenshot_policy": "insert_existing_or_mark_needed"
-  },
   "max_targets": 500,
   "default_delay_seconds": 2.0,
   "probe_timeout_seconds": 8,
@@ -27,7 +33,13 @@
     ],
     "backoff_seconds": 10,
     "max_concurrency_default": 3,
-    "stop_on_repeated_errors_per_host": 5
+    "stop_on_repeated_errors_per_host": 5,
+    "concurrency_budgets": {
+      "dns_queries": 6,
+      "http_hosts": 3,
+      "cross_host_workers": 3,
+      "note": "三类并发独立预算，不得互相挪用（实施规格 7.4）：dns_queries 是受控子域发现的 DNS 专项预算（launcher 的 --subdomain-concurrency，如保守流程 6），不与 HTTP host 并发（http_hosts=max_concurrency_default）或跨 host worker 并发（cross_host_workers=parallel --max-parallel）混淆；此处登记现状值，实际以各 launcher 显式参数为准。"
+    }
   },
   "allowed_modes": [
     "check",

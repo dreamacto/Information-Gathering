@@ -1,6 +1,6 @@
 # AGENT_MANIFEST.md — 机器可读工具清单
 
-> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-08-28 19:26）
+> 由 scripts/gen_agent_manifest.py 生成，勿手改（生成时间：2026-09-01 10:41）
 
 > 用法：AI 选工具前先查本清单；所有新工具/新 phase 由生成器登记，不手写本文件。
 
@@ -34,7 +34,7 @@
 | 一键竞态测试_授权目标.bat | 读配方D 产出的 race_config.json 对授权目标执行竞态；开场强制 YES 确认；必须 .venv | 审批门：写端点需 write_risk_ack | `一键竞态测试_授权目标.bat` |
 | AI配方_一键复制.bat | 菜单选 1-6 把 prompts/ 配方A-F 全文复制到剪贴板，粘贴给任意 AI 启动对应会话（copy_prompt.py） | 离线复制，零网络请求 | `AI配方_一键复制.bat` |
 
-## 根目录核心脚本（49 个）
+## 根目录核心脚本（50 个）
 
 | 工具 | 路径 | 用途 | 输入 | 输出 | 风险 | 示例 |
 |---|---|---|---|---|---|---|
@@ -84,6 +84,7 @@
 | subdomain_collector.py | `D:\PythonSource\PythonProjects\PythonProject4\subdomain_collector.py` | 子域名收集入口 | 见 --help | subdomains.jsonl / subdomains_for_scope_confirmation.txt | 只读（DNS 查询） | `python subdomain_collector.py --targets targets.txt` |
 | subdomain_bruteforce_controlled.py | `D:\PythonSource\PythonProjects\PythonProject4\subdomain_bruteforce_controlled.py` | 受控子域爆破（低频 DNS 发现，产出先归类确认再探测） | 见 --help | subdomains_bruteforce.txt | 只读（受控低速率） | `python subdomain_bruteforce_controlled.py --targets targets.txt` |
 | decrypt_wxapkg.py | `D:\PythonSource\PythonProjects\PythonProject4\decrypt_wxapkg.py` | 小程序 wxapkg 批量解密 + 域名提取 | 见 --help | tools/miniapp_extract/ 解密产物 | 离线 | `python decrypt_wxapkg.py <wxapkg路径>` |
+| unpack_wmpf_wxapkg.py | `D:\PythonSource\PythonProjects\PythonProject4\unpack_wmpf_wxapkg.py` | PC 微信4.x(WMPF) wxapkg 变体解包：修正 AES 首块 PKCS#7 填充错位 + 按索引有效性选 XOR 键（兼容标准 0x66 与 WMPF ord(appid[-2])），防二次解密；真身 tools/miniapp_extract/unpack_wmpf_wxapkg.py | 见 --help | <out>/<appid>/ 合并源码树 | 离线 | `python unpack_wmpf_wxapkg.py <wxapkg路径或目录> --out unpacked/<appid> [--appid <appid>]` |
 | analyze_wx_miniapp_source.py | `D:\PythonSource\PythonProjects\PythonProject4\analyze_wx_miniapp_source.py` | 小程序源码树分析（白盒入口） | 见 --help | miniapp_analysis.jsonl | 离线 | `python analyze_wx_miniapp_source.py --source-dir unpacked/wxXXX` |
 | analyze_js_static.py | `D:\PythonSource\PythonProjects\PythonProject4\analyze_js_static.py` | JS 静态分析（含 .min.js beautify，供白盒 sink 定位参考） | 见 --help | js_analysis.jsonl | 离线 | `python analyze_js_static.py --run-dir runs/<ts>` |
 | batch_runner.py | `D:\PythonSource\PythonProjects\PythonProject4\batch_runner.py` | 批量子 runner（阶段内分批执行） | 见 --help | 批次产物 + 游标 | 只读 | `python batch_runner.py --run-dir runs/<ts>` |
@@ -130,9 +131,70 @@
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
 - backup：`packerfuzzer_or_manual_proxy`（风险级 **只读**）；路径：—
 
+### application_mapping
+- primary：`manual_browser_or_proxy`；backup：`api_discovery.py_plus_katana`（mode=reuse_crawl_candidates_then_applicability_first）
+- 说明：wz application_mapping phase split into five auditable subphases (graphql_mapping/websocket_mapping/file_surface_mapping/auth_surface_mapping/webhook_mapping). Primary executor is the wz AI session over browser/proxy/JS evidence; backup reuses crawl_api_js candidates (api_discovery.py output) instead of re-crawling. Applicability first: only applicable surfaces enter testing; not_applicable must be recorded with a reason. Each subphase records one substatus (tested/not_applicable/blocked/approval_required/needs_manual_validation/inconclusive) in phase_status.json substatuses and writes artifacts under artifacts/application-map/ (graphql-manifest.json, websocket-inventory.csv, file-surface-inventory.csv, auth-surface-inventory.csv, webhook-inventory.csv; seven-field rows per coverage_substatus_schema). init_engagement.py seeds the skeletons; audit_engagement.py refuses unproven completion.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+- backup：`api_discovery.py_plus_katana`（风险级 **只读**）；路径：—
+
 ### wechat_miniapp_discovery
 - primary：`wechat_miniapp_discovery.py`；backup：`manual_wechat_or_search_review`（mode=confirm_candidates_and_scope）
 - 说明：Generate mini-program, official-account, QR-code, and search-dork clues. Feed only authorized source domains from wechat_subdomain_scan_targets.txt back into subdomain/alive scanning; keep WeChat platform and third-party links pending review.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### platform_login_exchange
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.5 platform_login_exchange (Batch 10, xcx authentication_session split). Offline review domain via src/authorized_assessment/miniapp/platform_login_exchange.py: five branches (login_code_one_time/login_code_expiry/appid_binding/session_key_custody/openid_authorization_basis); observation keys map to evidence kinds, only branch-specific confirmed kinds (from re-review of existing read-only evidence, reproducible) upgrade to candidate, form/supporting observations never upgrade. Observations come only from operator-supplied authorization material or local traffic; never auto-create or abuse login credentials; OpenID/AppID are not authorization. Artifact artifacts/miniapp/auth/platform-login-review.json (contract miniapp_auth_schema, 12-key shape; phase substatuses per coverage_substatus_schema six values). confirmed still requires the five finding gates. duplicate_execution=false: must not re-execute any probe covered elsewhere; no probe tool referenced.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### session_token_lifecycle
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.5 session_token_lifecycle (Batch 10, xcx authentication_session split). Offline review domain via src/authorized_assessment/miniapp/session_token_lifecycle.py reusing the shared engine in platform_login_exchange.py: five branches (token_rotation/token_revocation_logout/multi_device_login/stale_token_new_api/device_user_tenant_binding). Observations come only from operator-supplied authorization material or local traffic; no automatic login, token issuance, renewal, or revocation; stale-token checks re-review existing read-only evidence and never send write requests (write actions remain approval-gated). Artifact artifacts/miniapp/auth/session-lifecycle-review.json (contract miniapp_auth_schema). confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### signature_replay
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.5 signature_replay (Batch 10, xcx authentication_session split). Offline replay-hypothesis and observational screening only, via src/authorized_assessment/miniapp/signature_replay_review.py reusing the shared engine: four branches (nonce_timestamp/signature_canonicalization/replay_window/binding_scope; binding_scope covers signature/nonce context binding, token binding stays in session_token_lifecycle to avoid double counting). Never auto-replays any request (read or write); write actions and concurrency validation remain approval-gated. Observations come only from operator-supplied authorization material or local traffic. Artifact artifacts/miniapp/auth/signature-replay-review.json (contract miniapp_auth_schema). confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### package_integrity_update_review
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.3 package_integrity_update_review (Batch 11, xcx client_storage_crypto split + insertion after source_reconstruction). Offline review domain via src/authorized_assessment/miniapp/package_integrity_update.py hosting the Batch 11 shared engine: seven branches (package_version_inventory/manifest_resource_diff/update_endpoint_environment/debug_switches/source_map_exposure/version_drift/trusted_update_config, spec 6.3 checklist items one-to-one). Works on operator-supplied package copies and existing inventory evidence only; never repacks, tampers with, bypasses pinning, or attacks the device (red line carried by PACKAGE_NO_REPACKING_RULE and contract red_lines). Observations come only from operator-supplied authorization material or local traffic. Artifact artifacts/miniapp/package/package-integrity-review.json (contract miniapp_storage_package_schema, 12-key shape; phase substatuses per coverage_substatus_schema six values). confirmed still requires the five finding gates. duplicate_execution=false: must not re-execute any probe covered elsewhere; no probe tool referenced.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### local_data_exposure
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.6 local_data_exposure (Batch 11, xcx client_storage_crypto split). Offline review domain via src/authorized_assessment/miniapp/local_data_exposure.py reusing the Batch 11 shared engine hosted in package_integrity_update.py: five branches (token_persistence/logout_cleanup/local_cache_database/logs_clipboard_screenshots/temp_files; token_persistence and logout_cleanup share token_survives_logout_confirmed because persistence and cleanup are two faces of the same boundary). Observations come only from operator-supplied authorization material, local traffic, or package copies; no credential files are read and no sensitive values are copied into logs, reports, prompts, ledgers, or handoff content (LOCAL_DATA_MATERIAL_RULE). Artifact artifacts/miniapp/storage/local-data-review.json (contract miniapp_storage_package_schema). confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### crypto_and_secret_handling
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.6 crypto_and_secret_handling (Batch 11, xcx client_storage_crypto split). Offline review domain via src/authorized_assessment/miniapp/crypto_secret_review.py reusing the Batch 11 shared engine hosted in package_integrity_update.py: four branches (hardcoded_secrets/custom_crypto/weak_random_key_derivation/debug_config_env_keys; debug switches themselves stay in package_integrity_update_review to avoid double counting, contract invariant). secret_candidate red line: a secret string without proven validity is only a secret_candidate clue (recorded as signal in the eight-state model), never a key-leak finding; only branch-specific confirmed kinds from re-review of existing read-only evidence upgrade to candidate. No key validity probing, no requests, no credential files, no key/AppSecret values copied into logs, reports, prompts, ledgers, or handoff content (SECRET_CANDIDATE_RED_LINE / CRYPTO_MATERIAL_RULE). Artifact artifacts/miniapp/crypto/secret-review.json (contract miniapp_storage_package_schema). confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### webview_bridge_links
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.8 webview_bridge_links (Batch 13, fixed artifacts on the existing xcx phase; no new phase, no split). Offline inventory/review domain: seven branches one per spec 6.8 coverage item (webview_allowed_domains/postmessage_origin/cookie_token_sharing_boundary recorded per origin, bridge_method_exposure, custom_scheme, deep_link_sensitive_params for object ID/tenant ID/scene parameters, external_app_browser_jump) across three fixed CSV artifacts artifacts/miniapp/webview/{webview-origin-inventory,bridge-method-inventory,deep-link-review-queue}.csv (contract miniapp_webview_schema; branch-to-artifact 1:1, tested completion requires at least one row in the branch's own artifact). Rows record observations only from operator-supplied material, local traffic, or package copies; boundary_status follows the finding 8-state model and escalates only when the observation can cause cross-domain data reading, privilege bypass, sensitive token exposure, or external control (spec 6.8). Cookie/token sharing boundary analysis is offline material and authorized traffic only — never injects or replays cookies/tokens, never launches external apps or browsers from deep-link verification, no credential files are read and no token values are copied into logs, reports, prompts, ledgers, or handoff content. confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### static_dynamic_reconciliation
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.4 static_dynamic_reconciliation (Batch 12, xcx split insertion after dynamic_mapping). Offline comparison domain via src/authorized_assessment/miniapp/static_dynamic_reconciliation.py: five branches (static_endpoint_base/dynamic_endpoint_base/match_status_classification/hidden_flow_identification/stale_entry_disposition) reconciling the static endpoint baseline against the dynamic baseline into artifacts/miniapp/reconciliation/static-dynamic-endpoints.csv (contract miniapp_reconciliation_schema; CSV rows carry one of ten spec 6.4 row-level endpoint states static_only/dynamic_only/both_seen/feature_gated/stale/version_specific/third_party/platform_shared/unreachable/needs_manual_validation, distinct from the six-value coverage substatus). Deterministic classification: qualification hints override sighting location; judgment rows (stale/unreachable/needs_manual_validation) require a non-empty reason. Reconciliation never sends new requests: unreachable/stale are judgments, never probe invitations; stale/unreachable entries are never live findings; dynamic_only/feature_gated rows become hidden-flow hypotheses for later phases. confirmed still requires the five finding gates. duplicate_execution=false: must not re-execute any probe covered elsewhere; no probe tool referenced.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### cloud_function_testing
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.7 cloud_function_testing (Batch 12, xcx plugins_cloud_third_party split). Offline review domain via src/authorized_assessment/miniapp/cloud_function_review.py hosting the Batch 12 shared engine: three branches (anonymous_invocation/function_parameter_role_validation/cloud_env_id_mixing, spec 6.7 checklist items one-to-one; cloud env ID mixing is a cloud-environment attribution issue assigned to this phase). Works on operator-supplied material, local traffic, and cloud configuration copies only; default work is minimal read verification — never invokes cloud functions, never triggers write-shaped functions (CLOUD_MINIMAL_READ_RULE; any write, bulk read, and real payment remain approval-gated). Observations come only from existing read-only evidence; only branch-specific confirmed kinds upgrade to candidate, form/supporting observations never upgrade. Artifact artifacts/miniapp/cloud/cloud-function-review.json (contract miniapp_cloud_schema, 12-key review JSON shape). confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### cloud_storage_acl_testing
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.7 cloud_storage_acl_testing (Batch 12, xcx plugins_cloud_third_party split). Offline review domain via src/authorized_assessment/miniapp/cloud_storage_review.py reusing the Batch 12 shared engine hosted in cloud_function_review.py: three branches (cloud_database_rules/object_storage_acl/signed_url_binding; database permission rules are access-control rules assigned to the ACL domain, and signed_url_binding covers expiry, path binding, and cross-object access with distinct evidence kinds under one branch). Signed-URL verification never bulk-reads or downloads object content (CLOUD_STORAGE_NO_BULK_READ_RULE); cross-object proof is recorded via minimal read verification only. Observations come only from operator-supplied material, local traffic, or policy copies. Artifact artifacts/miniapp/cloud/object-storage-review.json (contract miniapp_cloud_schema). confirmed still requires the five finding gates. duplicate_execution=false.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+### third_party_platform_boundary
+- primary：`manual_offline_review_orchestration_only`；backup：`manual_review`（mode=offline_review_only）
+- 说明：Spec 6.7 third_party_platform_boundary (Batch 12, xcx plugins_cloud_third_party split). Offline boundary inventory domain via src/authorized_assessment/miniapp/third_party_boundary_review.py reusing the Batch 12 shared engine: two branches (third_party_service_boundary for map/payment/push and similar third-party services; platform_shared_asset_attribution — platform shared assets must not be misreported as own assets). The artifact is the boundary inventory artifacts/miniapp/cloud/third-party-boundary.csv (contract miniapp_cloud_schema; per-service attribution values aligned with host classification states, boundary_status per finding 8-state model; judgment attributions confirmation_required/unclassified require a row reason). Never triggers a real payment, never produces writes, never bulk-reads (THIRD_PARTY_NO_PAYMENT_RULE; spec 1660 minimal read verification only). confirmed still requires the five finding gates. duplicate_execution=false.
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
 
 ### api_endpoint_confirm
@@ -141,10 +203,22 @@
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
 
 ### xss_candidate_screening
-- primary：`xss_candidate_triage.py`；backup：`nuclei_or_dalfox_or_xsstrike`（mode=single_candidate_manual_validation_only）
-- 说明：Build XSS candidates from discovered parameterized URLs and optionally send one inert GET marker per safe parameter. Stored/blind/script-payload validation and full-scope external scanners are not default automation.
+- primary：`xss_candidate_triage.py`；backup：`nuclei`（mode=single_candidate_manual_validation_only）
+- 说明：Build XSS candidates from discovered parameterized URLs and optionally send one inert GET marker per safe parameter. Stored/blind/script-payload validation and full-scope external scanners are not default automation. 单候选验证能力模块 single_candidate_xss_validation（规格 7.2 二选一引入 XSStrike，registry unavailable，操作者放置并登记 active 前不接入；Dalfox 不引入，显式登记 unavailable）
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
-- backup：`nuclei_or_dalfox_or_xsstrike`（风险级 **只读**）；路径：—
+- backup：`nuclei`（风险级 **只读**）；路径：D:\PythonSource\PythonProjects\PythonProject4\tools\managed\nuclei\3.8.0\nuclei.exe（存在）; D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\nuclei\nuclei.exe（存在）
+
+### ssrf_candidate_screening
+- primary：`manual_proxy_observational`；backup：`ssrf_triage.py`（mode=approval_gated_probe_only）
+- 说明：Spec 5.4 ssrf_candidate_screening. Offline screening layer only: analyze URL/callback/webhook/image/import/remote-file parameters against wordlists/ssrf_params.txt, protocol and redirect limits, existing response evidence, internal-address/cloud-metadata reachability, and the OOB token queue. Candidates are graded signal/candidate per finding status; a parameter name match alone is never a finding, and POST form parameters stay static candidates (no automatic probing values on writes). Artifacts land under artifacts/ssrf/ (ssrf_candidates.jsonl, ssrf_review_queue.csv, oob_token_manifest.json); not_applicable must be recorded with a reason. Public OAST services are forbidden; OOB, internal addresses, cloud metadata, and any write validation are approval-gated (existing approval_gated_phases; no second approval scheme). The backup reuses the existing root script ssrf_triage.py as the only probe implementation.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+- backup：`ssrf_triage.py`（风险级 **只读**）；路径：—
+
+### input_testing
+- primary：`manual_orchestration_only`；backup：`manual_orchestration_only`（mode=orchestration_only_no_duplicate_execution）
+- 说明：Orchestration-only entry (operator decision batch6_4 ⑥): input_testing only orchestrates its subphases — injection_candidate_screening, parser_deserialization_screening, ssrf_candidate_screening, file_path_candidate_screening (batch 7), browser_boundary_review (batch 7) — and must not re-execute the probe actions already covered by the sqli_candidate_screening / xss_candidate_screening / ssrf_candidate_screening entries or any other phase. Offline pipeline via src/authorized_assessment/triage/input_testing.py: init_input_testing_artifacts seeds artifact skeletons, run_input_testing_screening fans observations through the wired screening subphases and writes candidates plus per-category summaries, audit_input_testing checks existence, row contracts and summary-vs-candidate consistency. Artifacts: artifacts/input-testing/ (injection-category-summary.csv, injection-candidates.jsonl, parser-deserialization-category-summary.csv, parser-deserialization-candidates.jsonl), artifacts/ssrf/ per the ssrf entry, artifacts/browser-boundary/cors-csrf-cache.jsonl and reports/browser-boundary.md for browser_boundary_review, artifacts/file-path/ (file-path-category-summary.csv, file-path-candidates.jsonl) for file_path_candidate_screening. Observations are screening input, never proof of a vulnerability.
+- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+- backup：`manual_orchestration_only`（风险级 **只读**）；路径：—
 
 ### authenticated_session_review
 - primary：`authenticated_session_review.py`；backup：`manual_browser_or_proxy`（mode=confirm_high_value_authenticated_candidates）
@@ -270,14 +344,23 @@
 - backup：`custom_scripts_for_candidate_screening`（风险级 **只读**）；路径：—
 
 ### directory_fuzz
-- primary：`dirsearch_or_ffuf`；backup：`manual_browser_or_proxy`（mode=important_targets_only）
-- 说明：Use small curated wordlists and low rate. Avoid broad recursion by default.
-- primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+- primary：`dirsearch`；backup：`manual_browser_or_proxy`（mode=important_targets_only）
+- 说明：Use small curated wordlists and low rate. Avoid broad recursion by default. ffuf 受控目录候选能力已登记 registry unavailable（batch16_1 plan+ingest 模块 src/authorized_assessment/triage/ffuf_directory_candidates.py；操作者放置二进制并登记 active 前不接入）
+- primary 风险级：**只读**；外部工具路径：D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\tools\gui_scan\dirsearch\dirsearch.py（存在）；输出：dirsearch_report.jsonl
 
 ### report
 - primary：`result_prioritizer_and_evidence_builder`；backup：`manual_review`（mode=human_quality_check）
 - 说明：Review priority_targets.json and run_health.json before report drafting.
 - primary 风险级：**只读**；外部工具路径：—；输出：见对应 runner 输出契约
+
+## 本地 MCP 服务（跨 agent 通用）
+
+- **Burp MCP Server（PortSwigger 官方扩展）**：端点 `http://127.0.0.1:9876`；传输：SSE（旧式：GET 建流拿 sessionId 再 POST；mcporter 已封装）
+  - 通用调用（无需 agent MCP 支持，任何能跑 shell 的 agent 可用）: npx -y mcporter@0.9.0 list http://127.0.0.1:9876 --allow-http；npx -y mcporter@0.9.0 call <tool> --http-url http://127.0.0.1:9876 --allow-http <key=value> --output json
+  - 读历史工具：get_proxy_http_history(count, offset) / get_proxy_http_history_regex(count, offset, regex)
+  - 前提：Burp 打开且启用 MCP Server 扩展（listen 127.0.0.1:9876）；未启用时 9876 拒连（ECONNREFUSED）
+  - 用法与各 MCP 客户端配置：docs/BURP_MCP_USAGE.md
+  - 纪律：只读结构（URL/method/状态/字段名）；Cookie/token/手机号等值不进对话/落盘；Burp 重启丢历史先用 MCP 导出
 
 ---
 *本清单由生成器维护；修改工具/phase 后重跑 `python scripts/gen_agent_manifest.py`。*

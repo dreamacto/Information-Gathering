@@ -9,7 +9,7 @@
 ## 规则
 1. 输入：本周 runs/ 全部时间戳目录的 run_summary.json、candidate/复盘产物、reports/ 报告、项目根 asset_fingerprint_lib.jsonl、knowledge_base/ 现有库（存在才读，不存在则按开工前必读声明）。
 2. 若 knowledge_base/ 已落地：先增量后写库，对比上次沉淀游标（knowledge_base/last_sweep.json），只处理新增/变更的 run，已沉淀的跳过。
-3. 知识库增量三件事：① 指纹增量（新 host→产品指纹，追加 knowledge_base/asset_fingerprint_lib.jsonl）；② 误报记忆（本轮 rejected 的 fp_pattern，追加 fp_memory.jsonl）；③ 命中模式（confirmed 的假设模式，更新 hypothesis_ledger 的命中统计）。
+3. 知识库增量四件事：① 指纹增量（新 host→产品指纹，追加 knowledge_base/asset_fingerprint_lib.jsonl）；② 误报记忆（本轮 rejected 的 fp_pattern，追加 fp_memory.jsonl，并由 review_feedback_ingest 生成 false_positive_patterns.jsonl）；③ 精度反馈（confirmed/rejected 终态更新 fingerprint_precision.jsonl）；④ 命中模式（confirmed 的假设模式，更新 hypothesis_ledger 的命中统计）。
 4. 跑 `python metrics_weekly.py --days 7` 产出本周指标（reports/metrics_*.md）；失败不阻塞沉淀，记录原因。
 5. 零网络请求：只用盘上已有数据。
 6. 模板不动：不改 evidence_builder.py / 报告链，只写知识库与周度建议。

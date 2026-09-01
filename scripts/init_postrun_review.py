@@ -42,6 +42,9 @@ REVIEW_FIELDS = (
     "status",
     "notes",
 )
+# batch14_4（实施规格 8.2）：既有 15 列序不变，尾部追加规格字段 13 列。
+# finding_id 复用既有列；evidence_ref 为规格 8.2 契约名，与既有 evidence_paths
+# 并存（前者=引用键，后者=工作区证据路径列表）——映射见 fh skill output-map.md。
 FINDING_FIELDS = (
     "finding_id",
     "status",
@@ -58,6 +61,19 @@ FINDING_FIELDS = (
     "cleanup",
     "retest",
     "notes",
+    "candidate_id",
+    "asset_type",
+    "vulnerability_family",
+    "impact_class",
+    "quality_status",
+    "recommended_workflow",
+    "recommended_phase",
+    "blocked_reason",
+    "next_action",
+    "owner",
+    "sla",
+    "last_seen",
+    "evidence_ref",
 )
 TARGET_FIELDS = (
     "target_id",
@@ -1245,6 +1261,7 @@ def refresh_generated_output(output: Path) -> None:
         if output_resolved not in target_resolved.parents:
             raise RuntimeError(f"Refusing to refresh directory outside output workspace: {target_dir}")
         shutil.rmtree(target_dir)
+    (output / "verdicts").mkdir(parents=True, exist_ok=True)
     for name in GENERATED_WORKSPACE_FILES:
         path = output / name
         if not path.exists():

@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "contract": "candidate_identity_schema",
+  "description": "统一去重键与候选身份契约（实施规格 4.2 统一去重键 1102-1153 行 + 2.7 合并键和限量规则 460-481 行 + 4.3 API 来源可信度 1155-1167 行）。canonical_keys.py 为唯一实现；candidate_dedup.py 为唯一消费方。",
+  "type": "object",
+  "identity_kinds": ["generic", "api", "miniapp"],
+  "key_fields": {
+    "generic": [
+      "canonical_target",
+      "endpoint",
+      "http_method",
+      "parameter_name",
+      "input_location",
+      "test_family"
+    ],
+    "api": [
+      "canonical_host",
+      "normalized_path",
+      "http_method",
+      "parameter_names",
+      "content_type",
+      "source_kind"
+    ],
+    "miniapp": [
+      "miniapp_id",
+      "backend_host",
+      "normalized_path",
+      "http_method",
+      "parameter_names",
+      "package_version"
+    ]
+  },
+  "merge_keys": {
+    "description": "2.7 合并器七键：同一接口多参数 SQL 注入合并为一个 finding；同一路径不同目录、同一参数在相似文件中重复出现按根因和影响合并；同一通用产品缺陷在多个企业实例出现生成一个 generic finding 并挂接实例清单；不得因不同 URL、不同参数名或不同页面标题人为制造多个漏洞。",
+    "fields": [
+      "canonical_target",
+      "product_or_component",
+      "normalized_endpoint",
+      "http_method",
+      "vulnerability_family",
+      "root_cause_signature",
+      "parameter_scope"
+    ],
+    "sqli_parameter_rule": "vulnerability_family=sqli 时 parameter_scope 必须为 endpoint_all_parameters（同一接口多个参数只计一处）"
+  },
+  "normalization_rules": {
+    "canonical_target": "scheme://host[:port] 小写；80/443 默认端口省略；去尾斜杠",
+    "endpoint": "路径小写；去 query 与 fragment；去尾斜杠（根路径除外）；连续斜杠折叠；纯数字段归一为 {n}；UUID 归一为 {uuid}；>=16 位 hex 段归一为 {hex}",
+    "http_method": "大写",
+    "parameter_name": "小写去首尾空白",
+    "parameter_names": "小写去首尾空白后排序去重",
+    "content_type": "取 media type 主值（去掉参数部分）小写",
+    "root_cause_signature": "小写去首尾空白，非空",
+    "product_or_component": "小写去首尾空白，非空"
+  },
+  "http_methods": ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"],
+  "input_locations": ["query", "form", "json", "header", "path", "cookie", "body"],
+  "source_kinds": {
+    "A": "OpenAPI/Swagger/GraphQL schema 明确声明",
+    "B": "前端 JS 实际调用",
+    "C": "浏览器/Burp 真实流量",
+    "D": "HTML 表单或链接",
+    "E": "猜测路径/固定字典"
+  },
+  "source_kind_eligibility": {
+    "description": "规格 4.3：只有 A/B/C 可以进入正常候选队列；D 需要额外响应语义证据；E 默认只能是 low_confidence_signal。本契约仅登记映射，队列准入执行属候选入口批次。",
+    "queue_eligible": ["A", "B", "C"],
+    "needs_extra_response_evidence": ["D"],
+    "low_confidence_signal": ["E"]
+  },
+  "vulnerability_families": [
+    "sqli",
+    "xss",
+    "xxe",
+    "ssrf",
+    "upload",
+    "deserialize",
+    "ssti",
+    "idor",
+    "authz",
+    "authn",
+    "race",
+    "logic",
+    "info_disclosure",
+    "config_exposure",
+    "crypto",
+    "rce",
+    "redirect",
+    "csrf",
+    "other"
+  ],
+  "parameter_scopes": ["single_parameter", "endpoint_subset", "endpoint_all_parameters"],
+  "cross_run_retention": {
+    "description": "规格 4.2：跨 run 只保留以下五字段（不保留历史原始响应或全量候选）。",
+    "fields": ["first_seen", "last_seen", "seen_count", "latest_status", "latest_evidence_ref"],
+    "types": {
+      "first_seen": "ISO-8601 时间戳字符串",
+      "last_seen": "ISO-8601 时间戳字符串",
+      "seen_count": ">=1 的整数",
+      "latest_status": "finding 8 状态枚举之一（finding_quality_schema.finding_status_states）",
+      "latest_evidence_ref": "证据路径引用字符串"
+    }
+  },
+  "quota_rules": {
+    "max_per_system_and_family": 3,
+    "rule": "同一系统同一 vulnerability_family 超过三条时，后续只保留代表性证据和合并引用（duplicate_of 指向代表 finding）。"
+  },
+  "required": ["identity_kind", "key", "identity_hash"],
+  "properties": {
+    "identity_kind": { "type": "string", "enum": ["generic", "api", "miniapp"] },
+    "key": { "type": "object" },
+    "identity_hash": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "invariants": [
+    "三套 key_fields 字段集与规格 4.2 逐一精确一致，实现常量（canonical_keys.GENERIC_KEY_FIELDS 等）不得漂移",
+    "merge_keys.fields 与规格 2.7 七键逐一精确一致",
+    "cross_run_retention.fields 与规格 4.2 五字段逐一精确一致",
+    "identity_hash 必须由 key 的 canonical JSON（sort_keys、紧凑分隔符）sha256 计算得出，同键同哈希",
+    "generic 键的 endpoint 必须经过归一化（不得含 query、fragment、尾斜杠）",
+    "api 键的 parameter_names 必须已排序且无重复",
+    "merge_key 对 sqli 家族必须输出 parameter_scope=endpoint_all_parameters",
+    "latest_status 必须在 finding 8 状态枚举内（跨契约：finding_quality_schema.finding_status_states）",
+    "凭证类键（cookie/token/password/secret/authorization/session_id/credential 片段）禁止出现在任何身份记录中"
+  ]
+}

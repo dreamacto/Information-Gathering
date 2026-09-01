@@ -49,14 +49,13 @@
 用 wz 网站测评身份开工，单目标模式。项目根目录：D:\PythonSource\PythonProjects\PythonProject4
 
 目标：{TARGET_HOST}
-授权依据：来自复核 run 的深挖推荐清单（操作员已拍板）。
+授权依据：由操作者明确提供并确认；如来自复核 run 的深挖推荐，只能记录为 historical_lead，不能作为当前 WZ 已测试或已确认依据。
 
 开工步骤：
 1. 先读 ROE.md 和 AGENT_MANIFEST.md。
 2. 建立工作区：
    python .claude\skills\wz\scripts\init_engagement.py {TARGET_HOST} --output "engagements\{TARGET_HOST 的host短名}"
-3. 本目标为单目标模式（wz workflow Step 0）：scope 锚定该 host，跳过子域枚举——
-   不要跑 subdomain_bruteforce，除非我明确说"把兄弟子域也带上"。
+3. 本目标为单目标模式（wz workflow Step 0）：scope 从该 host 开始锚定；这只是当前范围起点，不代表网站已完成发现或复核。不得因历史 run/复核推荐跳过 WZ 当前阶段；是否扩展兄弟子域由操作者另行明确决定。
 4. 按 wz skill 的 phase 顺序推进：alive_probe → fingerprint → 产品感知分诊 → API/JS 发现 →
    只读漏洞分诊。预算窗口纪律：每阶段完成即写盘游标；审批门/重量级阶段/上下文 70% 即停。
 5. 默认只读；写操作（弱口令/上传/SQLMap/ShiroAttack2/竞态写端点）停下等我审批，双钥匙缺一不可。

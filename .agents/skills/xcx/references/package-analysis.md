@@ -123,13 +123,45 @@ From the recovered tree, index:
 Preserve source location, evidence path, hash, and confidence for every extracted item. Redact actual
 credentials, tokens, personal data, and business values.
 
-## 6. Reconcile static and dynamic behavior
+## 6. Package integrity and update trust review (Batch 11)
 
-Compare recovered routes and endpoints with runtime navigation and proxy traffic. Mark static-only,
-dynamic-only, unreachable, feature-gated, version-specific, third-party, and platform entries. Use this
-comparison to find hidden flows and to avoid reporting dead code as an active issue.
+The `package_integrity_update_review` phase (between `source_reconstruction` and `static_analysis`,
+spec 6.2) turns the integrity-relevant clues collected above into an auditable review with one
+coverage substatus per branch and the artifact
+`artifacts/miniapp/package/package-integrity-review.json` (contract:
+`miniapp_storage_package_schema`). Offline checks on operator-supplied package copies and existing
+inventory evidence only:
 
-## 7. Completion criteria
+1. `package_version_inventory` — main, subpackage, and plugin package versions versus declared
+   configuration and inventory records.
+2. `manifest_resource_diff` — manifest and resource differences between packages, versions, and
+   declared versus recovered files.
+3. `update_endpoint_environment` — update/download addresses and environment switching
+   (test/staging/pre endpoints reachable from the client).
+4. `debug_switches` — debug flags and switches left in the shipped package.
+5. `source_map_exposure` — source maps shipped or recoverable from the package.
+6. `version_drift` — stale cached versions and drift between materials and declared versions.
+7. `trusted_update_config` — whether the frontend trusts controllable update configuration
+   (client-applied config that could redirect code or data flows).
+
+Red line: never repack, tamper with, or resign packages, never bypass TLS/certificate pinning, and
+never attack the device or runtime protection. An observed control or leftover debug artifact is a
+clue (`signal`), not automatically a vulnerability; candidates still go through the finding gates.
+
+## 7. Reconcile static and dynamic behavior
+
+The `static_dynamic_reconciliation` phase (after `dynamic_mapping`, spec 6.2/6.4) turns the comparison
+into an auditable artifact: `artifacts/miniapp/reconciliation/static-dynamic-endpoints.csv` (contract:
+`miniapp_reconciliation_schema`), one row per endpoint with a ten-value row-level status
+(static_only, dynamic_only, both_seen, feature_gated, stale, version_specific, third_party,
+platform_shared, unreachable, needs_manual_validation). Review branches record coverage substatuses:
+static/dynamic baseline collection, match and status classification, hidden-flow identification
+(dynamic_only/feature_gated rows become hypotheses for later phases), and stale-entry disposition
+(stale/unreachable rows are never reported as live issues). Reconciliation is an offline comparison of
+existing static evidence and authorized dynamic evidence — never send new requests to "verify"
+unreachable or stale rows.
+
+## 8. Completion criteria
 
 The package branch is complete only when:
 

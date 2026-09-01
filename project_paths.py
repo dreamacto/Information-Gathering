@@ -13,6 +13,7 @@ RUNS_DIR = ROOT / "runs"
 CONTRACTS_DIR = ROOT / "contracts"
 PROMPTS_DIR = ROOT / "prompts"
 TOOLS_DIR = ROOT / "tools"
+RUNTIME_STATE_DIR = ROOT / "runtime"
 
 # Root-level names remain the compatibility locations until all callers have
 # migrated.  New callers should use these helpers instead of spelling paths.
@@ -20,6 +21,7 @@ CONFIG_FILES = {
     "exercise": "gov_exercise_config.json",
     "workflow": "gov_exercise_workflow.json",
     "tool_strategy": "tool_strategy.json",
+    "reporting": "reporting_config.json",
     "legacy_yaml": "config.yaml",
 }
 
@@ -40,3 +42,13 @@ def config_path(name: str, *, prefer_managed: bool = False) -> Path:
 def contract_path(filename: str) -> Path:
     """Return a JSON contract path under ``contracts/``."""
     return CONTRACTS_DIR / filename
+
+
+def runtime_state_dir() -> Path:
+    """Return the runtime state directory (created on demand by callers)."""
+    return RUNTIME_STATE_DIR
+
+
+def policy_snapshot_path() -> Path:
+    """Return the single canonical policy snapshot location."""
+    return RUNTIME_STATE_DIR / "policy_snapshot.json"

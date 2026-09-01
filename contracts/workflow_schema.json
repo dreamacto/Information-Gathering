@@ -1,10 +1,25 @@
 {
   "schema_version": "1.0",
   "phase_statuses": ["pending", "in_progress", "complete", "blocked", "not_applicable"],
-  "review_statuses": ["candidate", "needs_manual_validation", "approval_required", "confirmed", "rejected", "accepted_risk", "fixed", "retest_failed", "retest_passed", "duplicate", "out_of_scope", "needs_login", "blocked"],
+  "review_statuses": ["pending", "candidate", "needs_manual_validation", "approval_required", "confirmed", "rejected", "accepted_risk", "fixed", "retest_failed", "retest_passed", "duplicate", "out_of_scope", "needs_login", "blocked"],
+  "report_lifecycle_states": ["report_generated", "report_reviewed", "report_accepted", "report_delivered", "report_superseded"],
+  "quality_status_states": ["VALID", "PARTIAL", "INCONCLUSIVE", "FAILED", "BLOCKED"],
   "scope_states": ["in_scope", "confirmation_required", "third_party", "platform_shared", "out_of_scope", "invalid", "unclassified"],
   "authorization_states": ["target_received", "initial_target_recorded", "authorization_evidence_recorded", "active_testing_authorized", "high_risk_action_approved"],
   "blocked_actions": ["password_spray", "bruteforce", "webshell", "c2", "tunnel", "data_export", "destructive_write", "ddos", "social_engineering", "near_field"],
   "phase_cursor_required": ["schema_version", "current_phase", "next_phase", "last_completed_phase", "updated_at"],
+  "miniapp_phase_status": {
+    "stream": "miniapp_xcx",
+    "status_file": "phase_status.miniapp.json",
+    "legacy_standalone_status_file": "phase_status.json"
+  },
+  "wz_workspace": {
+    "workspace_type": "wz_engagement",
+    "workflow": "wz",
+    "source_policy": "current_engagement_only",
+    "inheritance_policy": "deny_by_default",
+    "allowed_source_classes": ["current_engagement", "operator_supplied", "historical_lead"],
+    "historical_lead_status": "unverified"
+  },
   "report_required": ["primary_docx", "findings_json", "meta_json", "evidence_index"]
 }

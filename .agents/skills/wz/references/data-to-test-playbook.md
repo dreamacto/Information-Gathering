@@ -54,6 +54,25 @@ Use payload families, not blind lists:
 
 Prefer positive and negative controls. A useful control is often more valuable than a larger payload set.
 
+## Turn application-map inventories into bounded tests
+
+The `artifacts/application-map/` inventories produced by the five application-mapping subphases
+(graphql/websocket/file-surface/auth-surface/webhook) are the inputs to the later testing phases. Apply
+the same fact chain (`source -> extracted fact -> hypothesis -> ... -> disposition`) to each inventory
+row and keep every follow-up bounded:
+
+| Inventory row shape | Test direction | Safe default |
+|---|---|---|
+| `graphql-manifest.json` operations | Field/object authorization, introspection exposure, alias/batching abuse, depth and complexity | Minimal own-object queries first; batched or aliased operations only with the operator aware |
+| `websocket-inventory.csv` channels | Handshake auth, origin validation, channel/topic authorization, message validation and replay | Subscribe to own channels at low volume; record frames without replaying other users' traffic |
+| `file-surface-inventory.csv` rows | Retrieval authorization, path/key guessing, overwrite behavior, MIME/extension boundaries | Request disposable or operator-provided files only; never bulk-download |
+| `auth-surface-inventory.csv` rows | Session lifecycle, account enumeration, lockout behavior, recovery abuse, token lifecycle | Record policy differences and timing signals without storing secret values |
+| `webhook-inventory.csv` rows | Callback source/signature/timestamp validation, replay acceptance, SSRF trust boundary | Static review and approved canary URLs only; document as gated otherwise |
+
+A row recorded `not_applicable` in the inventory needs no test — that decision, with its reason, is the
+deliverable for that surface. Rows recorded `blocked`, `approval_required`, `needs_manual_validation`,
+or `inconclusive` carry the reason and next step; do not re-derive or silently drop them when planning.
+
 ## Keep testing bounded
 
 - Configure low concurrency, delays, short queues, response-size limits, and backoff before automation.

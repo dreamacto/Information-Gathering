@@ -6,7 +6,7 @@
 
 用法：
   python run_lifecycle.py runs/<ts>              # 查询并写 run_lifecycle.json
-  python run_lifecycle.py runs/<ts> --mark planned/light_exhausted/accepted_report ...
+  python run_lifecycle.py runs/<ts> --mark planned/light_exhausted/report_accepted ...
 
 状态推导规则（证据 → 状态）：
   scan_done           run_summary.json 存在
@@ -21,15 +21,61 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import sys
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
+
+import artifact_manifest  # noqa: F401  (shim inserts src/ on sys.path)
 from artifact_manifest import verify_manifest
+
+from authorized_assessment.quality.run_quality_gate import validate_quality_report
 
 CST = timezone(timedelta(hours=8))
 ROOT = Path(__file__).resolve().parent
 
-MANUAL_STATES = {"planned", "light_exhausted", "accepted_report", "swept"}
+MANUAL_STATES = {
+    "planned",
+    "light_exhausted",
+    "swept",
+    # 报告生命周期五态（实施规格 684-694 行）：孤立的 accepted_report 不再是完整闭环
+    "report_generated",
+    "report_reviewed",
+    "report_accepted",
+    "report_delivered",
+    "report_superseded",
+}
+REPORT_LIFECYCLE_STATES = (
+    "report_generated",
+    "report_reviewed",
+    "report_accepted",
+    "report_delivered",
+    "report_superseded",
+)
+
+# review_aggregated 七项验证（实施规格 674-682 行）；verdict 枚举与 fh_review_dispatch 双端对齐
+VERDICT_REQUIRED = ("review_order", "host", "disposition", "confidence", "basis")
+VERDICT_DISPOSITIONS = {
+    "pending",
+    "confirmed",
+    "rejected",
+    "duplicate",
+    "out_of_scope",
+    "needs_login",
+    "approval_required",
+    "blocked",
+    "accepted_risk",
+}
+TERMINAL_LEDGER_STATUSES = {"reviewed", "skipped"}
+BLOCKING_COUNTED_DISPOSITIONS = ("blocked", "needs_login", "approval_required")
+EVIDENCED_DISPOSITIONS = ("confirmed", "accepted_risk")
+CONCLUSION_ALLOWED_QUALITY = {"VALID", "PARTIAL"}
+RUN_QUALITY_FILENAME = "run_quality.json"
+
+
+def _split_sources(raw: object) -> set[str]:
+    return {s.strip() for s in str(raw or "").replace("|", ";").split(";") if s.strip()}
 
 
 def now_iso() -> str:
@@ -50,14 +96,150 @@ def read_jsonl(p: Path) -> list[dict]:
     return out
 
 
+def read_csv_rows(p: Path) -> list[dict]:
+    if not p.is_file():
+        return []
+    with p.open(encoding="utf-8-sig", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def evaluate_review_aggregation(run_dir: Path, queue_rows: list[dict]) -> dict:
+    """review_aggregated 七项验证（实施规格 674-682 行）；任一不过即 fail-closed。
+
+    返回 {"allowed": bool, "checks": {...}, "reasons": [...], "counts": {...}}。
+    """
+    checks: dict[str, bool] = {}
+    reasons: list[str] = []
+    counts: dict[str, int] = {"queue_total": len(queue_rows)}
+    for d in BLOCKING_COUNTED_DISPOSITIONS:
+        counts[d] = 0
+
+    verdicts_dir = run_dir / "postrun_review" / "verdicts"
+    verdict_by_order: dict[str, dict] = {}
+    if verdicts_dir.is_dir():
+        for p in sorted(verdicts_dir.glob("*.json")):
+            try:
+                data = json.loads(p.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                reasons.append(f"verdict_parse_error: {p.name}")
+                continue
+            if isinstance(data, dict):
+                verdict_by_order[p.stem] = data
+
+    unaggregated: list[str] = []
+    invalid_verdicts: list[str] = []
+    blocking_unreasoned: list[str] = []
+    missing_evidence: list[str] = []
+    pending_rows: list[str] = []
+
+    for row in queue_rows:
+        disp = (row.get("disposition") or "pending").strip() or "pending"
+        order = str(row.get("review_order") or "").strip() or "<no_order>"
+        verdict = verdict_by_order.get(order) if order != "<no_order>" else None
+        if disp == "pending":
+            pending_rows.append(order)
+            if verdict is None:
+                unaggregated.append(order)
+            else:
+                for field in VERDICT_REQUIRED:
+                    if field not in verdict:
+                        invalid_verdicts.append(f"{order}:missing:{field}")
+                vdisp = str(verdict.get("disposition") or "pending")
+                if vdisp not in VERDICT_DISPOSITIONS:
+                    invalid_verdicts.append(f"{order}:bad_disposition:{vdisp}")
+                elif vdisp == "pending":
+                    unaggregated.append(order)
+        if disp in BLOCKING_COUNTED_DISPOSITIONS:
+            counts[disp] += 1
+            if not str(row.get("notes") or "").strip() and not str(
+                (verdict or {}).get("basis") or ""
+            ).strip():
+                blocking_unreasoned.append(order)
+        if disp in EVIDENCED_DISPOSITIONS and not str(row.get("evidence_paths") or "").strip():
+            if not str((verdict or {}).get("basis") or "").strip():
+                missing_evidence.append(order)
+
+    checks["batch_verdicts_aggregated"] = not unaggregated and not invalid_verdicts
+    if unaggregated:
+        reasons.append("batch_verdicts_missing_or_pending: " + ",".join(unaggregated[:5]))
+    if invalid_verdicts:
+        reasons.append("verdicts_invalid: " + "; ".join(invalid_verdicts[:5]))
+
+    checks["no_pending_left"] = not pending_rows
+    if pending_rows:
+        reasons.append(f"pending_rows_left: {len(pending_rows)}")
+
+    ledger_path = run_dir / "postrun_review" / "review_ledger.csv"
+    ledger_sources: set[str] = set()
+    bad_ledger_status: list[str] = []
+    duplicate_ledger_rows: list[str] = []
+    for row in read_csv_rows(ledger_path):
+        src = str(row.get("source_file") or "").strip()
+        status = str(row.get("status") or "").strip().lower()
+        if src:
+            if src in ledger_sources:
+                duplicate_ledger_rows.append(src)
+            ledger_sources.add(src)
+        if status not in TERMINAL_LEDGER_STATUSES:
+            bad_ledger_status.append(f"{src or '<blank>'}:{status or 'empty'}")
+
+    queue_sources: set[str] = set()
+    for row in queue_rows:
+        queue_sources |= _split_sources(row.get("source_files"))
+    unmapped = sorted(queue_sources - ledger_sources)
+    checks["candidate_sources_mapped"] = not unmapped
+    if unmapped:
+        reasons.append("sources_not_in_ledger: " + ",".join(unmapped[:5]))
+
+    checks["ledger_queue_counts_consistent"] = not bad_ledger_status and not duplicate_ledger_rows
+    if bad_ledger_status:
+        reasons.append("ledger_rows_not_terminal: " + "; ".join(bad_ledger_status[:5]))
+    if duplicate_ledger_rows:
+        reasons.append("ledger_duplicate_source_rows: " + ",".join(sorted(set(duplicate_ledger_rows))[:5]))
+
+    checks["blocking_dispositions_counted"] = not blocking_unreasoned
+    if blocking_unreasoned:
+        reasons.append("blocking_rows_without_reason: " + ",".join(blocking_unreasoned[:5]))
+
+    checks["confirmed_evidence_valid"] = not missing_evidence
+    if missing_evidence:
+        reasons.append("evidenced_rows_without_evidence: " + ",".join(missing_evidence[:5]))
+
+    quality_path = run_dir / RUN_QUALITY_FILENAME
+    if not quality_path.is_file():
+        checks["run_quality_gate_allows_conclusions"] = False
+        reasons.append(f"run_quality_report_missing: {RUN_QUALITY_FILENAME}")
+    else:
+        try:
+            report = json.loads(quality_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError:
+            report = None
+        if not isinstance(report, dict):
+            checks["run_quality_gate_allows_conclusions"] = False
+            reasons.append("run_quality_report_unparseable")
+        else:
+            errors = validate_quality_report(report)
+            if errors:
+                checks["run_quality_gate_allows_conclusions"] = False
+                reasons.append("run_quality_report_invalid: " + "; ".join(errors[:3]))
+            elif report.get("quality_status") not in CONCLUSION_ALLOWED_QUALITY:
+                checks["run_quality_gate_allows_conclusions"] = False
+                reasons.append(
+                    f"run_quality_status_blocks_conclusions: {report.get('quality_status')}"
+                )
+            else:
+                checks["run_quality_gate_allows_conclusions"] = True
+
+    allowed = all(checks.values())
+    if not allowed:
+        reasons.insert(0, "review_aggregated_denied")
+    return {"allowed": allowed, "checks": checks, "reasons": reasons, "counts": counts}
+
+
 def derive(run_dir: Path) -> dict:
     q = run_dir / "postrun_review" / "target_review_queue.csv"
     verdicts = sorted((run_dir / "postrun_review" / "verdicts").glob("*.json")) if (run_dir / "postrun_review" / "verdicts").is_dir() else []
-    queue_rows = []
-    if q.is_file():
-        import csv
-        with q.open(encoding="utf-8-sig", newline="") as f:
-            queue_rows = list(csv.DictReader(f))
+    queue_rows = read_csv_rows(q)
     pending = sum(1 for r in queue_rows if (r.get("disposition") or "pending") == "pending")
 
     phase_status = {}
@@ -75,7 +257,8 @@ def derive(run_dir: Path) -> dict:
         states.append("review_workspace")
     if verdicts and pending > 0:
         states.append("review_in_progress")
-    if queue_rows and pending == 0:
+    aggregation = evaluate_review_aggregation(run_dir, queue_rows) if queue_rows else None
+    if queue_rows and aggregation and aggregation["allowed"]:
         states.append("review_aggregated")
     if (run_dir / "postrun_review" / "hypothesis_plan.jsonl").is_file():
         states.append("planned")
@@ -127,6 +310,7 @@ def derive(run_dir: Path) -> dict:
             "verdict_files": len(verdicts),
             "cursor": cursor or None,
             "stop_reason": stop_reason or None,
+            "review_aggregation": aggregation,
         },
         "complete_cycle": all(s in all_states for s, _ in steps),
         "integrity": integrity,
@@ -138,7 +322,7 @@ def derive(run_dir: Path) -> dict:
 def main() -> int:
     ap = argparse.ArgumentParser(description="run 完成态查询器：回答'跑完了吗/下一步是什么'")
     ap.add_argument("run_dir", type=Path)
-    ap.add_argument("--mark", metavar="STATE", choices=sorted(MANUAL_STATES), help="人工显式标记状态（planned/light_exhausted/accepted_report/swept）")
+    ap.add_argument("--mark", metavar="STATE", choices=sorted(MANUAL_STATES), help="人工显式标记状态（planned/light_exhausted/swept/报告生命周期五态）")
     a = ap.parse_args()
 
     run_dir = a.run_dir if a.run_dir.is_absolute() else ROOT / a.run_dir

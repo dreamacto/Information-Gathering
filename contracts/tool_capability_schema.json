@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "contract": "tool_capability_schema",
+  "description": "轻量工具 registry 契约（实施规格 7.1 轻量工具登记文件 + 主规范第十节工具纪律）。个人项目的本地运行登记，不是完整软件供应链审计：只回答工具在哪里、是什么版本、当前能不能调用。src/authorized_assessment/tools/registry.py 为唯一实现；tools/tool_registry.json 为唯一数据文件；scripts/maintenance/rebuild_tool_inventory.py 为唯一再生成/校验入口。",
+  "type": "object",
+  "required": ["schema_version", "tools"],
+  "tool_required_fields": [
+    "tool_id",
+    "display_name",
+    "path",
+    "version",
+    "status",
+    "runtime",
+    "dependencies",
+    "known_limitations"
+  ],
+  "tool_optional_fields": [
+    "source_url",
+    "release_date",
+    "sha256",
+    "notes",
+    "config_key",
+    "checked_at"
+  ],
+  "forbidden_control_fields": [
+    "scope_controls",
+    "rate_controls",
+    "concurrency_controls",
+    "read_only_mode",
+    "queue_only_mode",
+    "approval_required",
+    "evidence_output",
+    "auto_update_disabled"
+  ],
+  "status_values": ["active", "unavailable", "hold", "retired"],
+  "runtime_values_advisory": ["native", "python", "java", "node", "go", "data"],
+  "path_resolution": "path 为字符串：绝对路径按原样解析；相对路径按项目根（registry 文件的上级目录的上级目录）解析。status 只表示本地路径可解析性，不表示授权状态。",
+  "invariants": [
+    "tool_id 全局唯一且非空；display_name/runtime/version/known_limitations 为字符串，dependencies 为字符串数组",
+    "status 必须在 status_values 枚举内；conditional 不是合法工具状态，阶段适用性由 tool_strategy.json 控制",
+    "status=active 的条目在校验时 path 必须真实存在（fail-closed），不得保留 active 假象；无编译产物或未接线的工具必须标 hold/unavailable",
+    "forbidden_control_fields 全表禁止登记；速率/并发/只读模式/queue-only/审批门/证据输出由 ROE.md、policy_engine.py、tool_strategy.json 与阶段代码统一控制，registry 不建第二套审批规则",
+    "source_url/release_date/sha256 仅为可选备注，缺失不阻塞普通只读流程；不得为填写这些字段发起联网查询或下载",
+    "工具不存在必须标 unavailable（本地源码无编译产物标 hold），不得伪装可用；版本取自盘上事实（tools/managed/managed_inventory.json、路径段、压缩包文件名），不得为取版本执行工具",
+    "tool_strategy.json 精确引用（primary/backup 整串等于 tool_id）的条目状态不得为 unavailable；既非内部引用形态（runner_/manual_/mature_tool_/custom_scripts_/specialized_mature_tool_/result_prioritizer_/none_ 前缀）、非根目录 .py 脚本名、又非 registry 工具名的逻辑工具名，校验时必须报违例（实施规格 13.2 负例）",
+    "gov_exercise_config.json tools 的每个键必须有且仅有一个 config_key 等于该键的 registry 条目（config 工具候选表与 registry 不漂移）",
+    "校验函数为纯 stdlib、零网络、只读幂等；AGENT_MANIFEST.md 由 scripts/gen_agent_manifest.py 生成更新，不手改"
+  ]
+}

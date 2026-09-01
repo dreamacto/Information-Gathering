@@ -29,6 +29,22 @@ GOV_CONFIG = config_path("exercise")
 OUTPUT = BASE / "AGENT_MANIFEST.md"
 
 # 桌面 bat 入口（逐条登记触发场景）
+# 本地 MCP 服务（跨 agent 通用：用 mcporter 作 CLI 桥，任何能跑 shell 的 agent 都能调用）
+MCP_SERVICES = [
+    {
+        "name": "Burp MCP Server（PortSwigger 官方扩展）",
+        "endpoint": "http://127.0.0.1:9876",
+        "transport": "SSE（旧式：GET 建流拿 sessionId 再 POST；mcporter 已封装）",
+        "universal_cli": "npx -y mcporter@0.9.0 list http://127.0.0.1:9876 --allow-http；"
+                         "npx -y mcporter@0.9.0 call <tool> --http-url http://127.0.0.1:9876 --allow-http <key=value> --output json",
+        "read_history_tools": "get_proxy_http_history(count, offset) / get_proxy_http_history_regex(count, offset, regex)",
+        "prereq": "Burp 打开且启用 MCP Server 扩展（listen 127.0.0.1:9876）；未启用时 9876 拒连（ECONNREFUSED）",
+        "doc": "docs/BURP_MCP_USAGE.md",
+        "note": "只读结构（URL/method/状态/字段名）；Cookie/token/手机号等值不进对话/落盘；Burp 重启丢历史先用 MCP 导出",
+    },
+]
+
+
 DESKTOP_SCRIPTS = {
     "一键完整流程_含弱口令.bat": {
         "scene": "从零开始完整攻击链（子域→活性→指纹→triage→弱口令复核），需要目标文件；跑完看 runs/last_one_click_run.txt",
@@ -350,6 +366,12 @@ ROOT_SCRIPTS = {
         "example": "python decrypt_wxapkg.py <wxapkg路径>",
         "risk": "离线",
     },
+    "unpack_wmpf_wxapkg.py": {
+        "scene": "PC 微信4.x(WMPF) wxapkg 变体解包：修正 AES 首块 PKCS#7 填充错位 + 按索引有效性选 XOR 键（兼容标准 0x66 与 WMPF ord(appid[-2])），防二次解密；真身 tools/miniapp_extract/unpack_wmpf_wxapkg.py",
+        "outputs": "<out>/<appid>/ 合并源码树",
+        "example": "python unpack_wmpf_wxapkg.py <wxapkg路径或目录> --out unpacked/<appid> [--appid <appid>]",
+        "risk": "离线",
+    },
     "analyze_wx_miniapp_source.py": {
         "scene": "小程序源码树分析（白盒入口）",
         "outputs": "miniapp_analysis.jsonl",
@@ -564,6 +586,17 @@ def build_manifest():
             bk_path = external_path(backup, config_tools, tianhu_base)
             out.append(f"- backup：`{backup}`（风险级 **{bk_risk}**）；路径：{bk_path}")
         out.append("")
+
+    # ---- 本地 MCP 服务段 ----
+    if MCP_SERVICES:
+        out.append("## 本地 MCP 服务（跨 agent 通用）\n")
+        for mcp in MCP_SERVICES:
+            out.append(f"- **{mcp['name']}**：端点 `{mcp['endpoint']}`；传输：{mcp['transport']}")
+            out.append(f"  - 通用调用（无需 agent MCP 支持，任何能跑 shell 的 agent 可用）: {mcp['universal_cli']}")
+            out.append(f"  - 读历史工具：{mcp['read_history_tools']}")
+            out.append(f"  - 前提：{mcp['prereq']}")
+            out.append(f"  - 用法与各 MCP 客户端配置：{mcp['doc']}")
+            out.append(f"  - 纪律：{mcp['note']}\n")
 
     out.append("---\n*本清单由生成器维护；修改工具/phase 后重跑 `python scripts/gen_agent_manifest.py`。*")
     return "\n".join(out)

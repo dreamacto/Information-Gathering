@@ -14,6 +14,18 @@ QUEUE_COLS = [
     "evidence_paths", "notes",
 ]
 
+# batch14_4（实施规格 8.2）：findings_ledger 28 列 = 既有 15 列 + 规格字段 13 列
+# （与 scripts/init_postrun_review.py FINDING_FIELDS / fh_review_dispatch.py
+# FINDINGS_COLS 双端对齐，tests/test_fh_skill_sync.py 强制）。
+FINDINGS_COLS = [
+    "finding_id", "status", "run_dir", "source_item_id", "target", "url_or_path",
+    "category", "title", "impact", "permission_level", "evidence_paths", "video_time",
+    "cleanup", "retest", "notes",
+    "candidate_id", "asset_type", "vulnerability_family", "impact_class",
+    "quality_status", "recommended_workflow", "recommended_phase", "blocked_reason",
+    "next_action", "owner", "sla", "last_seen", "evidence_ref",
+]
+
 
 def make_workspace(tmp_path: Path, n=5) -> Path:
     run = tmp_path / "run_x"
@@ -35,7 +47,7 @@ def make_workspace(tmp_path: Path, n=5) -> Path:
         "item_id,order,priority,category,run_dir,source_file,item_count,safe_default,approval_gate,recommended_action,status,notes\n"
         "I1,1,P1,web,run_x,a.jsonl,3,yes,,review,status_pending,\n", encoding="utf-8-sig")
     (ws / "findings_ledger.csv").write_text(
-        "finding_id,status,run_dir,source_item_id,target,url_or_path,category,title,impact,permission_level,evidence_paths,video_time,cleanup,retest,notes\n",
+        ",".join(FINDINGS_COLS) + "\n",
         encoding="utf-8-sig")
     return run
 
@@ -87,6 +99,13 @@ def test_aggregate_flow(tmp_path):
     with (ws / "findings_ledger.csv").open(encoding="utf-8-sig") as f:
         frows = list(csv.DictReader(f))
     assert len(frows) == 1 and frows[0]["status"] == "confirmed"
+    # batch14_4：规格 8.2 字段断言——AI 初判不越 confirmed 门
+    f0 = frows[0]
+    assert f0["quality_status"] == "needs_manual_validation"
+    assert f0["next_action"] == "人工终审"
+    assert f0["candidate_id"] == "1"  # 来源队列 review_order
+    assert f0["evidence_ref"] != ""  # verdict basis 传导
+    assert f0["last_seen"] != ""  # 聚合时间戳
     # fp_memory 追加（run 工作区内, 因为测试 cwd 下无 knowledge_base 时回退）
     fp_candidates = [ws / "fp_memory.jsonl", ROOT / "knowledge_base" / "fp_memory.jsonl"]
     fp_hits = [p for p in fp_candidates if p.is_file()]

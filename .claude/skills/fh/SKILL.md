@@ -7,6 +7,8 @@ description: Review and close the outputs produced by the authorized one-click w
 
 These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
 
+0. **规则优先级**：所有规则的适用顺序以 `docs/RULE_PRECEDENCE.md` 为唯一事实源（与 `contracts/rule_precedence.json` 由测试强制同步）；规则冲突不得静默选择，必须记入 `context_conflicts` 并回读更高级别源。
+
 1. **One batch per review unit, ask at every batch boundary.** Review one batch of targets, write all verdicts and the resume cursor to disk, then ASK the operator: "本批次已完成——继续本会话审下一批，还是交接新会话？" If handoff, emit a self-contained handoff prompt that navigates the next session to run_dir/postrun_review/ (batch files, verdicts, queue, TOP) — never summarize from chat memory. If continue, proceed with the next batch. Do not try to clear the entire queue without the operator's per-batch choices.
 2. **Read only what the current phase needs.** Do not pre-load all references; open a reference only when the phase calls for it.
 3. **Raw artifacts stay on disk.** Responses, HAR, JS, or scan output never enter the conversation — cite `path:line` only.
@@ -40,6 +42,40 @@ This skill is for post-run review, not for new exploitation. Work from existing 
 - Do not suggest or run batch exploitation, brute force, SQLMap, key cracking, RCE payloads, callback payloads, uploads, deletes, exports, downloads, account changes, password changes, persistence, tunnels, webshells, or post-exploitation.
 - If live follow-up is necessary, use one target at a time, concurrency 1, at least 3 seconds between requests to the same host, and at most 10 read-only follow-up requests per target unless the operator extends the budget.
 - Stop on service slowness, error spikes, CAPTCHA, account lockout warnings, rate limits, or normal-user impact.
+
+## AI 结论模板（实施规格 §11，结论呈现层词表；判定落盘词表另见 contracts/workflow_schema.json 的 review_statuses）
+
+任何漏洞判断必须先按本模板组织，再写其它内容。只有全部成立门满足时才能使用 confirmed：
+
+```text
+对象类型：signal | candidate | confirmed | inconclusive
+授权状态：confirmed | confirmation_required | blocked
+可触达性：reachable | unverified | unreachable
+复现状态：reproducible | partial | not_reproduced
+影响类别：none | low | medium | high | critical
+影响对象：用户/租户/业务对象/权限/数据/网络边界/服务可用性
+证据完整性：complete | partial | missing
+结论：
+下一步：
+```
+
+四问否决规则（任一回答"否"，不得称 confirmed）：
+
+1. 是否有明确的授权资产和允许的测试动作？
+2. 是否有真实可触达的端点、功能或数据流？
+3. 是否有可重复的异常行为或越权结果？
+4. 是否能说明对企业造成了非琐碎的安全影响并提供证据？
+
+细微发现处置（以下统一为 signal 或 candidate，必须写清"为什么不升级为漏洞：缺少哪一项成立门"）：
+Banner/版本/框架名、robots/sitemap/OpenAPI 文档存在、目录文件名猜测命中、500/异常堆栈但无敏感信息、
+反射但未执行、前端隐藏功能、代码中的 eval/模板语法/XML parser/危险 sink、JWT 可解码、响应中内部
+主机名但不可访问、单次超时或 403、用户访问自己的对象、无敏感数据的字段过多、无法证明有效性的疑似密钥。
+
+漏洞成立最小链条（中间只有"推测"时状态不得超过 candidate）：
+
+```text
+入口/资产 → 攻击者可控输入或低权限身份 → 服务端缺陷/边界缺失 → 可复现结果 → 对企业的具体影响 → 最小必要证据
+```
 
 ## First Files To Read
 
@@ -148,6 +184,34 @@ When present, start with `00_重要_人工复核入口/README_先看这里.md`, 
 | `fingerprint_deepening_approval_queue.csv` | Actions/templates requiring explicit approval | Do not execute; record as approval gate |
 | `fingerprint_tool_command_queue.csv` | Manual command previews for selected read-only templates | Review template and target first; never run full-scope by default |
 | `fingerprint_tool_matrix.json` | Local tool inventory and external import candidates | Use for tool availability and audit trail |
+
+## Run-Level Aggregation Order (spec 8.3)
+
+Before per-target review begins, verify the run-level gates in this fixed order; a failing
+earlier gate blocks later interpretations:
+
+```text
+run_quality_gate
+scope_reconciliation
+candidate_deduplication
+source_coverage_check
+authentication_queue_review
+authorization_queue_review
+injection_queue_review
+ssrf_queue_review
+product_queue_review
+miniapp_queue_review
+evidence_gate
+report_lifecycle
+cleanup_audit
+```
+
+- An `INCONCLUSIVE` run quality gate must not produce a negative (all-clear) conclusion.
+- Fixed-path signals never enter the main vulnerability queue.
+- A `confirmed` finding without evidence is automatically demoted to `needs_manual_validation`.
+- Duplicate candidates merge into one finding, keeping the first-seen and last-validated timestamps.
+- The same phenomenon appearing in multiple runs never raises severity by itself; only proven
+  impact, permission boundary, or business outcome does.
 
 ## Review Order
 

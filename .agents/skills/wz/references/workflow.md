@@ -53,30 +53,31 @@ all discovered names as candidates until scope is confirmed.
 has confirmed domain-level authorization (root domain registered, or explicit wildcard like
 *.example.com), the passive context step resolves subdomains as follows:
 
-**Step 0 — single-target mode (2026-08-25): skip enumeration by default.** When the
+**Step 0 — single-target mode (2026-08-25): do not silently treat historical review as current coverage.** When the
 engagement was started from a post-run review recommendation (深挖推荐.md / the prompt-dispatcher
-website prompt) or the operator supplied a single host as the whole scope, the subdomain phase is
-NOT a discovery phase anymore: the host was already found and reviewed by the one-click run.
+website prompt) or the operator supplied a single host as the whole scope, the host is an initial
+scope anchor only. WZ must still record and execute its own required phases; the recommendation
+may be kept as a `historical_lead`, but it cannot mark discovery, mapping, authorization, input,
+business_logic, or validation complete.
+
 Default behavior in this mode:
 
-- Scope stays anchored to the supplied host only (record `source=single_target_anchor`).
+- Scope starts anchored to the supplied host (record `source=single_target_anchor`), subject to current authorization.
 - Do NOT run dictionary enumeration for the parent domain unless the operator explicitly asks
   ("expand siblings" / "把兄弟子域也带上"). Record the skip decision and reason in the phase note
-  (negative space) — silent omission is forbidden, but re-scanning the parent domain the one-click
-  run already covered is redundant work by design.
-- If mid-flow evidence surfaces sibling hosts (JS chains, redirects, API bases under the same
-  parent), add them as `confirmation_required` and surface them to the operator; do not probe.
+  (negative space); this is a scope choice, not proof that the current site was fully tested.
+- If mid-flow evidence surfaces sibling hosts, add them as `confirmation_required` and surface them to the operator; do not probe.
 
-**Step 1 — reuse before re-scan**: first check `runs/*/subdomains_resolved.jsonl` and
-`runs/*/targets_with_auto_subdomains.txt` for hosts under the engagement's root domain, generated
-within the last 7 days. If a recent one-click run already enumerated this domain (status=resolved
-rows exist), IMPORT those hosts into `scope.csv` (source=run_subdomain_import, in_scope under
-domain authorization) and SKIP re-enumeration — record the reused run directory and row count in
-the phase note. Re-scanning what a recent run already covered is redundant work.
+**Step 1 — current-engagement-only discovery:** WZ must not automatically read or import
+`runs/*`, `postrun_review`, FH verdicts, or historical reports. A recent run may only be used
+when the operator explicitly provides a selected historical lead; such material remains
+`historical_lead` and `unverified`, and does not mark any WZ phase complete. If the operator
+wants to import it, use the isolated run-import path and preserve lineage; never append it
+silently to the current endpoint inventory.
 
-**Step 2 — enumerate only when uncovered**: if no recent coverage exists (no run, older than 7
-days, or that run enumerated zero resolved hosts), run the built-in dictionary enumeration
-instead of hand-written spot checks:
+**Step 2 — enumerate only when uncovered:** if no current engagement coverage exists and the
+operator has authorized sibling expansion, run the built-in dictionary enumeration instead of
+hand-written spot checks:
 
 ```
 python subdomain_bruteforce_controlled.py --targets <root-domain-list.txt> --out-dir <engagement>/artifacts/subdomain --delay 2 --concurrency 3
@@ -110,6 +111,26 @@ background jobs, webhooks, administrative surfaces, error behavior, and role-dep
 Build an endpoint inventory with method, host, path, parameters, content type, auth requirement, roles,
 state-changing behavior, source, and last test result. Capture authenticated traffic only with approved
 accounts and redact secrets at ingestion.
+
+**Application mapping subphases (2026-08-29; applicability first)**: keep `application_mapping` as one
+top-level phase and audit it through five subphases — `graphql_mapping`, `websocket_mapping`,
+`file_surface_mapping`, `auth_surface_mapping`, `webhook_mapping`. Before testing a surface, answer the
+applicability questions: does the surface exist, are input points or endpoints known, is authorized
+material available, is a low-risk check allowed, and is there a successful response to learn from. Only
+`applicable` surfaces enter testing; a surface judged not applicable must still be recorded as
+`status=not_applicable` with a non-empty reason — silent omission is forbidden, and `not_applicable`
+requires the recorded applicability decision (`applicable=not_applicable`), not an unverified claim.
+
+Record the result of every subphase in `phase_status.json` under the `application_mapping` phase's
+`substatuses` map, using exactly one of the six substatus values: `tested`, `not_applicable`, `blocked`,
+`approval_required`, `needs_manual_validation`, `inconclusive`. Each subphase writes its artifact under
+`artifacts/application-map/` — `graphql-manifest.json`, `websocket-inventory.csv`,
+`file-surface-inventory.csv`, `auth-surface-inventory.csv`, `webhook-inventory.csv` — and every artifact
+row carries at least the seven contract fields: `applicable`, `status`, `source`, `asset`,
+`endpoint_or_surface`, `reason`, `evidence_ref`. A `tested` row needs a non-empty `evidence_ref` that
+resolves to a file inside the workspace. The mapping phase may only be marked complete when all five
+substatuses are recorded and provable from their artifacts; a subphase that cannot proceed keeps the
+phase open as `blocked`/`in_progress` with the substatus recording why.
 
 ## 3. Security testing
 

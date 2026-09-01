@@ -18,6 +18,26 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin
 from urllib.request import Request, urlopen
 
+import uuid
+
+try:
+    from authorized_assessment.triage.response_baseline import (
+        assess_response_record,
+        build_baseline_profile,
+        load_baseline_profiles,
+        origin_of,
+        summarize_body,
+    )
+except ImportError:  # 直接以文件方式执行时把 src/ 加入 sys.path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from authorized_assessment.triage.response_baseline import (
+        assess_response_record,
+        build_baseline_profile,
+        load_baseline_profiles,
+        origin_of,
+        summarize_body,
+    )
+
 
 CONFIG_PATHS = [
     "/web.config",
@@ -285,7 +305,19 @@ def classify_druid(record: dict) -> dict:
     return record
 
 
-def probe_target(base_url: str, timeout: float, delay: float) -> list[dict]:
+def attach_fixed_path_assessment(record: dict, *, baselines: list | None = None) -> dict:
+    """为已抓取记录附加 fixed_path_assessment（纯函数，probe_target 与测试共用）。
+
+    必须在 classify_* 弹出 record["text"] 之前调用（基线比较需要 body 行集）。
+    无基线时 fail-closed：baseline_available=False、promotion_status=not_promoted。
+    """
+    record["fixed_path_assessment"] = assess_response_record(
+        record, list(baselines or []), body_lines=summarize_body(record.get("text") or "")
+    )
+    return record
+
+
+def probe_target(base_url: str, timeout: float, delay: float, baselines: list | None = None) -> list[dict]:
     base = base_url.rstrip("/") + "/"
     work = []
     for family, paths, classifier in [
@@ -299,24 +331,70 @@ def probe_target(base_url: str, timeout: float, delay: float) -> list[dict]:
             url = urljoin(base, path.lstrip("/"))
             record = fetch(url, timeout)
             record.update({"base_url": base_url, "family": family, "path": path})
+            attach_fixed_path_assessment(record, baselines=baselines)
             work.append(classifier(record))
             time.sleep(delay)
     return work
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--targets", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--delay", type=float, default=3.0)
     parser.add_argument("--timeout", type=float, default=8.0)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--baseline-file",
+        type=Path,
+        default=None,
+        help="离线基线记录 JSONL（build_baseline_profile 产物；零新增请求）",
+    )
+    parser.add_argument(
+        "--with-baseline",
+        action="store_true",
+        help="显式 opt-in：为每个 target 抓取首页与随机不存在路径作为基线（每 target 新增 2 个 GET）；"
+        "默认关闭，默认网络行为不变",
+    )
+    return parser
+
+
+def capture_baselines(base_url: str, timeout: float) -> list[dict]:
+    """显式 opt-in 的基线抓取（仅在 --with-baseline 时调用）。
+
+    每个 target origin 新增 2 个 GET：首页（target_baseline）与随机不存在路径
+    （generic_error_page）。登录页/CDN/WAF 页由已知误报模式在比较时识别。
+    """
+    origin = origin_of(base_url)
+    profiles = []
+    for kind, probe_url in (
+        ("target_baseline", origin + "/"),
+        ("generic_error_page", origin + "/" + uuid.uuid4().hex + ".json"),
+    ):
+        record = fetch(probe_url, timeout)
+        record.setdefault("origin", origin)
+        profiles.append(build_baseline_profile(record, kind=kind))
+    return profiles
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+
+    file_baselines = load_baseline_profiles(args.baseline_file) if args.baseline_file else []
+    captured_origins: set[str] = set()
+
+    def baselines_for(base_url: str) -> list[dict]:
+        origin = origin_of(base_url)
+        matching = [row for row in file_baselines if str(row.get("origin") or "") == origin]
+        if args.with_baseline and origin not in captured_origins:
+            matching.extend(capture_baselines(base_url, args.timeout))
+            captured_origins.add(origin)
+        return matching
 
     targets = [line.strip() for line in args.targets.read_text(encoding="utf-8").splitlines() if line.strip()]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as handle:
         for target in targets:
-            for record in probe_target(target, args.timeout, args.delay):
+            for record in probe_target(target, args.timeout, args.delay, baselines=baselines_for(target)):
                 handle.write(json.dumps(record, ensure_ascii=False) + "\n")
                 handle.flush()
     print(args.out)

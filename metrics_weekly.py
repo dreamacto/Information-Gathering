@@ -80,11 +80,25 @@ def scan_runs(runs_root: Path, days: int, now: datetime) -> tuple[list[dict], li
             cand_total += n
             cand_files.append((f.name, n))
         has_summary = (d / "run_summary.json").is_file()
+        summary = {}
+        if has_summary:
+            try:
+                summary = json.loads((d / "run_summary.json").read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                summary = {}
         runs.append({"dir": d.name, "candidates": cand_total, "cand_files": cand_files,
-                     "has_summary": has_summary})
+                     "has_summary": has_summary, "dedup_key": summary.get("dedup_key"),
+                     "run_id": summary.get("run_id") or d.name})
         if not has_summary:
             incomplete.append(d.name)
-    return runs, incomplete
+    # Lineage-aware runs: retries with the same key count once; legacy runs remain distinct.
+    unique = {}
+    for run in runs:
+        key = run.get("dedup_key") or f"legacy:{run['dir']}"
+        previous = unique.get(key)
+        if previous is None or run["dir"] > previous["dir"]:
+            unique[key] = run
+    return list(unique.values()), incomplete
 
 
 def collect_engagements(engagements_root: Path, days: int, now: datetime) -> dict:

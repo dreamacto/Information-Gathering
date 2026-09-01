@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0",
+  "contract": "miniapp_webview_schema",
+  "description": "小程序 WebView/Bridge/Deep Link 契约（实施规格 6.8 1662-1682 行；Batch 13 落地，第 14 契约）。webview_bridge_links 为既有 phase 增加三个固定 CSV 产物（规格 1667-1669 行逐字）：origin 清单、bridge 方法清单、深链复核队列。七复核分支一一对应规格 1674-1680 行七项覆盖，分支→产物 1:1（batch12 CSV 完成语义 tested 需分支所属产物 ≥1 行）。升级判据（规格 1682 行）：只有能造成跨域数据读取、越权、敏感 token 暴露或外部控制时才升级；仅形态观察永不升级。Cookie/token 共享边界分析只做离线材料与授权流量，不自动注入或重放。skill 脚本常量（init/audit）与本契约的一致性由 tests/test_xcx_webview_artifacts.py 锁定。",
+  "type": "object",
+  "phases": {
+    "webview_bridge_links": {
+      "artifact_format": "csv",
+      "description": "WebView 允许域名；JS bridge 方法暴露；postMessage origin；自定义 scheme；深链中的对象 ID、tenant ID、scene 参数；外部 App/浏览器跳转；Cookie/token 共享边界。",
+      "branches": [
+        "webview_allowed_domains",
+        "postmessage_origin",
+        "bridge_method_exposure",
+        "custom_scheme",
+        "deep_link_sensitive_params",
+        "external_app_browser_jump",
+        "cookie_token_sharing_boundary"
+      ],
+      "artifacts": [
+        {
+          "artifact": "artifacts/miniapp/webview/webview-origin-inventory.csv",
+          "branches": [
+            "webview_allowed_domains",
+            "postmessage_origin",
+            "cookie_token_sharing_boundary"
+          ],
+          "csv_fields": [
+            "row_id",
+            "webview_origin",
+            "business_purpose",
+            "source_material",
+            "source_location",
+            "postmessage_target_origin",
+            "cookie_token_shared",
+            "boundary_status",
+            "evidence_ref",
+            "reason",
+            "notes"
+          ],
+          "row_enums": {
+            "cookie_token_shared": ["none", "session_cookie", "auth_token", "both", "unknown"]
+          },
+          "row_requirements": {
+            "required_non_empty": ["row_id", "webview_origin", "cookie_token_shared"],
+            "reason_required_when": "cookie_token_shared != none（共享已观察到/未确认边界须留痕）；postmessage_target_origin 可空（未观察到 postMessage）"
+          }
+        },
+        {
+          "artifact": "artifacts/miniapp/webview/bridge-method-inventory.csv",
+          "branches": [
+            "bridge_method_exposure"
+          ],
+          "csv_fields": [
+            "row_id",
+            "method_name",
+            "exposed_scope",
+            "capability",
+            "source_material",
+            "boundary_status",
+            "evidence_ref",
+            "reason",
+            "notes"
+          ],
+          "row_enums": {
+            "capability": ["navigation", "read_data", "write_data", "sensitive_token_access", "file_access", "payment", "other"]
+          },
+          "row_requirements": {
+            "required_non_empty": ["row_id", "method_name", "exposed_scope", "capability"],
+            "reason_required_capabilities": ["write_data", "sensitive_token_access", "file_access", "payment"],
+            "reason_required_when": "capability 命中四影响面判定子集（越权/外部控制、敏感 token 暴露、跨域数据读取、越权资损——规格 1682 行）；navigation/read_data/other 为常规能力不作判定"
+          }
+        },
+        {
+          "artifact": "artifacts/miniapp/webview/deep-link-review-queue.csv",
+          "branches": [
+            "custom_scheme",
+            "deep_link_sensitive_params",
+            "external_app_browser_jump"
+          ],
+          "csv_fields": [
+            "row_id",
+            "deep_link_pattern",
+            "scheme_type",
+            "sensitive_params",
+            "jump_target",
+            "boundary_status",
+            "evidence_ref",
+            "reason",
+            "notes"
+          ],
+          "row_enums": {
+            "scheme_type": ["custom_scheme", "https_link", "other"],
+            "jump_target": ["in_app", "external_app", "browser", "unknown"]
+          },
+          "row_requirements": {
+            "required_non_empty": ["row_id", "deep_link_pattern", "scheme_type", "jump_target"],
+            "reason_required_jump_targets": ["external_app", "browser", "unknown"],
+            "reason_required_when": "sensitive_params 非空（对象 ID/tenant ID/scene 参数为规格 1678 行点名关注项）或 jump_target 命中外部跳转/未确认判定子集"
+          }
+        }
+      ],
+      "boundary_status_rule": "三产物 boundary_status 均可空；非空须 ∈ finding 8 状态（signal/candidate/needs_manual_validation/confirmed/inconclusive/blocked/rejected/duplicate）——升级载体，遵循规格 1682 行升级判据，仅形态观察永不升级"
+    }
+  },
+  "coverage_substatus": {
+    "contract_ref": "coverage_substatus_schema",
+    "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+    "proven_values": ["tested", "not_applicable"],
+    "note": "六值枚举与 proven 子集单一来源引用 coverage_substatus_schema（不复定义）；七分支进入 phase_status substatuses 种子（6.2 末行：所有新增分支都必须有 coverage_substatus），完成时审计强制全分支 proven。"
+  },
+  "red_lines": [
+    "Cookie/token 共享边界分析只做离线材料与授权流量，不自动注入 cookie/token、不重放深链（自动注入或重放属写操作面，须操作者在线显式确认）",
+    "深链验证不自动拉起外部 App/浏览器；仅离线分析深链参数与跳转声明（scheme/jump_target 均来自授权材料或既有只读证据）",
+    "WebView origin 清单只记录授权材料/既有只读证据中观察到的域名，不对未在 scope 内的 origin 发起请求",
+    "确认证据只能来自既有只读证据（授权材料/本地流量/包副本/配置）的复核判定且可复现；confirmed 仍归漏洞成立五门判定，本契约只约束候选层筛选与 phase 完成可证明性"
+  ],
+  "invariants": [
+    "phases 键恰为既有 phase webview_bridge_links（规格 6.8 不新增 phase、不拆 phase）",
+    "branches 与 init/audit 的 substatuses 种子键集逐一相同且一一对应规格 1674-1680 行七项覆盖；skill 脚本自包含复制常量，测试锁定无漂移",
+    "artifacts[].artifact 路径与规格 1667-1669 行逐一相同，相对 engagement 工作区根；三产物均为 CSV，表头由 init 种子、审计精确匹配",
+    "分支→产物 1:1：artifacts[].branches 无交集且并集恰为 phases.branches；完成语义 tested 需分支所属产物 ≥1 数据行、not_applicable 需 phase 行 reason 非空（batch12 CSV 审计语义）",
+    "row_enums 枚举与 init/audit 常量逐一相同；row_requirements.reason_required_* 为 audit 行级判定 reason 规则的契约留痕（审计实现为准）",
+    "骨架 CSV 仅表头；substatuses 值为空串=未记录，仅完成时强制；审计不得把空串当作 not_applicable"
+  ]
+}

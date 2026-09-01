@@ -1,0 +1,50 @@
+{
+  "schema_version": "1.0",
+  "contract": "coverage_substatus_schema",
+  "description": "聚合阶段子状态契约（实施规格 10.2/10.3 + 5.2 application-map 行最小输出字段）。聚合阶段（如 api_testing、application_mapping）内部的每个子分支只能取六状态之一；适用性优先：只有 applicable 才进入测试，不适用必须落盘为 not_applicable 而非静默跳过。src/authorized_assessment/analysis/coverage_matrix.py 为唯一实现。",
+  "type": "object",
+  "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+  "applicability_questions": [
+    "该攻击面是否存在？",
+    "是否已知输入点/端点？",
+    "是否有授权材料？",
+    "是否允许低风险验证？",
+    "当前是否有成功响应？"
+  ],
+  "applicability_rule": "五问全部回答后才能给出 applicable 判定；只有 applicable 才进入测试；判定为不适用的子分支必须以 status=not_applicable + 非空 reason 落盘",
+  "application_map_row_required_fields": [
+    "applicable",
+    "status",
+    "source",
+    "asset",
+    "endpoint_or_surface",
+    "reason",
+    "evidence_ref"
+  ],
+  "application_map_rule": "5.2 application_mapping 五个子阶段（graphql_mapping/websocket_mapping/file_surface_mapping/auth_surface_mapping/webhook_mapping）与 5.3 api_testing 子阶段每行至少输出这 7 个字段；产物落盘于 engagements/<name>/artifacts/application-map/（graphql-manifest.json、websocket-inventory.csv、file-surface-inventory.csv、auth-surface-inventory.csv、webhook-inventory.csv）",
+  "applicable_values": ["applicable", "not_applicable", "unknown"],
+  "row_rules": {
+    "not_applicable_requires_reason": "status=not_applicable 时 reason 必须非空",
+    "tested_requires_evidence_ref": "status=tested 时 evidence_ref 必须非空",
+    "not_applicable_status_only_via_applicability": "status=not_applicable 必须伴随 applicable=not_applicable（未做适用性判定不得宣称不适用）"
+  },
+  "aggregate_example": {
+    "phase": "api_testing",
+    "substatuses": {
+      "api_schema_versions": "tested",
+      "object_authorization": "tested",
+      "field_authorization": "needs_manual_validation",
+      "graphql": "not_applicable",
+      "websocket": "blocked",
+      "pagination": "tested",
+      "third_party_api": "inconclusive"
+    }
+  },
+  "invariants": [
+    "status_values 六状态与 test_dimensions_schema.status_values 逐一同源（实现常量 COVERAGE_SUBSTATUSES 单一定义）",
+    "not_applicable 必须有非空 reason（规格 10.2），没有理由的 not_applicable 是违例",
+    "approval_required/blocked/needs_manual_validation/inconclusive 行必须携带 reason 说明下一步",
+    "聚合子状态映射中每个子分支键非空、状态值在枚举内",
+    "覆盖率类比值钳制 [0,1]（与 run_health.pct 同规则）；行数矛盾（tested > 总行数）必须拒绝"
+  ]
+}

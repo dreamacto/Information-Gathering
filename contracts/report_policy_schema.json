@@ -1,0 +1,35 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Report policy",
+  "type": "object",
+  "required": ["team_name", "attack_result_template", "auto_generate_attack_report", "screenshot_policy", "policy"],
+  "additionalProperties": false,
+  "properties": {
+    "team_name": {"type": "string", "minLength": 1},
+    "attack_result_template": {"type": "string", "minLength": 1},
+    "auto_generate_attack_report": {"type": "boolean"},
+    "screenshot_policy": {"const": "manual_insert"},
+    "policy": {
+      "type": "object",
+      "required": ["aggregation_key", "one_result_per_group", "data_scope_mode", "screenshot_mode", "include_header_metadata", "include_evidence_section", "include_evidence_file_list", "include_reproduction_commands", "preserve_all_commands", "max_problems_or_remediations", "include_member_urls", "include_raw_credentials"],
+      "additionalProperties": false,
+      "properties": {
+        "aggregation_key": {
+          "type": "array",
+          "const": ["asset_identity", "vulnerability_family"]
+        },
+        "one_result_per_group": {"const": true},
+        "data_scope_mode": {"const": "omit_empty_or_use_impact_scope"},
+        "screenshot_mode": {"const": "manual_insert"},
+        "include_header_metadata": {"const": false},
+        "include_evidence_section": {"const": false},
+        "include_evidence_file_list": {"const": false},
+        "include_reproduction_commands": {"const": true},
+        "preserve_all_commands": {"const": true},
+        "max_problems_or_remediations": {"type": "integer", "minimum": 1, "maximum": 2},
+        "include_member_urls": {"type": "boolean"},
+        "include_raw_credentials": {"const": false}
+      }
+    }
+  }
+}

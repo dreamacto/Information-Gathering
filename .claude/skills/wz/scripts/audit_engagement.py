@@ -48,6 +48,44 @@ VALID_REVIEW_STATUSES = OPEN_REVIEW_STATUSES | {
 RESOLVED_SCOPE_STATES = {"in_scope", "out_of_scope", "third_party", "platform_shared", "invalid"}
 KNOWN_SCOPE_STATES = RESOLVED_SCOPE_STATES | {"confirmation_required"}
 
+# application_mapping 子阶段审计（实施规格 5.2 + 10.2/10.3；适用性优先）。
+# 常量与 src/authorized_assessment/analysis/coverage_matrix.py 契约同源，漂移由
+# tests/test_wz_application_mapping.py 锁定。
+APPLICATION_MAP_PHASE = "application_mapping"
+APPLICATION_MAP_SUBPHASES = (
+    "graphql_mapping",
+    "websocket_mapping",
+    "file_surface_mapping",
+    "auth_surface_mapping",
+    "webhook_mapping",
+)
+APPLICATION_MAP_ROW_FIELDS = (
+    "applicable",
+    "status",
+    "source",
+    "asset",
+    "endpoint_or_surface",
+    "reason",
+    "evidence_ref",
+)
+COVERAGE_SUBSTATUSES = {
+    "tested",
+    "not_applicable",
+    "blocked",
+    "approval_required",
+    "needs_manual_validation",
+    "inconclusive",
+}
+# phase 标记 complete/not_applicable 时，子状态只接受这两个"已落盘可证明"值。
+PROVEN_SUBSTATUSES = {"tested", "not_applicable"}
+APPLICATION_MAP_ARTIFACTS = {
+    "graphql_mapping": "artifacts/application-map/graphql-manifest.json",
+    "websocket_mapping": "artifacts/application-map/websocket-inventory.csv",
+    "file_surface_mapping": "artifacts/application-map/file-surface-inventory.csv",
+    "auth_surface_mapping": "artifacts/application-map/auth-surface-inventory.csv",
+    "webhook_mapping": "artifacts/application-map/webhook-inventory.csv",
+}
+
 
 def read_json(path: Path) -> dict[str, Any]:
     try:
@@ -105,12 +143,175 @@ def existing_evidence(root: Path, reference: str) -> bool:
     return True
 
 
+def _read_application_map_rows(root: Path, subphase: str) -> tuple[list[dict[str, str]], list[str]]:
+    """读取子阶段产物行：JSON manifest 取 rows，CSV 逐行；返回 (rows, errors)。"""
+    rel = APPLICATION_MAP_ARTIFACTS[subphase]
+    path = root / rel
+    if not path.is_file():
+        return [], [f"{APPLICATION_MAP_PHASE}: artifact missing for {subphase}: {rel}"]
+    if path.suffix == ".json":
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        except (OSError, json.JSONDecodeError) as exc:
+            return [], [f"{APPLICATION_MAP_PHASE}.{subphase}: unparseable manifest {rel}: {exc}"]
+        if not isinstance(payload, dict) or not isinstance(payload.get("rows"), list):
+            return [], [f"{APPLICATION_MAP_PHASE}.{subphase}: manifest must be an object with a rows list: {rel}"]
+        return [row for row in payload["rows"] if isinstance(row, dict)], []
+    errors: list[str] = []
+    with path.open("r", encoding="utf-8-sig", errors="replace", newline="") as handle:
+        reader = csv.DictReader(handle)
+        fieldnames = reader.fieldnames or []
+        missing = [field for field in APPLICATION_MAP_ROW_FIELDS if field not in fieldnames]
+        if missing:
+            errors.append(
+                f"{APPLICATION_MAP_PHASE}.{subphase}: {rel} header missing required fields: {missing}"
+            )
+            return [], errors
+        return [dict(row) for row in reader], errors
+
+
+def _application_map_row_issues(subphase: str, rows: list[dict[str, str]]) -> list[str]:
+    """application-map 行契约校验（7 字段 + not_applicable/tested 行规则，实施规格 5.2/10.2/10.3）。"""
+    issues: list[str] = []
+    rel = APPLICATION_MAP_ARTIFACTS[subphase]
+    for index, row in enumerate(rows):
+        label = f"{APPLICATION_MAP_PHASE}.{subphase}[{index}] ({rel})"
+        for field in APPLICATION_MAP_ROW_FIELDS:
+            if field not in row:
+                issues.append(f"{label}: missing application-map field {field}")
+        applicable = str(row.get("applicable", "")).strip()
+        status = str(row.get("status", "")).strip()
+        if status and status not in COVERAGE_SUBSTATUSES:
+            issues.append(f"{label}: invalid status {status!r}")
+        if status == "not_applicable":
+            if not str(row.get("reason", "")).strip():
+                issues.append(f"{label}: not_applicable without reason (silent omission is forbidden)")
+            if applicable != "not_applicable":
+                issues.append(
+                    f"{label}: status=not_applicable requires applicable=not_applicable "
+                    "(no applicability decision, no not_applicable claim)"
+                )
+        if status == "tested" and not str(row.get("evidence_ref", "")).strip():
+            issues.append(f"{label}: tested row lacks evidence_ref (completion must be provable)")
+    return issues
+
+
+def _substatus_proof_issues(root: Path, subphase: str, substatus: str) -> list[str]:
+    """phase 完成时的可证明性：产物存在且 ≥1 行、≥1 行与子状态一致，tested 行证据可解析。"""
+    rel = APPLICATION_MAP_ARTIFACTS[subphase]
+    rows, errors = _read_application_map_rows(root, subphase)
+    if errors:
+        return errors
+    issues = _application_map_row_issues(subphase, rows)
+    if not rows:
+        issues.append(
+            f"{APPLICATION_MAP_PHASE}.{subphase}: {rel} has no rows; record the applicability "
+            "decision instead of skipping silently"
+        )
+        return issues
+    if not any(str(row.get("status", "")).strip() == substatus for row in rows):
+        issues.append(
+            f"{APPLICATION_MAP_PHASE}.{subphase}: substatus {substatus!r} has no matching row in {rel}"
+        )
+    if substatus == "tested":
+        for row in rows:
+            if str(row.get("status", "")).strip() != "tested":
+                continue
+            if not existing_evidence(root, str(row.get("evidence_ref", ""))):
+                issues.append(
+                    f"{APPLICATION_MAP_PHASE}.{subphase}: tested row evidence_ref does not resolve "
+                    f"inside the workspace: {row.get('evidence_ref', '')!r} ({rel})"
+                )
+    return issues
+
+
+def application_mapping_issues(root: Path, phase_row: dict[str, Any] | None) -> list[str]:
+    """application_mapping 子阶段审计：状态映射合法性 + 行契约 + 完成可证明性。"""
+    if phase_row is None:
+        return []
+    issues: list[str] = []
+    substatuses = phase_row.get("substatuses")
+    if substatuses is not None and not isinstance(substatuses, dict):
+        issues.append(f"{APPLICATION_MAP_PHASE}: substatuses must be an object keyed by subphase")
+        substatuses = None
+    if isinstance(substatuses, dict):
+        for key, value in substatuses.items():
+            name = str(key).strip()
+            if not name:
+                issues.append(f"{APPLICATION_MAP_PHASE}: substatuses contains an empty subphase key")
+                continue
+            if name not in APPLICATION_MAP_SUBPHASES:
+                issues.append(f"{APPLICATION_MAP_PHASE}: unknown subphase {name!r} (spec 5.2)")
+                continue
+            value_text = str(value).strip()
+            if not value_text:
+                continue  # 空串 = 未记录，仅在 phase 完成时强制
+            if value_text not in COVERAGE_SUBSTATUSES:
+                issues.append(
+                    f"{APPLICATION_MAP_PHASE}.{name}: invalid substatus {value_text!r} "
+                    f"(allowed: {sorted(COVERAGE_SUBSTATUSES)})"
+                )
+                continue
+            if (root / APPLICATION_MAP_ARTIFACTS[name]).is_file():
+                rows, errors = _read_application_map_rows(root, name)
+                if not errors:
+                    issues.extend(_application_map_row_issues(name, rows))
+    status = str(phase_row.get("status", "")).strip()
+    if status in {"complete", "not_applicable"}:
+        if not isinstance(substatuses, dict):
+            issues.append(
+                f"{APPLICATION_MAP_PHASE}: phase {status} but substatuses are not recorded "
+                "(all five subphases must be on disk)"
+            )
+            substatuses = {}
+        for subphase in APPLICATION_MAP_SUBPHASES:
+            value_text = str(substatuses.get(subphase, "") or "").strip()
+            if not value_text:
+                issues.append(
+                    f"{APPLICATION_MAP_PHASE}: phase {status} but subphase {subphase} has no recorded substatus"
+                )
+                continue
+            if value_text not in PROVEN_SUBSTATUSES:
+                issues.append(
+                    f"{APPLICATION_MAP_PHASE}: phase {status} but subphase {subphase} is {value_text!r}; "
+                    "the mapping phase is only complete with proven tested/not_applicable substatuses"
+                )
+                continue
+            issues.extend(_substatus_proof_issues(root, subphase, value_text))
+    return issues
+
+
 def audit(root: Path) -> dict[str, Any]:
+    root = Path(root).resolve()
+    if root.name == "postrun_review" or (root / "target_review_queue.csv").is_file():
+        return {
+            "workspace": str(root),
+            "state": "WZ_RUN_DIRECTORY_REJECTED",
+            "issues": ["WZ_RUN_DIRECTORY_REJECTED: postrun_review is an FH workspace, not a wz engagement"],
+        }
+    if (root / "run_summary.json").is_file() or (root / "run_health.json").is_file():
+        return {
+            "workspace": str(root),
+            "state": "WZ_RUN_DIRECTORY_REJECTED",
+            "issues": ["WZ_RUN_DIRECTORY_REJECTED: run artifacts are not a wz engagement"],
+        }
     engagement = read_json(root / "engagement.json")
     if not engagement:
         return {"workspace": str(root), "state": "NO_INTAKE", "issues": ["engagement.json missing or invalid"]}
-
-    issues: list[str] = []
+    workspace_type = engagement.get("workspace_type")
+    workflow = engagement.get("workflow")
+    if workspace_type not in (None, "wz_engagement") or workflow not in (None, "wz"):
+        return {
+            "workspace": str(root),
+            "state": "WZ_WORKSPACE_TYPE_MISMATCH",
+            "issues": [
+                f"WZ_WORKSPACE_TYPE_MISMATCH: workspace_type={workspace_type!r}, workflow={workflow!r}"
+            ],
+        }
+    if workspace_type is None or workflow is None:
+        issues = ["legacy wz workspace metadata missing: workspace_type/workflow"]
+    else:
+        issues = []
     authorization = engagement.get("authorization", {})
     auth_status = authorization.get("status", "") if isinstance(authorization, dict) else ""
     auth_confirmed = (
@@ -146,6 +347,13 @@ def audit(root: Path) -> dict[str, Any]:
     issues.extend(f"scope row still needs confirmation: {item}" for item in unresolved_scope)
     phases, phase_errors = phase_map(root)
     issues.extend(phase_errors)
+    app_map_row = phases.get(APPLICATION_MAP_PHASE)
+    app_map_substatuses: dict[str, str] = {}
+    if app_map_row is not None:
+        issues.extend(application_mapping_issues(root, app_map_row))
+        raw_substatuses = app_map_row.get("substatuses")
+        if isinstance(raw_substatuses, dict):
+            app_map_substatuses = {str(key): str(value) for key, value in raw_substatuses.items()}
 
     required = {name: row for name, row in phases.items() if bool(row.get("required", True))}
     blocked = [name for name, row in required.items() if row.get("status") == "blocked"]
@@ -155,6 +363,17 @@ def audit(root: Path) -> dict[str, Any]:
     ]
 
     ledger = [row for row in read_csv(root / "review_ledger.csv") if row.get("active", "true").lower() != "false"]
+    endpoint_inventory = read_csv(root / "artifacts" / "endpoint-inventory.csv")
+    historical_endpoint_rows = [
+        row for row in endpoint_inventory
+        if row.get("source_class") == "historical_lead"
+        or (row.get("source") or "").startswith("run_import:")
+    ]
+    if historical_endpoint_rows:
+        issues.append(
+            "WZ_HISTORY_INPUT_REJECTED: current endpoint inventory contains historical run imports; "
+            "re-validate them in the current WZ phase before treating them as current facts"
+        )
     invalid_review = [row.get("item_id", "<missing>") for row in ledger if row.get("status") not in VALID_REVIEW_STATUSES]
     open_review = [row.get("item_id", "<missing>") for row in ledger if row.get("status") in OPEN_REVIEW_STATUSES]
     unreasoned_gates = [
@@ -226,6 +445,7 @@ def audit(root: Path) -> dict[str, Any]:
         "unresolved_scope_records": unresolved_scope,
         "invalid_scope_records": invalid_scope,
         "phase_counts": _counts([str(row.get("status", "")) for row in required.values()]),
+        "application_mapping_substatuses": app_map_substatuses,
         "blocked_phases": blocked,
         "incomplete_core_phases": incomplete_core,
         "review_counts": _counts([row.get("status", "") for row in ledger]),

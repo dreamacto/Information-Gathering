@@ -1,0 +1,23 @@
+{
+  "team_name": "观叶识微",
+  "attack_result_template": "{base}/templates/攻防成果报告_模板.docx",
+  "auto_generate_attack_report": true,
+  "screenshot_policy": "manual_insert",
+  "policy": {
+    "aggregation_key": [
+      "asset_identity",
+      "vulnerability_family"
+    ],
+    "one_result_per_group": true,
+    "data_scope_mode": "omit_empty_or_use_impact_scope",
+    "screenshot_mode": "manual_insert",
+    "include_header_metadata": false,
+    "include_evidence_section": false,
+    "include_evidence_file_list": false,
+    "include_reproduction_commands": true,
+    "preserve_all_commands": true,
+    "max_problems_or_remediations": 2,
+    "include_member_urls": true,
+    "include_raw_credentials": false
+  }
+}

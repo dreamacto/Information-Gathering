@@ -12,11 +12,12 @@ from pathlib import Path
 from exercise_runtime import now_iso, write_json
 from artifact_manifest import create_manifest
 from screenshot_queue_builder import build_screenshot_queue
+from report_model import aggregate_report_findings, normalize_report_finding, optional_scope_rows
 
 from project_paths import config_path
 
 BASE_DIR = Path(__file__).resolve().parent
-DEFAULT_CONFIG = config_path("exercise")
+DEFAULT_REPORT_CONFIG = config_path("reporting")
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp"}
 
 
@@ -331,9 +332,17 @@ def clear_template_body(doc) -> None:
         body.remove(element)
 
 
+def load_report_config(path: Path) -> dict:
+    """Load report-only configuration; legacy wrapper is accepted at this boundary."""
+    cfg = read_json(path)
+    if isinstance(cfg.get("reporting"), dict):
+        return cfg["reporting"]
+    return cfg
+
+
 def make_attack_result_docx(run_dir: Path, config_path: Path, *, force: bool = False, skip: bool = False) -> Path | None:
-    cfg = read_json(config_path)
-    reporting = cfg.get("reporting", {})
+    reporting = load_report_config(config_path)
+    policy = reporting.get("policy", {})
     if skip:
         return None
     if not force and not reporting.get("auto_generate_attack_report", True):
@@ -343,103 +352,31 @@ def make_attack_result_docx(run_dir: Path, config_path: Path, *, force: bool = F
     if not raw_findings:
         return None
 
-    try:
-        from docx import Document
-        from docx.shared import Inches
-    except ImportError as exc:
-        raise SystemExit("python-docx is required to generate attack-result DOCX reports.") from exc
-
-    team_name = safe_text(reporting.get("team_name"), "观叶识微")
-    template_path = Path(safe_text(reporting.get("attack_result_template")))
-    doc = Document(template_path) if template_path.exists() else Document()
-    clear_template_body(doc)
-
-    findings = [normalize_finding(row, idx + 1) for idx, row in enumerate(raw_findings)]
-    evidence_images = [p for p in list_evidence_files(run_dir) if p.suffix.lower() in IMAGE_SUFFIXES]
-    today = datetime.now().strftime("%Y 年 %m 月 %d 日")
-
-    add_paragraph(doc, "攻击成果报告", style="Title")
-    add_paragraph(doc, f"队伍名称：{team_name}")
-    add_paragraph(doc, f"生成时间：{today}")
-    add_paragraph(doc, f"数据来源：{source}")
-    add_paragraph(doc, "")
-
-    add_paragraph(doc, "1. 综述", style="Heading 1")
-    add_paragraph(
-        doc,
-        f"经授权，{team_name} 团队对授权范围内目标进行了安全验证。本报告仅汇总已确认或已通过真伪校验的成果，"
-        "用于攻防演习/SRC 提交前整理证据、影响和修复建议。",
-    )
-    add_paragraph(doc, "渗透结果总结汇总如下表：")
-    summary = doc.add_table(rows=1, cols=5)
-    try:
-        summary.style = "Table Grid"
-    except KeyError:
-        pass
-    for cell, text in zip(summary.rows[0].cells, ["渗透系统对象", "漏洞类型", "URL", "数量", "网络区域"]):
-        set_cell(cell, text, bold=True)
-    for finding in findings:
-        cells = summary.add_row().cells
-        values = [finding["system"], finding["vuln_type"], finding["url"], "1", finding["network"]]
-        for cell, value in zip(cells, values):
-            set_cell(cell, value)
-
-    add_paragraph(doc, "2. 渗透分析过程", style="Heading 1")
-    add_paragraph(doc, "渗透路径说明")
-    path_text = " -> ".join(finding["url"] for finding in findings[:5])
-    add_paragraph(doc, path_text or "待补充")
-
-    add_paragraph(doc, "3. 渗透成果说明", style="Heading 1")
-    for finding in findings:
-        add_paragraph(doc, f"3.{finding['index']} 成果 {finding['index']}", style="Heading 2")
-        add_paragraph(doc, "（1）成果目标基本情况", bold=True)
-        add_kv_table(
-            doc,
-            [
-                ("序号", str(finding["index"]).zfill(2)),
-                ("成果描述", finding["description"]),
-                ("目标系统", finding["system"]),
-                ("目标 URL", finding["url"]),
-                ("目标 IP", finding["ip"]),
-                ("网络区域", finding["network"]),
-                ("威胁类型", finding["vuln_type"]),
-                ("预估得分", finding["score"]),
-            ],
-        )
-        add_paragraph(doc, "（2）成果说明  攻击过程描述：", bold=True)
-        add_paragraph(doc, finding["process"])
-        add_paragraph(doc, "（3）可利用性分析：", bold=True)
-        add_paragraph(doc, finding["exploitability"])
-        add_paragraph(doc, "（4）限制条件：", bold=True)
-        add_paragraph(doc, finding["limitations"])
-        add_paragraph(doc, "（5）证据截图：", bold=True)
-        screenshots = screenshot_files_for_finding(run_dir, finding, evidence_images, len(findings))
-        if screenshots:
-            for image in screenshots:
-                try:
-                    doc.add_picture(str(image), width=Inches(5.8))
-                    add_paragraph(doc, f"截图文件：{image.relative_to(run_dir).as_posix()}")
-                except Exception:
-                    add_paragraph(doc, f"已有截图文件但自动插入失败：{image.relative_to(run_dir).as_posix()}")
-        else:
-            add_paragraph(doc, "【需截图】", bold=True, color="FF0000")
-            add_paragraph(doc, f"截图内容：{finding['screenshot_desc']}")
-
-    add_paragraph(doc, "4. 存在问题", style="Heading 1")
-    for finding in findings:
-        add_paragraph(doc, f"- {finding['system']}：{finding['vuln_type']}，{finding['description']}")
-
-    add_paragraph(doc, "5. 整改建议", style="Heading 1")
-    for finding in findings:
-        add_paragraph(doc, f"- {finding['url']}：{finding['fix']}")
-
-    reports = run_dir / "reports"
-    reports.mkdir(parents=True, exist_ok=True)
+    # Keep the automatic run entry point aligned with the report-only renderer.
+    from report_docx import build_report
+    from report_model import aggregate_report_findings
+    template_value = safe_text(reporting.get("attack_result_template"))
+    template_value = template_value.replace("{base}", str(BASE_DIR)).replace("{project_root}", str(BASE_DIR))
+    template_path = Path(template_value) if template_value else BASE_DIR / "templates" / "攻防成果报告_模板.docx"
+    if not template_path.is_absolute():
+        template_path = (BASE_DIR / template_path).resolve()
+    policy = reporting.get("policy", {}) if isinstance(reporting.get("policy"), dict) else {}
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    out = reports / f"{sanitize_filename('攻击成果_' + team_name + '_' + stamp)}.docx"
-    doc.save(out)
+    out = run_dir / "reports" / f"攻击成果_{stamp}.docx"
+    meta = {"env_lines": [], "problems": [], "suggestions": []}
+    build_report(meta, raw_findings, out, policy, template_path)
     return out
 
+
+def _unique_report_text(values: list[str]) -> list[str]:
+    seen = set()
+    result = []
+    for value in values:
+        value = safe_text(value)
+        if value and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
 
 def make_platform_submission_template(run_dir: Path) -> Path:
     data = {
@@ -478,7 +415,7 @@ def make_platform_submission_template(run_dir: Path) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build evidence report drafts from a run directory")
     parser.add_argument("run_dir", type=Path)
-    parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
+    parser.add_argument("--report-config", type=Path, default=DEFAULT_REPORT_CONFIG)
     parser.add_argument("--attack-report", action="store_true", help="Force attack-result DOCX generation when findings exist")
     parser.add_argument("--no-attack-report", action="store_true", help="Skip attack-result DOCX generation")
     return parser.parse_args()
@@ -495,7 +432,7 @@ def main() -> int:
     screenshot_queue = build_screenshot_queue(run_dir)
     attack_report = make_attack_result_docx(
         run_dir,
-        args.config.resolve(),
+        args.report_config.resolve(),
         force=args.attack_report,
         skip=args.no_attack_report,
     )

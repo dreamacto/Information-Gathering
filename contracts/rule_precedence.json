@@ -1,0 +1,29 @@
+{
+  "schema_version": "1.0",
+  "contract": "rule_precedence",
+  "description": "Machine-readable rule precedence for all AI sessions in this repository. docs/RULE_PRECEDENCE.md is the human-readable counterpart and must stay in sync (enforced by tests/test_rule_precedence.py).",
+  "levels": [
+    { "rank": 1, "id": "system_developer_instructions", "name_zh": "系统/开发者指令" },
+    { "rank": 2, "id": "agents_md", "name_zh": "AGENTS.md" },
+    { "rank": 3, "id": "roe_and_authorization_evidence", "name_zh": "ROE.md 与当前授权证据" },
+    { "rank": 4, "id": "engagement_scope_approval_stop", "name_zh": "当前 engagement scope、approval 和 stop 状态" },
+    { "rank": 5, "id": "workflow_skill", "name_zh": "当前 workflow Skill（fh/wz/xcx 等）" },
+    { "rank": 6, "id": "phase_contract_schema", "name_zh": "当前 phase contract/schema" },
+    { "rank": 7, "id": "gov_exercise_config", "name_zh": "gov_exercise_config.json" },
+    { "rank": 8, "id": "tool_strategy_and_registry", "name_zh": "tool_strategy.json 与 tool registry" },
+    { "rank": 9, "id": "prompts_and_implementation_specs", "name_zh": "prompts 和实施规格" },
+    { "rank": 10, "id": "historical_derived_and_knowledge_base", "name_zh": "当前 run 的历史派生结果与 knowledge_base" },
+    { "rank": 11, "id": "external_methodology", "name_zh": "外部方法学资料" }
+  ],
+  "conflict_handling": {
+    "override_direction": "higher_rank_overrides_lower_rank",
+    "conflict_record": "context_conflicts",
+    "rules": [
+      "高层规则覆盖低层规则",
+      "历史 run、知识库和外部资料不能覆盖当前授权、scope、审批和停止条件",
+      "冲突不得由 AI 静默选择，必须写入 context_conflicts",
+      "当前 scope 不明确时只能进入 confirmation_required 或 blocked，不能继续主动测试"
+    ]
+  },
+  "unclear_scope_states": ["confirmation_required", "blocked"]
+}

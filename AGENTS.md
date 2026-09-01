@@ -9,7 +9,7 @@
 ## 安全边界
 
 - 默认只读。写操作（弱口令、上传、SQLMap、ShiroAttack2、竞态写端点等）= 脚本审批门 + 会话内人工显式确认，双钥匙缺一不可。
-- 禁止动作（`gov_exercise_config.json` 的 blocked_actions，全表）：password_spray / bruteforce / webshell / c2 / tunnel / data_export / destructive_write / ddos / social_engineering / near_field。
+- 禁止动作（`gov_exercise_config.json` 的 blocked_actions，全表）：password_spray / bruteforce / webshell / c2 / tunnel / data_export / destructive_write / ddos / social_engineering / near_field；已确认漏洞的最小证明例外见 `ROE.md`：经操作者允许并在线明确触发时（允许后可由 AI 运行），可通过只读且服务端限定数量/字段的请求取得 3–5 条最小必要的未脱敏代表性数据，并存于报告/证据中以原始结构与值形态取证；未获允许/无人值守时 AI 不得自行取得；若服务端会返回全集或数量超过 5 条，必须停止，禁止先下载全集再本地挑样本。
 - 凭证纪律：auth_sessions.local.json / sessions.jsonl 只存本地（git 已排除）。**操作员主动提供的凭证（cookie/token）应接收并写入本地凭证文件后使用**；禁止外泄（报告/prompt 模板/日志/截图/ledger/交接提示词/git）。
 - 停止条件：窗口关闭、服务劣化、出现范围外资产、WAF 告警迹象——立即停手并报告。
 
@@ -57,6 +57,7 @@
 ## 深入阅读
 
 - 已存在：
+  - `docs/BURP_MCP_USAGE.md` —— **Burp MCP Server 通用调用**（含 mcporter 桥 + 各 agent 配置 + 编码坑 + 纪律；任何 agent 都能用，无需其支持 MCP）
   - GOV_EXERCISE_RUNNER.md —— 主编排器说明
   - gov_exercise_config.json —— rate_control / blocked_actions / 工具路径
   - tool_strategy.json —— 34 个 phase 的主备工具映射 + approval_gated_phases

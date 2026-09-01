@@ -78,6 +78,39 @@ LEDGER_FIELDS = (
     "updated_at",
 )
 
+# application_mapping 子阶段（实施规格 5.2；适用性优先）。行最小七字段与六状态枚举
+# 与 src/authorized_assessment/analysis/coverage_matrix.py 契约常量同源，漂移由
+# tests/test_wz_application_mapping.py 锁定。
+APPLICATION_MAP_SUBPHASES = (
+    "graphql_mapping",
+    "websocket_mapping",
+    "file_surface_mapping",
+    "auth_surface_mapping",
+    "webhook_mapping",
+)
+APPLICATION_MAP_ROW_FIELDS = (
+    "applicable",
+    "status",
+    "source",
+    "asset",
+    "endpoint_or_surface",
+    "reason",
+    "evidence_ref",
+)
+APPLICATION_MAP_CSV_ARTIFACTS = {
+    "websocket_mapping": "websocket-inventory.csv",
+    "file_surface_mapping": "file-surface-inventory.csv",
+    "auth_surface_mapping": "auth-surface-inventory.csv",
+    "webhook_mapping": "webhook-inventory.csv",
+}
+APPLICATION_MAP_GRAPHQL_MANIFEST = {
+    "schema_version": "1.0",
+    "contract": "coverage_substatus_schema",
+    "subphase": "graphql_mapping",
+    "row_fields": list(APPLICATION_MAP_ROW_FIELDS),
+    "rows": [],
+}
+
 
 def now() -> str:
     return datetime.now().astimezone().isoformat(timespec="seconds")
@@ -187,6 +220,30 @@ def write_text_if_missing(path: Path, content: str) -> None:
         path.write_text(content, encoding="utf-8")
 
 
+def _upgrade_phase_status_substatuses(phase_path: Path) -> None:
+    """resume 升级（实施规格 5.2）：既有工作区的 application_mapping 行补 substatuses
+    五键种子（空串=未记录），不改动任何既有状态/原因/产物字段；文件损坏时跳过不阻塞。"""
+    try:
+        payload = json.loads(phase_path.read_text(encoding="utf-8-sig"))
+    except (OSError, json.JSONDecodeError):
+        return
+    if not isinstance(payload, dict) or not isinstance(payload.get("phases"), list):
+        return
+    changed = False
+    for row in payload["phases"]:
+        if (
+            isinstance(row, dict)
+            and row.get("phase") == "application_mapping"
+            and "substatuses" not in row
+        ):
+            row["substatuses"] = {name: "" for name in APPLICATION_MAP_SUBPHASES}
+            changed = True
+    if changed:
+        phase_path.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Initialize a website assessment workspace.")
     parser.add_argument("target", help="Authorized website URL, domain, or IP host.")
@@ -236,6 +293,11 @@ def main() -> int:
             return 4
     if args.resume and engagement_path.is_file():
         existing = json.loads(engagement_path.read_text(encoding="utf-8-sig"))
+        existing_type = existing.get("workspace_type")
+        existing_workflow = existing.get("workflow")
+        if existing_type not in (None, "wz_engagement") or existing_workflow not in (None, "wz"):
+            print("ERROR: 目标目录不是 WZ engagement，拒绝以 --resume 复用 FH/run 工作区。", file=sys.stderr)
+            return 3
         existing_host = str(existing.get("target", {}).get("host") or "")
         if existing_host != target["host"]:
             parent_new = _registered_parent(str(target["host"]))
@@ -268,6 +330,7 @@ def main() -> int:
 
     for relative in (
         "artifacts",
+        "artifacts/application-map",
         "evidence/raw",
         "evidence/redacted",
         "logs",
@@ -283,6 +346,11 @@ def main() -> int:
     if not engagement_path.exists():
         engagement = {
             "workspace_version": 1,
+            "workspace_type": "wz_engagement",
+            "workflow": "wz",
+            "source_policy": "current_engagement_only",
+            "imported_sources": [],
+            "inheritance_policy": "deny_by_default",
             "engagement_name": args.name.strip() or str(target["host"]),
             "created_at": created,
             "target_input_sha256": hashlib.sha256(args.target.encode("utf-8")).hexdigest(),
@@ -352,16 +420,18 @@ def main() -> int:
         phases = []
         for phase in PHASES:
             status = "complete" if phase == "authorization" and authorization_confirmed else "pending"
-            phases.append(
-                {
-                    "phase": phase,
-                    "required": True,
-                    "status": status,
-                    "reason": authorization_ref if status == "complete" else "",
-                    "artifacts": ["engagement.json"] if status == "complete" else [],
-                    "updated_at": created if status == "complete" else "",
-                }
-            )
+            row = {
+                "phase": phase,
+                "required": True,
+                "status": status,
+                "reason": authorization_ref if status == "complete" else "",
+                "artifacts": ["engagement.json"] if status == "complete" else [],
+                "updated_at": created if status == "complete" else "",
+            }
+            if phase == "application_mapping":
+                # 五子阶段种子（实施规格 5.2）：空串=未记录，审计在 phase 完成时强制落盘。
+                row["substatuses"] = {name: "" for name in APPLICATION_MAP_SUBPHASES}
+            phases.append(row)
         phase_path.write_text(
             json.dumps({
                 "schema_version": "1.0",
@@ -373,6 +443,8 @@ def main() -> int:
             }, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+    else:
+        _upgrade_phase_status_substatuses(phase_path)
 
     write_csv_if_missing(root / "review_ledger.csv", LEDGER_FIELDS, [])
     write_csv_if_missing(
@@ -382,6 +454,17 @@ def main() -> int:
             "auth_required", "roles", "state_changing", "source", "test_status", "notes",
         ),
         [],
+    )
+    # application-map 五产物骨架（实施规格 5.2）：每行最小七字段，见 coverage_substatus_schema。
+    for _subphase, filename in APPLICATION_MAP_CSV_ARTIFACTS.items():
+        write_csv_if_missing(
+            root / "artifacts" / "application-map" / filename,
+            APPLICATION_MAP_ROW_FIELDS,
+            [],
+        )
+    write_text_if_missing(
+        root / "artifacts" / "application-map" / "graphql-manifest.json",
+        json.dumps(APPLICATION_MAP_GRAPHQL_MANIFEST, ensure_ascii=False, indent=2) + "\n",
     )
     write_csv_if_missing(
         root / "evidence" / "index.csv",

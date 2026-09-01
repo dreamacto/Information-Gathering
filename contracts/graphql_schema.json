@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0",
+  "contract": "graphql_schema",
+  "description": "GraphQL 契约（实施规格 5.2 graphql_mapping + 5.3 graphql_testing + 3.1 graphql_inventory/graphql_review 模块清单；CONTEXT_LOADING_MAP phases.graphql 引用）。盘点侧：GraphQL 面离线盘点（surface_kinds + 规格 5.2 七字段行），不发请求、不执行 introspection 查询。复核侧：沿用统一筛选模式（观察键→证据形态确定性映射→rule_satisfied 单一引擎→8 状态分级）。升级边界：introspection 开启/GraphiQL 暴露/schema 可见/字段建议属规格 11.3 公开文档类线索永不升级；只有确认越过授权边界（跨用户对象访问、匿名取回需认证数据、受限操作实际执行成功）才可升级 candidate。GraphQL 面内发现的注入归 injection_candidate_screening，不双计。唯一实现：src/authorized_assessment/triage/graphql_inventory.py 与 graphql_review.py。",
+  "inventory": {
+    "row_fields": [
+      "applicable",
+      "status",
+      "source",
+      "asset",
+      "endpoint_or_surface",
+      "reason",
+      "evidence_ref",
+      "surface_kind"
+    ],
+    "row_fields_rule": "前七字段为规格 5.2 子阶段行最小集（与 coverage_substatus/application-map 行同形，复用 validate_application_map_row）；surface_kind 为实现扩展字段。",
+    "surface_kinds": [
+      "introspection_endpoint",
+      "graphiql_ui",
+      "schema_file",
+      "js_reference",
+      "captured_traffic",
+      "api_doc_reference"
+    ],
+    "row_rules": {
+      "not_applicable_requires_reason": "status=not_applicable 时 reason 必须非空且 applicable=not_applicable（规格 10.2/10.3）",
+      "tested_requires_evidence_ref": "status=tested 时 evidence_ref 必须非空（完成必须可证明）",
+      "applicable_requires_source": "applicable=applicable 时 source 必须非空（发现必须可追溯）",
+      "inventory_not_proof_of_testing": "盘点只证明面存在：未显式声明行 status 时按适用性派生（applicable → inconclusive），不自动视为 tested"
+    },
+    "surface_markers": "端点标记（graphql/graphiql/gql 子串）与正文形态标记（query /mutation /subscription /__schema/__typename/operationname/variables）为确定性识别；不做参数名启发式猜测。"
+  },
+  "review_categories": [
+    "introspection_exposure",
+    "field_suggestion",
+    "object_authorization",
+    "operation_authorization"
+  ],
+  "category_semantics": {
+    "introspection_exposure": "introspection 开启/GraphiQL 暴露/schema 可见——公开文档类线索，永不升级（规格 11.3）",
+    "field_suggestion": "错误信息建议字段名——线索，永不升级",
+    "object_authorization": "GraphQL 对象级授权（IDOR 类）——越过授权边界确认后可升级",
+    "operation_authorization": "操作/变更级授权绕过——受限操作实际执行成功确认后可升级"
+  },
+  "routing_rule": "GraphQL 面内发现的注入类观察（injection_candidate_schema.categories 15 类）归 injection_candidate_screening 判定；graphql 复核观察声明注入类别记路由违例并跳过，同一观察不得在两域双计。",
+  "evidence_kinds": [
+    "introspection_enabled",
+    "graphiql_exposed",
+    "schema_file_visible",
+    "field_suggestion_seen",
+    "cross_user_object_access",
+    "unauthenticated_data_access",
+    "operation_allowed",
+    "differential",
+    "semantic_anomaly"
+  ],
+  "insufficient_evidence_kinds": [
+    "introspection_enabled",
+    "graphiql_exposed",
+    "schema_file_visible",
+    "field_suggestion_seen"
+  ],
+  "insufficient_evidence_rule": "公开文档类/错误提示类证据永不满足升级条件（规格 11.3：OpenAPI 文档存在、错误堆栈、反射未执行等统一为 signal/candidate 线索，不是漏洞证明）。",
+  "upgrade_rules": {
+    "object_authorization": {
+      "required_any_branches": [
+        ["cross_user_object_access"],
+        ["unauthenticated_data_access"]
+      ]
+    },
+    "operation_authorization": {
+      "required_any_groups": [["operation_allowed"]]
+    }
+  },
+  "never_upgrade_rule": "review_categories 中未出现在 upgrade_rules 的类别（introspection_exposure/field_suggestion）永不升级：status=candidate/confirmed 记违例。differential/semantic_anomaly 为支持性观察（用户访问自己的对象不是漏洞，规格 2.7/11.3），任何组合单独都不满足升级——人工复核可用 status_hint 显式给 needs_manual_validation。",
+  "upgrade_rule_semantics": "required_any_groups：组间 AND、组内 OR；required_any_branches：branch 间 OR、branch 内 AND。判定引擎复用 injection_candidates.rule_satisfied（单一实现）。",
+  "candidate_status_values": [
+    "signal",
+    "candidate",
+    "needs_manual_validation",
+    "confirmed",
+    "inconclusive",
+    "blocked",
+    "rejected",
+    "duplicate"
+  ],
+  "candidate_status_rule": "与 finding_quality_schema.finding_status_states / finding_quality_gate.FINDING_STATUS_STATES / injection_candidate_schema.candidate_status_values 多方同源；confirmed 的完整五门判定仍由 finding_quality_gate 承担。",
+  "applicable_values": ["applicable", "not_applicable", "unknown"],
+  "category_status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+  "category_status_rule": "与 coverage_substatus_schema.status_values 同源（实现复用 COVERAGE_SUBSTATUSES）；汇总行三统计概念分离（category_status/applicability_counts/status_counts/tested_count）沿用操作员 batch6_4 决定①③。",
+  "definitive_result_statuses": ["candidate", "confirmed", "blocked", "rejected", "duplicate"],
+  "category_summary_required_fields": [
+    "category",
+    "category_status",
+    "applicability_counts",
+    "status_counts",
+    "tested_count",
+    "reason",
+    "source",
+    "precondition"
+  ],
+  "summary_rule": "汇总行结构/计数字段语义/tested_count 一致性与 injection_candidate_schema.summary_structure 同规则，经 injection_candidates.validate_category_summary(categories=review_categories) 校验（单一实现）。",
+  "observation_schema": {
+    "version": "1.0",
+    "versioning_rule": "观察键名集合可版本化演进：增删/改名键必须 bump 本 version 并同步实现常量 OBSERVATION_SCHEMA_VERSION 与本节 fields，不声明永久不可修改（操作员决定②同规）",
+    "not_proof_semantics": "观察记录是筛选输入，不是漏洞证明：*_observed 是观察到的现象、*_confirmed 是已确认的事实，二者只用于候选分级；任何观察都不直接构成漏洞，signal 不是漏洞，candidate/confirmed 仍受五门与 evidence gate 约束",
+    "source_required": "每条观察必须可追溯：显式 source 或 endpoint + parameter_name（或 operation_name）拼接后非空，否则为违例",
+    "version_field": "观察可携带 observation_schema_version 字段；缺失视为当前版本（向后兼容），显式给出且与当前版本不符记违例",
+    "fields": {
+      "introspection_enabled_observed": "观察到 introspection 开启（公开文档类线索，永不升级）",
+      "graphiql_exposed_observed": "观察到 GraphiQL/playground 暴露（公开文档类线索，永不升级）",
+      "schema_file_visible_observed": "观察到 schema 文件/下载可见（公开文档类线索，永不升级）",
+      "field_suggestion_observed": "观察到错误信息建议字段名（线索，永不升级）",
+      "cross_user_object_access_confirmed": "已确认以低权限上下文访问他人对象成功且可复现",
+      "unauthenticated_data_access_confirmed": "已确认匿名上下文取回需认证数据且可复现",
+      "operation_allowed_confirmed": "已确认受角色限制的操作在无权上下文实际执行成功",
+      "differential_observed": "观察到可控差分（仅支持性观察，单独不升级）",
+      "semantic_anomaly_observed": "观察到语义异常（仅支持性观察，单独不升级）"
+    }
+  },
+  "row_rules": {
+    "candidate_status_in_enum": "候选 status 必须在 candidate_status_values 内",
+    "candidate_category_in_enum": "候选 category 必须在 review_categories 内",
+    "candidate_never_upgrade_categories": "status=candidate/confirmed 时 category 必须出现在 upgrade_rules 且证据满足规则",
+    "candidate_unknown_evidence_kind": "evidence_kinds 必须为非空列表且元素全部在 evidence_kinds 枚举内",
+    "candidate_evidence_ref_required": "status=candidate/confirmed/needs_manual_validation 时 evidence_ref 必须非空",
+    "summary_counts_shape": "applicability_counts 三键 / status_counts 八键 / tested_count 与 definitive 各键之和一致（同 injection_candidate_schema）"
+  },
+  "invariants": [
+    "review_categories 四类与实现常量 GRAPHQL_CATEGORIES 同源；evidence_kinds/insufficient_evidence_kinds/upgrade_rules/observation_schema.fields 与 graphql_review.py 模块常量同源",
+    "candidate_status_values 8 状态与 finding_quality_gate.FINDING_STATUS_STATES 及 injection_candidate_schema 三方一致",
+    "category_status_values 六状态与 coverage_substatus_schema.status_values 同源（实现复用 COVERAGE_SUBSTATUSES）",
+    "never_upgrade_rule：introspection_exposure/field_suggestion 不得出现在 upgrade_rules，其候选永不升级",
+    "upgrade_rules 引用的证据形态全部在 evidence_kinds 枚举内，且 insufficient_evidence_kinds 是其子集",
+    "routing_rule：注入 15 类观察归 injection_candidate_screening，本域不得双计",
+    "盘点与复核全部离线：不发请求、不执行 introspection/操作查询、不下载 schema；观察与候选不是漏洞证明",
+    "未人工验证的 AI 候选不得作为正式有效漏洞提交"
+  ]
+}

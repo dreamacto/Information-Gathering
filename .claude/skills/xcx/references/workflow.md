@@ -73,6 +73,19 @@ entry files and declared routes were recovered, compare declared subpackages wit
 and record unreadable, encrypted, corrupted, unsupported, or dynamically loaded regions. Follow
 [package-analysis.md](package-analysis.md) for the full package branch.
 
+### Package integrity and update trust (Batch 11 split)
+
+`package_integrity_update_review` sits between `source_reconstruction` and `static_analysis`
+(spec 6.2). It records one coverage substatus per review branch in `phase_status.json` substatuses and
+writes `artifacts/miniapp/package/package-integrity-review.json` (contract:
+`miniapp_storage_package_schema`). Offline checks on operator-supplied package copies and existing
+inventory evidence only: main/subpackage/plugin package versions (`package_version_inventory`),
+manifest and resource differences (`manifest_resource_diff`), update addresses and environment
+switching (`update_endpoint_environment`), debug switches (`debug_switches`), source maps
+(`source_map_exposure`), version drift (`version_drift`), and whether the frontend trusts controllable
+update configuration (`trusted_update_config`). Never repack, tamper, bypass pinning, or attack the
+device — a control observed is a clue, not a finding.
+
 ## 4. Dynamic analysis
 
 ### Test environment
@@ -94,6 +107,22 @@ If TLS pinning, anti-debug, integrity controls, or environment restrictions bloc
 control and obtain permission before changing the client or device. A bypass is a test technique, not
 automatically a vulnerability.
 
+### Static/dynamic reconciliation (Batch 12 split)
+
+`static_dynamic_reconciliation` sits after `dynamic_mapping` (spec 6.2). It reconciles the static
+endpoint baseline against the dynamic endpoint baseline into
+`artifacts/miniapp/reconciliation/static-dynamic-endpoints.csv` (contract:
+`miniapp_reconciliation_schema`) and records one coverage substatus per review branch
+(`static_endpoint_base`, `dynamic_endpoint_base`, `match_status_classification`,
+`hidden_flow_identification`, `stale_entry_disposition`) in `phase_status.json`. Each CSV row carries
+one of ten row-level endpoint states (`static_only`, `dynamic_only`, `both_seen`, `feature_gated`,
+`stale`, `version_specific`, `third_party`, `platform_shared`, `unreachable`,
+`needs_manual_validation`) — a row-level enum, distinct from the six-value coverage substatus.
+Reconciliation is an offline comparison of existing static evidence and authorized dynamic evidence:
+never send new requests to "verify" `unreachable` or `stale` rows, never report stale/unreachable
+entries as live issues, and record `dynamic_only`/`feature_gated` rows as hidden-flow hypotheses for
+later phases.
+
 ## 5. Backend and business testing
 
 ### Host classification
@@ -102,11 +131,36 @@ Classify every extracted or observed host. Confirm owner and permitted actions b
 Platform, payment, map, analytics, identity, CDN, cloud, and vendor services remain separate even when
 the client calls them directly.
 
-### Authentication and session
+### Authentication and session (Batch 10 split)
 
-Map the platform login-code exchange, server session/token issuance, binding to account/device/tenant,
-refresh, rotation, expiry, revocation, logout, recovery, MFA, replay, nonce/timestamp, signature, and
-error behavior. Public platform identifiers such as an AppID or user pseudonym are not authorization.
+`authentication_session` is split into three phases (spec 6.2). Each phase records one coverage
+substatus per review branch in `phase_status.json` substatuses and writes its review artifact under
+`artifacts/miniapp/auth/` (contract: `miniapp_auth_schema`). Analyze only operator-supplied
+authorization material or local traffic; never auto-create or abuse login credentials. Public
+platform identifiers such as an AppID or user pseudonym are not authorization.
+
+#### platform_login_exchange
+
+Platform login-code exchange. Branches: `login_code_one_time`, `login_code_expiry`,
+`appid_binding`, `session_key_custody`, `openid_authorization_basis`. Map the wx.login()-equivalent
+code flow, one-time use and expiry, AppID binding, server-side-only session_key custody, and whether
+OpenID is wrongly treated as an authorization decision. Artifact:
+`platform-login-review.json`.
+
+#### session_token_lifecycle
+
+Server session/token lifecycle. Branches: `token_rotation`, `token_revocation_logout`,
+`multi_device_login`, `stale_token_new_api`, `device_user_tenant_binding`. Review issuance,
+refresh, rotation, expiry, revocation, logout cleanup, multi-device behavior, stale tokens against
+newer interfaces, and account/device/tenant binding. Artifact: `session-lifecycle-review.json`.
+
+#### signature_replay
+
+Request signing and replay. Branches: `nonce_timestamp`, `signature_canonicalization`,
+`replay_window`, `binding_scope`. Review nonce/timestamp usage, canonicalization ambiguity, replay
+windows, and device/user/tenant binding of signatures. Offline replay hypotheses and observational
+screening only — write actions and concurrency validation remain approval-gated; never replay write
+requests automatically. Artifact: `signature-replay-review.json`.
 
 ### API and access control
 
@@ -126,11 +180,93 @@ Model each workflow as states and transitions. Review order, quantity, price, co
 approval, invitation, entitlement, sharing, duplicate submission, replay, concurrency, limits, refund,
 and cancellation. Avoid real charges or operational impact; use sandbox/test modes and explicit limits.
 
+### Local data and crypto (Batch 11 split)
+
+`client_storage_crypto` is split into two phases (spec 6.2). Each phase records one coverage substatus
+per review branch in `phase_status.json` substatuses and writes its review artifact (contract:
+`miniapp_storage_package_schema`). Analyze only operator-supplied authorization material, local
+traffic, or package copies; never copy token, AppSecret, or key values into logs, reports, prompts,
+ledgers, or handoff content.
+
+#### local_data_exposure
+
+Local data exposure. Branches: `token_persistence`, `logout_cleanup`, `local_cache_database`,
+`logs_clipboard_screenshots`, `temp_files`. Review whether tokens persist on disk, whether logout
+clears them, and what survives in caches, databases, logs, clipboard, screenshots, and temporary
+files. Artifact: `artifacts/miniapp/storage/local-data-review.json`.
+
+#### crypto_and_secret_handling
+
+Cryptography and secret handling. Branches: `hardcoded_secrets`, `custom_crypto`,
+`weak_random_key_derivation`, `debug_config_env_keys` (environment keys/debug config as secret
+material; debug switches themselves stay in `package_integrity_update_review` to avoid double
+counting). Review AppSecret/fixed-token/key hardcoding, custom crypto, weak randomness and key
+derivation, and environment keys in package config. A secret string without proven validity is only a
+`secret_candidate` clue (recorded as `signal` in the eight-state model), never a key-leak finding.
+Artifact: `artifacts/miniapp/crypto/secret-review.json`.
+
 ### Client and bridge boundaries
 
 Review webview origins, navigation, JavaScript bridges, message handlers, deep links, custom schemes,
 clipboard, screenshots, local storage, cached files, plugin permissions, cloud calls, third-party SDKs,
 and update/integrity behavior. Test only resources that are separately in scope.
+
+#### webview_bridge_links
+
+WebView, JS bridge, and deep link boundaries (spec 6.8; Batch 13 fixed artifacts on the existing
+phase). Branches (one per coverage item): `webview_allowed_domains`, `postmessage_origin`,
+`cookie_token_sharing_boundary` (cookie/token sharing is recorded per origin — a webview origin row
+carries its `cookie_token_shared` state), `bridge_method_exposure`, `custom_scheme`,
+`deep_link_sensitive_params` (object IDs, tenant IDs, and scene parameters carried by deep links),
+`external_app_browser_jump`. Three fixed CSV artifacts (spec 6.8; contract `miniapp_webview_schema`):
+
+- `artifacts/miniapp/webview/webview-origin-inventory.csv` — one row per allowed webview origin;
+  `postmessage_target_origin` stays empty when postMessage is not observed; `cookie_token_shared`
+  (none/session_cookie/auth_token/both/unknown) requires a row reason when it is not `none`.
+- `artifacts/miniapp/webview/bridge-method-inventory.csv` — one row per exposed JS bridge method;
+  `capability` (navigation/read_data/write_data/sensitive_token_access/file_access/payment/other);
+  write/sensitive-token/file/payment capabilities require a row reason.
+- `artifacts/miniapp/webview/deep-link-review-queue.csv` — one row per custom scheme or deep link;
+  `sensitive_params` records object ID/tenant ID/scene parameters; `jump_target`
+  (in_app/external_app/browser/unknown); rows with sensitive params or external/unconfirmed jumps
+  require a row reason.
+
+`boundary_status` (all three artifacts) is optional and follows the finding 8-state model; escalate
+only when the observation can cause cross-domain data reading, privilege bypass, sensitive token
+exposure, or external control (spec 6.8). Cookie/token sharing boundary analysis works from offline
+material and authorized traffic only — never inject or replay cookies/tokens, and never launch
+external apps or browsers from deep-link verification.
+
+### Cloud and third-party boundaries (Batch 12 split)
+
+`plugins_cloud_third_party` is split into three phases (spec 6.2). Default work is materials,
+configuration, authorized traffic, and minimal read verification only; any write, bulk read, and real
+payment requires operator approval (spec 6.7).
+
+#### cloud_function_testing
+
+Cloud function testing. Branches: `anonymous_invocation`, `function_parameter_role_validation`,
+`cloud_env_id_mixing`. Review anonymous-callable functions, parameter and role validation inside
+functions, and cloud environment ID mixing across apps/tenants. Analyze configuration, operator-supplied
+material, and local traffic; only minimal read verification of existing evidence — never trigger
+write-shaped cloud functions. Artifact: `artifacts/miniapp/cloud/cloud-function-review.json`
+(contract: `miniapp_cloud_schema`).
+
+#### cloud_storage_acl_testing
+
+Object storage and cloud database access control. Branches: `cloud_database_rules`,
+`object_storage_acl`, `signed_url_binding` (one branch covering signed-URL expiry, path binding, and
+cross-object access; evidence kinds distinguish the sub-aspects). Review database permission rules,
+bucket ACLs, and signed-URL expiry/binding/cross-object reuse. Signed-URL verification never bulk-reads
+or downloads object content. Artifact: `artifacts/miniapp/cloud/object-storage-review.json`.
+
+#### third_party_platform_boundary
+
+Third-party service and platform-shared asset boundaries. Branches: `third_party_service_boundary`
+(map, payment, push, and similar third-party services), `platform_shared_asset_attribution` (platform
+shared assets must not be misreported as own assets). The artifact is the boundary inventory
+`artifacts/miniapp/cloud/third-party-boundary.csv` with per-service attribution aligned with the host
+classification states.
 
 ## 6. Validation and closure
 

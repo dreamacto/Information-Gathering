@@ -53,10 +53,37 @@ QUEUE_COLS = [
     "safe_readonly_plan", "approval_gates", "rate_limit", "status", "disposition",
     "evidence_paths", "notes",
 ]
+# batch14_4（实施规格 8.2）：与 scripts/init_postrun_review.py FINDING_FIELDS
+# 28 列双向对齐（tests/test_fh_skill_sync.py 强制）。
 FINDINGS_COLS = [
-    "finding_id", "status", "run_dir", "source_item_id", "target", "url_or_path",
-    "category", "title", "impact", "permission_level", "evidence_paths", "video_time",
-    "cleanup", "retest", "notes",
+    "finding_id",
+    "status",
+    "run_dir",
+    "source_item_id",
+    "target",
+    "url_or_path",
+    "category",
+    "title",
+    "impact",
+    "permission_level",
+    "evidence_paths",
+    "video_time",
+    "cleanup",
+    "retest",
+    "notes",
+    "candidate_id",
+    "asset_type",
+    "vulnerability_family",
+    "impact_class",
+    "quality_status",
+    "recommended_workflow",
+    "recommended_phase",
+    "blocked_reason",
+    "next_action",
+    "owner",
+    "sla",
+    "last_seen",
+    "evidence_ref",
 ]
 FINDINGS_HEADER = ",".join(FINDINGS_COLS)
 
@@ -309,6 +336,9 @@ def cmd_aggregate(run_dir: Path) -> None:
         if disp == "confirmed":
             fnum = sum(1 for _ in findings_path.open(encoding="utf-8-sig")) - 1
             fid = f"F-{datetime.now(CST).strftime('%Y%m%d')}-{fnum + 1:03d}"
+            # batch14_4：尾部 13 值为规格 8.2 字段——AI 初判不越 confirmed 门：
+            # quality_status=needs_manual_validation（人工终审前非 confirmed 口径）、
+            # next_action=人工终审；其余可得则填、不可得空串。
             _append_csv_findings(findings_path, [
                 fid, "confirmed", str(run_dir), row.get("target_id", order),
                 row.get("host", ""), row.get("representative_url", ""),
@@ -316,6 +346,19 @@ def cmd_aggregate(run_dir: Path) -> None:
                 f"[AI初判] {row.get('host','')} 候选确认(待人工终审)",
                 "待人工评估", "authenticated" if disp == "confirmed" else "unknown",
                 data.get("basis", ""), "", "", "", f"confidence={data.get('confidence')} 由 fh_review_dispatch 聚合",
+                order,  # candidate_id = 来源队列 review_order
+                "",  # asset_type
+                (verdict_families.get(order) or ""),  # vulnerability_family
+                "",  # impact_class
+                "needs_manual_validation",  # quality_status（8.2）
+                "",  # recommended_workflow
+                "",  # recommended_phase
+                "",  # blocked_reason
+                "人工终审",  # next_action
+                "",  # owner
+                "",  # sla
+                now_iso(),  # last_seen
+                data.get("basis", ""),  # evidence_ref
             ])
             findings_added += 1
 

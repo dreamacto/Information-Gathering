@@ -51,6 +51,22 @@ Any live follow-up must be read-only and low-rate:
 Any write, upload, delete, import, export, transaction, account/session/password change, command execution,
 callback payload, exploit template, or persistence must be explained and explicitly approved before execution.
 
+## Verdict rules (spec 8.4)
+
+- An `INCONCLUSIVE` run quality gate must not produce a negative (all-clear) conclusion.
+- Fixed-path signals never enter the main vulnerability queue; reject or park them as signals.
+- A `confirmed` finding without valid evidence is automatically demoted to `needs_manual_validation`.
+- Duplicate candidates merge into one finding, keeping the first-seen and last-validated timestamps.
+- The same phenomenon appearing in multiple runs never raises severity by itself; only proven
+  impact, permission boundary, or business outcome justifies a higher priority.
+
+## Findings ledger fields (spec 8.2)
+
+`findings_ledger.csv` extends the legacy 15 columns with 13 spec-8.2 fields (order preserved,
+spec-8.2 fields appended): `finding_id` is reused; `evidence_ref` is the spec contract name and
+coexists with the legacy `evidence_paths` workspace list. AI-drafted confirmed rows carry
+`quality_status=needs_manual_validation` and `next_action=人工终审` until operator review.
+
 ## Health review
 
 Start with `run_health` and `run_summary`.

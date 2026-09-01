@@ -1,52 +1,29 @@
-# Mini-program evidence and reporting
+# 小程序证据与报告规范
 
-## Evidence chain
+## 证据链（内部留存）
 
-For each confirmed finding, link:
+confirmed finding 应在内部证据索引中关联：平台标识与版本、素材哈希、客户端路由/后端端点、授权依据、角色与前置条件、最小复现与反例、影响/清理/复测状态及 report-safe 路径。凭证、原始流量、原始 PII 和密钥不得进入报告。
 
-1. Mini-program platform, identifier, version, and identity evidence.
-2. Material ID and SHA-256 or dynamic session/time from which the candidate originated.
-3. Client source location, screen/route, or traffic endpoint.
-4. Backend host classification and authorization basis.
-5. Account role, device/client version, and precondition without secrets.
-6. Minimal reproducible action, negative control, and redacted result structure.
-7. Demonstrated impact, cleanup, and retest status.
-8. Evidence hashes and report-safe paths.
+## 验证纪律
 
-## Validation discipline
+包内字符串不是服务存活证明，客户端检查不是服务端绕过证明，差异不是越权证明。优先使用自有账号和合成对象，遵守低速、只读和写操作审批门；候选、安全观察、未测试项不得写成 confirmed 成果。
 
-A package string is not proof that a service is live. A live endpoint is not proof that it belongs to
-the operator. A platform identifier is not a credential. Client-side checks are not proof of a bypass
-unless the server accepts the invalid state. A difference between two users is not an authorization
-issue unless the expected boundary is established and controlled.
+## 对外交付 DOCX 结构
 
-Use a hypothesis, expected behavior, minimum proof, negative control, stop condition, data rule,
-approval need, and cleanup plan before validating a candidate. Prefer synthetic objects and designated
-accounts. Stop before real-user impact, real payment, bulk access, persistent change, or sensitive-data
-retention.
+`report_docx.py` 以用户提供的 `templates/攻防成果报告_模板.docx` 为版式基底，只保留模板固定标题和以下结构：
 
-## Report structure
+1. 资产归属证明网址；备案系统证明网址（模板保留且有需要时）。
+2. 目标信息/基本情况表。
+3. 成果说明。
+4. 详细复现命令或操作步骤。
+5. 返回结果/结果解读。
+6. 存在问题。
+7. 整改建议。
 
-1. Executive summary and business risk.
-2. Authorization, scope, platforms, AppIDs/identifiers, versions, timing, and exclusions.
-3. Materials, provenance, hashes, accounts, devices, and tools.
-4. Architecture and classified host/service inventory.
-5. Static client coverage and findings.
-6. Dynamic client and platform-flow coverage and findings.
-7. Owned backend Web/API coverage and findings.
-8. Business-logic coverage and findings.
-9. Third-party/platform observations clearly separated from owned findings.
-10. Rejected candidates, limitations, blocked and approval-gated tests.
-11. Cleanup, retest, residual risk, evidence index, and appendices.
+不得动态拼接目标名称、完整域名列表、团队或日期到标题区域；不得自动生成综述、执行摘要、渗透路径、阶段总结、独立证据截图章节、`证据：artifacts/...` 清单或红色截图占位。截图由报告人员手工插入，生成器只保留正常结果位置。
 
-Each finding includes a stable ID, title, severity, affected platform/version/host, description,
-preconditions, evidence, impact, root cause, remediation, verification guidance, cleanup, and retest.
-Keep raw packages, traffic, credentials, personal data, and secrets out of the report.
+每个成果的复现顺序固定为：环境准备（`meta.env_lines`）、验证步骤、全部真实复现命令、命令备注、返回结果/实际结果、结果解读、翻页验证、清理或还原。`process` 不能遮蔽真实命令，命令不可截断；只有边界说明时应作为备注，缺少真实命令时显示“【请补充实际复现命令】”，不得伪造请求。
 
+聚合键为规范化资产 + 漏洞类别。同类多接口合并为一个成果并列出入口；不同资产或漏洞类别分开。数据量有明确条数才显示，否则有影响范围才显示影响范围；完全不涉及则省略。问题和整改建议各最多 2 条。
 
-## Final report is DOCX (2026-08-23)
-
-Client-facing deliverable is generated: curate findings.json/meta.json then
-`python report_docx.py`（or `--from-ledger` skeleton）. Red 【需截图 S-N】 markers must all be
-replaced with real screenshots before submission; TOKEN values stay in local session files.
-`final-report.md` remains internal working notes.
+`final-report.md` 仍是内部工作稿；交付前由报告人员自行补图、脱敏并人工审计。

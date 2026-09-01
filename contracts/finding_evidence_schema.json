@@ -1,0 +1,87 @@
+{
+  "schema_version": "1.0",
+  "contract": "finding_evidence",
+  "description": "Contract for the pre-publication evidence gate (implementation spec section 4.4, lines 1169-1186, plus the evidence-gate field list of 2.2). Produced by src/authorized_assessment/reporting/evidence_gate.py with a dependency-free subset validator. A report must be rejected before publication when any listed violation fires; violation details must never echo credential values.",
+  "type": "object",
+  "gate_status_states": ["PASS", "REJECTED"],
+  "finding_status_states": [
+    "signal",
+    "candidate",
+    "needs_manual_validation",
+    "confirmed",
+    "inconclusive",
+    "blocked",
+    "rejected",
+    "duplicate"
+  ],
+  "presented_as_forms": ["confirmed", "candidate", "signal", "informational"],
+  "published_finding_required_fields": [
+    "finding_id",
+    "finding_status",
+    "evidence_ref",
+    "validation_result"
+  ],
+  "violation_codes": [
+    "missing_finding_id",
+    "finding_status_missing",
+    "evidence_ref_missing",
+    "evidence_path_not_found",
+    "validation_result_missing",
+    "validation_result_unverified_for_confirmed",
+    "reviewer_missing_for_confirmed",
+    "reviewed_at_missing_for_confirmed",
+    "candidate_presented_as_confirmed",
+    "credential_key_detected",
+    "credential_content_detected",
+    "empty_source_ledger"
+  ],
+  "gate_notes": {
+    "evidence_root": "The gate takes a required filesystem root; evidence_ref paths are resolved against it (absolute paths are honored as-is). Fail-closed: a missing root cannot be excused because path existence is one of the spec 4.4 rejections.",
+    "empty_source_ledger": "Optional source_ledger check covering the spec 13.2 negative example: a missing or zero-row ledger yields empty_source_ledger.",
+    "credential_content_scan": "The value-content scan is intentionally over-inclusive (fail-closed): any credential-like assignment pattern (Cookie:/Authorization:/token=/session_key=/AppSecret=/password= ...) in report text is a violation. Reports must reference evidence files, never carry raw credential-bearing text.",
+    "violation_details": "Violation details record the JSON location only, never the matched credential text."
+  },
+  "required": ["gate_status", "rows_checked", "violations"],
+  "properties": {
+    "gate_status": { "type": "string", "enum": ["PASS", "REJECTED"] },
+    "rows_checked": { "type": "integer", "minimum": 0 },
+    "violations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "detail"],
+        "properties": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "missing_finding_id",
+              "finding_status_missing",
+              "evidence_ref_missing",
+              "evidence_path_not_found",
+              "validation_result_missing",
+              "validation_result_unverified_for_confirmed",
+              "reviewer_missing_for_confirmed",
+              "reviewed_at_missing_for_confirmed",
+              "candidate_presented_as_confirmed",
+              "credential_key_detected",
+              "credential_content_detected",
+              "empty_source_ledger"
+            ]
+          },
+          "finding_id": { "type": "string" },
+          "detail": { "type": "string" }
+        }
+      }
+    }
+  },
+  "invariants": [
+    "gate_status == PASS if and only if violations is empty",
+    "rows_checked must equal the number of published finding rows evaluated",
+    "every violation code must be one of violation_codes",
+    "a finding row presented as confirmed requires finding_status == confirmed (candidate_presented_as_confirmed otherwise); a missing finding_status is itself a violation",
+    "finding_status == confirmed or disposition == accepted_risk rows require non-empty reviewer and reviewed_at",
+    "finding_status == confirmed rows require validation_result == verified",
+    "credential-like keys and credential-like assignment patterns in values are violations; violation details must not contain the matched credential text",
+    "credential-like keys are forbidden anywhere in the gate report payload; the exact key 'authorization' is exempt because it may only name a header category in scan patterns"
+  ]
+}

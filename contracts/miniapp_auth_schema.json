@@ -1,0 +1,98 @@
+{
+  "schema_version": "1.0",
+  "contract": "miniapp_auth_schema",
+  "description": "小程序认证态契约（实施规格 3.5 miniapp_auth phase 键 889-891 行 + 6.2 认证拆分 1503-1519 行 + 6.5 平台登录和会话 1583-1610 行；Batch 10 落地）。authentication_session 拆为 platform_login_exchange / session_token_lifecycle / signature_replay 三个 phase，每个 phase 产出一份 auth review JSON 产物（rows=统一筛选模式候选行 8 状态，summaries=分支级汇总，branch_status 为 coverage_substatus 六值之一，由 src/authorized_assessment/triage/injection_candidates.aggregate_category_status 单一引擎聚合）。仅在有人工提供的授权材料或本地流量时分析，不自动创建或滥用登录凭证；signature_replay 只做离线重放假设与观察筛选，写操作/并发验证仍归审批门。skill 脚本常量（init/audit）与本契约、三个模块常量的一致性由 tests/test_xcx_auth_phase_split.py 与 tests/test_miniapp_auth_lifecycle.py 锁定。",
+  "type": "object",
+  "phases": {
+    "platform_login_exchange": {
+      "artifact": "artifacts/miniapp/auth/platform-login-review.json",
+      "description": "平台登录交换：wx.login() code 一次性和过期；AppID 绑定；session_key 是否只由服务端保管；OpenID 是否被错误当成授权依据。",
+      "branches": [
+        "login_code_one_time",
+        "login_code_expiry",
+        "appid_binding",
+        "session_key_custody",
+        "openid_authorization_basis"
+      ]
+    },
+    "session_token_lifecycle": {
+      "artifact": "artifacts/miniapp/auth/session-lifecycle-review.json",
+      "description": "会话 token 生命周期：token 轮换、失效、注销；多设备登录；旧 token 对新版本接口；设备、用户、租户绑定。",
+      "branches": [
+        "token_rotation",
+        "token_revocation_logout",
+        "multi_device_login",
+        "stale_token_new_api",
+        "device_user_tenant_binding"
+      ]
+    },
+    "signature_replay": {
+      "artifact": "artifacts/miniapp/auth/signature-replay-review.json",
+      "description": "签名重放：nonce/timestamp；签名规范化和重放；设备、用户、租户绑定。只做离线重放假设与观察筛选。",
+      "branches": [
+        "nonce_timestamp",
+        "signature_canonicalization",
+        "replay_window",
+        "binding_scope"
+      ]
+    }
+  },
+  "coverage_substatus": {
+    "contract_ref": "coverage_substatus_schema",
+    "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+    "proven_values": ["tested", "not_applicable"],
+    "note": "六值枚举与 proven 子集单一来源引用 coverage_substatus_schema（不复定义）；branch_status 由 aggregate_category_status 聚合产生（approval_required 仅由复核显式设置，不由聚合产生）。"
+  },
+  "observation_schema_version": "1.0",
+  "artifact_fields": {
+    "row_fields": [
+      "row_id",
+      "branch",
+      "status",
+      "evidence_kinds",
+      "source",
+      "evidence_ref",
+      "precondition",
+      "reason"
+    ],
+    "summary_fields": [
+      "branch",
+      "branch_status",
+      "applicability_counts",
+      "status_counts",
+      "tested_count",
+      "reason",
+      "source",
+      "precondition"
+    ],
+    "artifact_keys": [
+      "schema_version",
+      "contract",
+      "phase",
+      "observation_schema_version",
+      "row_fields",
+      "summary_fields",
+      "substatuses",
+      "rows",
+      "summaries",
+      "violations",
+      "authorization_basis",
+      "updated_at"
+    ]
+  },
+  "authorization_basis_values": ["operator_supplied_material", "local_traffic"],
+  "red_lines": [
+    "仅在有人工提供的授权材料或本地流量时分析，不自动创建或滥用登录凭证",
+    "OpenID/AppID 等公开平台标识不是授权依据，不得作为授权判定",
+    "signature_replay 只做离线重放假设与观察筛选；写操作/并发验证仍归审批门，不自动重放写请求",
+    "confirmed 仍归漏洞成立五门判定；本契约只约束候选层筛选与 phase 完成可证明性"
+  ],
+  "invariants": [
+    "phases 键与 xcx init/audit 脚本的三 phase 名逐一相同（PHASES/CORE_PHASES 替换 authentication_session，位置在 dynamic_mapping 之后）",
+    "每 phase branches 与 init/audit 的 substatuses 种子键集逐一相同；skill 脚本自包含复制常量，测试锁定无漂移",
+    "artifact 路径与规格 1591-1593 行逐一相同，相对 engagement 工作区根",
+    "rows[].status ∈ finding 8 状态（signal/candidate/needs_manual_validation/confirmed/inconclusive/blocked/rejected/duplicate）；summaries[].branch_status ∈ coverage_substatus 六值",
+    "phase 完成（status=complete/not_applicable）要求：全部分支 substatus 已记录且 ∈ proven_values；产物存在且 phase 匹配；summaries 中该分支 branch_status 与 substatus 一致；not_applicable 分支 reason 非空；tested 分支 evidence_ref 可在工作区内解析",
+    "骨架 substatuses 值为空串=未记录，仅完成时强制；审计不得把空串当作 not_applicable"
+  ]
+}

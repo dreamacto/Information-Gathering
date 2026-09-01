@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0",
+  "contract": "test_dimensions_schema",
+  "description": "测试维度矩阵契约（实施规格 10.1：让'阶段完成'可证明）。engagements/<name>/artifacts/test-dimensions.csv 的行契约；src/authorized_assessment/analysis/coverage_matrix.py 为唯一实现。每行 = 一个测试维度组合（角色×租户×对象×版本×状态×分支…）的覆盖记录；account_ref_hash/object_ref_hash 只能保存不可逆引用，不保存凭证和敏感对象原文。",
+  "type": "object",
+  "required_fields": [
+    "role",
+    "account_ref_hash",
+    "tenant",
+    "object_ref_hash",
+    "api_version",
+    "client_version",
+    "device",
+    "workflow_state",
+    "http_method",
+    "content_type",
+    "feature_flag",
+    "authentication_state",
+    "branch",
+    "status",
+    "reason",
+    "evidence_ref"
+  ],
+  "hash_fields": ["account_ref_hash", "object_ref_hash"],
+  "hash_rule": "sha256 十六进制（64 位小写）或空串；禁止保存凭证、cookie、token、密码或敏感对象原文（不可逆引用哈希由调用方在写入前计算）",
+  "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+  "row_rules": {
+    "not_applicable_requires_reason": "status=not_applicable 时 reason 必须非空（规格 10.2：不能空填，不是静默跳过）",
+    "tested_requires_evidence_ref": "status=tested 时 evidence_ref 必须非空（完成必须可证明）",
+    "coverage_ratio_clamped": "聚合覆盖率 = tested 行数 / 总行数，钳制 [0,1]；输入行数矛盾导致 >1 的原始比值必须拒绝而非静默钳制"
+  },
+  "invariants": [
+    "16 个 required_fields 与规格 10.1 字段清单逐一精确一致，实现常量（coverage_matrix.TEST_DIMENSION_FIELDS）不得漂移",
+    "status 必须在六状态枚举内（与 coverage_substatus_schema.status_values 同源）",
+    "hash_fields 的值必须匹配 ^[0-9a-f]{64}$ 或为空串，禁止明文凭证/敏感对象原文",
+    "未知字段不得出现在行内（维度矩阵保持最小集）",
+    "status=tested 必须 evidence_ref 非空；status=not_applicable 必须 reason 非空"
+  ]
+}

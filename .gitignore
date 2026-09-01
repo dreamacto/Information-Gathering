@@ -31,7 +31,11 @@ _codex_*.py
 tmp_*.py
 
 # Large local tools and downloaded dependencies
-tools/
+# 根锚定（Batch 4）：裸 tools/ 会连带忽略 src/authorized_assessment/tools/ 模块包；
+# /tools/* 只忽略根 tools/ 直下内容，白名单放行轻量工具登记文件（实施规格 7.1）。
+/tools/*
+!/tools/tool_registry.json
+!/tools/README_tool_registry.md
 ai_infra_guard/
 ai-infra-guard.exe
 *.exe

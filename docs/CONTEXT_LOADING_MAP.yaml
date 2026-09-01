@@ -1,0 +1,237 @@
+# CONTEXT_LOADING_MAP · 机器可读的上下文加载白名单
+#
+# 本文件是加载白名单契约，不是建议文档。loader
+# (src/authorized_assessment/runtime/context_loader.py) 只允许返回本文件列出的来源。
+# 每个条目必须带 path / purpose / required：
+#   - required: true 的字面路径在磁盘上不存在 → loader 返回 missing_required_source（fail-closed）
+#   - required: false 的路径不存在 → loader 返回 unavailable 并继续（显式 fallback，不静默）
+#   - symbol 条目（symbol: true）由 loader 用 engagement_dir/run_dir 参数解析
+# 与 docs/RULE_PRECEDENCE.md 的优先级配合使用；规则冲突回读 on_conflict 列表。
+schema_version: "1.0"
+contract: context_loading_map
+
+global:
+  always:
+    - path: AGENTS.md
+      section: 项目定位与安全边界
+      purpose: L0 项目边界摘要
+      required: true
+    - path: ROE.md
+      section: 授权范围
+      purpose: L0 授权/速率红线/禁止动作/审批门/敏感数据摘要
+      required: true
+    - path: runtime/policy_snapshot.json
+      purpose: L0 当前策略快照（授权状态/允许与禁止动作/速率/停止条件）
+      required: true
+  on_conflict:
+    - path: ROE.md
+      purpose: 规则冲突时回读授权与禁止动作原文
+      required: true
+    - symbol: current_engagement_scope
+      purpose: 回读当前 engagement scope/approval/stop 状态
+      required: false
+    - symbol: current_workflow_skill
+      purpose: 回读当前 workflow Skill 原文
+      required: false
+    - symbol: current_phase_contract
+      purpose: 回读当前 phase contract/schema
+      required: false
+
+workflows:
+  fh:
+    - path: .agents/skills/fh/SKILL.md
+      purpose: 复核流程主规则
+      required: true
+    - path: .agents/skills/fh/references/output-map.md
+      purpose: 队列与产物映射
+      required: true
+    - path: .agents/skills/fh/references/review-playbook.md
+      purpose: 逐目标复核判定
+      required: true
+  wz:
+    - path: .agents/skills/wz/SKILL.md
+      purpose: 单站流程主规则
+      required: true
+    - path: .agents/skills/wz/references/workflow.md
+      purpose: 阶段定义与游标
+      required: true
+    - path: .agents/skills/wz/references/test-matrix.md
+      purpose: 测试矩阵
+      required: true
+  xcx:
+    - path: .agents/skills/xcx/SKILL.md
+      purpose: 小程序流程主规则
+      required: true
+    - path: .agents/skills/xcx/references/workflow.md
+      purpose: 阶段定义与游标
+      required: true
+    - path: .agents/skills/xcx/references/test-matrix.md
+      purpose: 测试矩阵
+      required: true
+
+phases:
+  api_inventory_reconciliation:
+    - path: src/authorized_assessment/analysis/api_inventory_reconcile.py
+      purpose: "API 版本盘点与文档↔流量对账（Batch 8 落地）：版本/shadow/来源归类、六类对账差异、object_field_authorization 子状态（batch8_7 v1.1）。输入为复核会话提炼的结构化 API 记录（文档/流量，A-E 来源标记），输出为两 CSV 行形状契约（表头常量在模块内）。所属 workflow: wz（api_testing）。必需性: false（未落盘 run 时 unavailable 并继续）"
+      required: false
+    - path: tests/test_api_inventory_reconcile.py
+      purpose: "对账行为锁定测试（batch8_0 + batch8_7 扩展）；当前 phase 只加载相关模块与测试，不加载无关域"
+      required: false
+    - path: src/authorized_assessment/triage/canonical_keys.py
+      purpose: "对账键与来源可信度单一实现（canonical_host/normalize_endpoint/SOURCE_KIND_ELIGIBILITY，Batch 3 落地）"
+      required: false
+  api_resource_controls:
+    - path: src/authorized_assessment/triage/api_resource_controls.py
+      purpose: "API 资源控制只读筛选域（Batch 8 落地）：六类别分页/批量/过滤器/导出成本/速率配额/重试缓存放大。输入为结构化资源控制观察（v1 观察键），输出为候选行+六类别汇总。高并发验证永不自动执行（NO_LOAD_VALIDATION_RULE）。所属 workflow: wz（api_testing）。必需性: false"
+      required: false
+    - path: tests/test_api_resource_controls.py
+      purpose: "资源控制筛选行为锁定测试（batch8_1）"
+      required: false
+  third_party_api_review:
+    - path: src/authorized_assessment/triage/third_party_api_review.py
+      purpose: "第三方 API 边界只读复核域（Batch 8 落地）：四类别响应信任/webhook 校验/资产误计/数据流扩大。输入为结构化第三方边界观察，输出为候选行+四类别汇总。不发送 webhook、不重放回调。所属 workflow: wz（api_testing）。必需性: false"
+      required: false
+    - path: tests/test_third_party_api_review.py
+      purpose: "第三方边界复核行为锁定测试（batch8_2）"
+      required: false
+  graphql:
+    - path: tool_strategy.json
+      section: graphql
+      purpose: graphql 工具映射
+      required: false
+    - path: contracts/graphql_schema.json
+      purpose: graphql 契约（Batch 7 落地）
+      required: false
+    - path: src/authorized_assessment/triage/graphql_inventory.py
+      purpose: graphql 清点脚本（Batch 7 落地）
+      required: false
+    - path: src/authorized_assessment/triage/graphql_review.py
+      purpose: graphql 复核脚本（Batch 7 落地）
+      required: false
+  injection:
+    - path: contracts/injection_candidate_schema.json
+      purpose: 统一注入候选契约（Batch 6 落地）
+      required: false
+    - path: docs/implementation_specs/02_finding_definition_and_severity.md
+      purpose: 漏洞定义与严重性拆分规格（Batch 2 拆分时落地）
+      required: false
+  miniapp_auth:
+    - path: .agents/skills/xcx/references/package-analysis.md
+      purpose: 小程序包分析规则（认证索引部分；规格 3.5 miniapp_auth 必需来源）
+      required: true
+    - path: contracts/miniapp_auth_schema.json
+      purpose: 小程序认证态契约（已落地 Batch 10：三 phase/分支/产物路径/形状/红线）
+      required: false
+    - path: src/authorized_assessment/miniapp/platform_login_exchange.py
+      purpose: "平台登录交换复核域 + miniapp_auth 三模块共享引擎（Batch 10）；必需性: false（未落盘产物时 unavailable 并继续）"
+      required: false
+    - path: src/authorized_assessment/miniapp/session_token_lifecycle.py
+      purpose: 会话 token 生命周期复核域（Batch 10，复用共享引擎）
+      required: false
+    - path: src/authorized_assessment/miniapp/signature_replay_review.py
+      purpose: 签名重放离线复核域（Batch 10，复用共享引擎；不自动重放）
+      required: false
+    - path: tests/test_miniapp_auth_lifecycle.py
+      purpose: 认证三模块行为锁定测试（batch10_1/2/3；当前 phase 只加载相关域）
+      required: false
+  miniapp_storage_package:
+    - path: contracts/miniapp_storage_package_schema.json
+      purpose: 小程序本地数据/密码学/包完整性契约（Batch 11 落地：三 phase/分支/产物路径/形状/红线）
+      required: false
+    - path: src/authorized_assessment/miniapp/package_integrity_update.py
+      purpose: "包完整性和更新信任复核域 + miniapp_storage_package 三模块共享引擎宿主（Batch 11）；不做重打包/篡改/绕过 pinning/设备攻击。必需性: false（未落盘产物时 unavailable 并继续）"
+      required: false
+    - path: src/authorized_assessment/miniapp/local_data_exposure.py
+      purpose: 本地数据暴露复核域（Batch 11，复用共享引擎；不读取凭证文件、不导出敏感值）
+      required: false
+    - path: src/authorized_assessment/miniapp/crypto_secret_review.py
+      purpose: 密码学与密钥处理复核域（Batch 11，复用共享引擎；secret_candidate 红线——未证实密钥字符串不升级）
+      required: false
+    - path: tests/test_package_integrity_update.py
+      purpose: 包完整性复核域行为锁定测试（batch11_1；当前 phase 只加载相关域）
+      required: false
+    - path: tests/test_miniapp_storage_crypto.py
+      purpose: 本地数据/密码学两模块共享行为锁定测试（batch11_2/3；当前 phase 只加载相关域）
+      required: false
+  miniapp_reconciliation:
+    - path: contracts/miniapp_reconciliation_schema.json
+      purpose: 小程序静态/动态端点对账契约（Batch 12 落地：单 phase/5 分支/CSV 形状/十值端点状态/红线）
+      required: false
+    - path: src/authorized_assessment/miniapp/static_dynamic_reconciliation.py
+      purpose: "静态/动态端点对账复核域（Batch 12）；对账为离线比较，不发新请求，unreachable/stale 不得探测复核。必需性: false（未落盘产物时 unavailable 并继续）"
+      required: false
+    - path: tests/test_static_dynamic_reconciliation.py
+      purpose: 对账模块行为锁定测试（batch12_1；当前 phase 只加载相关域）
+      required: false
+  miniapp_cloud:
+    - path: contracts/miniapp_cloud_schema.json
+      purpose: 小程序云函数/对象存储/第三方边界契约（Batch 12 落地：三 phase/8 分支/两 review JSON + 一 CSV 形状/红线）
+      required: false
+    - path: src/authorized_assessment/miniapp/cloud_function_review.py
+      purpose: "云函数测试复核域 + miniapp_cloud 三模块共享引擎宿主（Batch 12）；最小读验证，不调用云函数、不触发写型函数。必需性: false（未落盘产物时 unavailable 并继续）"
+      required: false
+    - path: src/authorized_assessment/miniapp/cloud_storage_review.py
+      purpose: 对象存储 ACL 复核域（Batch 12，复用共享引擎；签名 URL 验证不批量读取、不下载对象内容）
+      required: false
+    - path: src/authorized_assessment/miniapp/third_party_boundary_review.py
+      purpose: 第三方边界复核域（Batch 12，复用共享引擎；不触发真实支付、不产生写操作；平台共享资产不得误报为自有资产）
+      required: false
+    - path: tests/test_miniapp_cloud_review.py
+      purpose: 云三模块共享行为锁定测试（batch12_2/3/4；当前 phase 只加载相关域）
+      required: false
+  miniapp_webview:
+    - path: contracts/miniapp_webview_schema.json
+      purpose: 小程序 WebView/Bridge/Deep Link 契约（Batch 13 落地：既有 phase 增三固定 CSV 产物/七分支 1:1 映射/升级判据/Cookie-token 离线红线）
+      required: false
+    - path: tests/test_xcx_webview_artifacts.py
+      purpose: webview 三产物形状/种子/审计行为锁定测试（batch13_1/2；当前 phase 只加载相关域）
+      required: false
+  directory_candidates:
+    - path: src/authorized_assessment/triage/ffuf_directory_candidates.py
+      purpose: "ffuf 受控目录候选能力（Batch 16 落地）：固定小词表/单目标/-t 1/-delay>=2s/无递归计划 + -of json 结果 ingest（通配符基线差分+语义末段精确匹配；负例 soft-404/登录页/WAF/超时；无基线 fail-closed 全 signal；200 不等于敏感资源存在）。工具 registry ffuf 当前 unavailable，executable=false fail-closed。所属 workflow: wz（directory_fuzz）。必需性: false"
+      required: false
+    - path: wordlists/ffuf_dirs_small.txt
+      purpose: ffuf 固定小词表（36 条手写，与模块内置回退逐词一致，测试锁定）
+      required: false
+    - path: tests/test_ffuf_directory_candidates.py
+      purpose: ffuf 受控目录候选行为锁定测试（batch16_1；当前 phase 只加载相关域）
+      required: false
+  xss_single_candidate_validation:
+    - path: src/authorized_assessment/triage/single_candidate_xss_validation.py
+      purpose: "XSStrike 单候选 XSS 验证能力（Batch 16 落地，规格 7.2 二选一胜出）：只接受已筛选反射/DOM 候选；单目标单参数；no_crawl/no_blind/no_update；ingest 升级要件=可执行上下文反射或 DOM sink 到达；reflected_not_executable 永不升级。工具 registry xsstrike 当前 unavailable。所属 workflow: wz（xss_candidate_screening）。必需性: false"
+      required: false
+    - path: tests/test_single_candidate_xss_validation.py
+      purpose: 单候选 XSS 验证行为锁定测试（batch16_2；当前 phase 只加载相关域）
+      required: false
+  passive_subdomain_discovery:
+    - path: src/authorized_assessment/discovery/passive_subdomain_candidates.py
+      purpose: "subfinder+dnsx 被动/已知候选模式（Batch 16 落地）：subfinder 计划 -active 禁入；dnsx 计划 -w 禁入仅 -l 清单模式；ingest 对照授权 scope 后缀匹配，未命中一律 confirmation_required（ROE 新资产所有权确认前置）；scope 缺失 fail-closed。工具 registry subfinder/dnsx 当前 unavailable。所属 workflow: wz（subdomain）。必需性: false"
+      required: false
+    - path: tests/test_passive_subdomain_candidates.py
+      purpose: 被动子域处置行为锁定测试（batch16_3；当前 phase 只加载相关域）
+      required: false
+  static_analysis_whitebox:
+    - path: src/authorized_assessment/analysis/static_analysis_signals.py
+      purpose: "Semgrep 离线白盒信号能力（Batch 16 落地，规格 7.2 二选一胜出）：--config 拒绝 auto/p//r//registry/http(s)、--metrics=off 禁遥测；静态命中只产 signal（sink/source/路径/上下文），validator 拒绝 candidate/confirmed；摘录敏感值丢弃。工具 registry semgrep 当前 unavailable。所属 workflow: fh/wz 复核消费（whitebox_triage 前置）。必需性: false"
+      required: false
+    - path: tests/test_static_analysis_signals.py
+      purpose: 静态分析信号行为锁定测试（batch16_4；当前 phase 只加载相关域）
+      required: false
+  sbom_inventory:
+    - path: src/authorized_assessment/analysis/sbom_inventory.py
+      purpose: "离线 SBOM/依赖审计能力（Batch 16 落地）：requirements*/package-lock/package.json 离线清单 + 本地 advisory cache（==/!=/</<=/>/>= 点分比较）；无 advisory 数据只报依赖清单+人工复核；validate_sbom_row 拒绝 vulnerable/confirmed（不伪造漏洞结论）。必需性: false"
+      required: false
+    - path: tests/test_sbom_inventory.py
+      purpose: SBOM 清单行为锁定测试（batch16_5；当前 phase 只加载相关域）
+      required: false
+
+historical_data:
+  only_when:
+    - review
+    - planning
+    - precision_analysis
+  never_load_as_current_fact:
+    - runs/*/reports/*draft*
+    - .codex_fh_quality_check/stale_output/*
+    - runs/*/auth_sessions.local.json
+    - runs/*/sessions.jsonl

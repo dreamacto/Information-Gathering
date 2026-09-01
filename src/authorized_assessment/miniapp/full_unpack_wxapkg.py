@@ -35,20 +35,48 @@ def decrypt_wxapkg(raw, appid):
     first_len -= first_len % 16
     cipher = AES.new(key, AES.MODE_CBC, iv)
     first = cipher.decrypt(body[:first_len])
+    # 加密方对前 first_len-1 字节做 PKCS7 填充后整块加密：解密结果末尾是填充字节，
+    # 必须剥离；XOR 区从 body[first_len] 起（body[first_len-1] 只是填充的密文载体）。
+    # 不剥离会导致尾部明文整体错位 1 字节（索引/文件内容全损）。
+    pad = first[-1]
+    if 1 <= pad <= 16 and first[-pad:] == bytes([pad]) * pad:
+        first = first[:-pad]
     rest = body[first_len:]
 
-    # 4个XOR key选可打印率最高的
+    # XOR key 选择：优先结构化索引解析得分，可打印率仅作平级兜底。
+    # （JSON/压缩JS 文本 XOR 0x5F 后大多仍可打印，可打印率启发式会选中错误键。）
     best = None
     best_score = -1
+    best_ratio = -1.0
     for xor_key in [ord(appid[-2]), ord(appid[-1]), 0x66, 0x00]:
         decoded = first + bytes(b ^ xor_key for b in rest)
-        # 打分：可打印字符比例 + API关键词命中
+        score = 0
+        try:
+            if len(decoded) >= 22 and decoded[0] == 0xBE and decoded[13] == 0xED:
+                pos = 14
+                count = struct.unpack(">I", decoded[pos:pos+4])[0]
+                pos += 4
+                if 0 < count <= 100000:
+                    for _ in range(count):
+                        nl = struct.unpack(">I", decoded[pos:pos+4])[0]
+                        pos += 4
+                        if not (0 < nl < 4096):
+                            break
+                        decoded[pos:pos+nl].decode("utf-8")
+                        pos += nl
+                        off = struct.unpack(">I", decoded[pos:pos+4])[0]
+                        sz = struct.unpack(">I", decoded[pos+4:pos+8])[0]
+                        pos += 8
+                        if off + sz > len(decoded):
+                            break
+                        score += 1
+        except Exception:
+            pass
         sample = decoded[:20000]
         printable = sum(1 for b in sample if 0x20 <= b < 0x7f or b in (0x0a, 0x0d, 0x09))
-        score = printable / len(sample)
-        if score > best_score:
-            best_score = score
-            best = decoded
+        ratio = printable / len(sample)
+        if score > best_score or (score == best_score and ratio > best_ratio):
+            best_score, best_ratio, best = score, ratio, decoded
     return best if best is not None else body
 
 def parse_wxapkg(data):

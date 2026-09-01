@@ -564,7 +564,7 @@ SELECT_RE = re.compile(r"<select\b[^>]*>", re.I)
 
 def form_method(tag: str) -> str:
     m = re.search(r'method\s*=\s*["\']?\s*([a-z]+)', tag, re.I)
-    return (m.group(1) or "get").lower()
+    return (m.group(1).lower() if m else "get")
 
 
 def form_action(tag: str, base_url: str) -> str:

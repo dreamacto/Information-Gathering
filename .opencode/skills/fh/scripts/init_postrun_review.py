@@ -42,6 +42,9 @@ REVIEW_FIELDS = (
     "status",
     "notes",
 )
+# batch14_4（实施规格 8.2）：既有 15 列序不变，尾部追加规格字段 13 列。
+# finding_id 复用既有列；evidence_ref 为规格 8.2 契约名，与既有 evidence_paths
+# 并存（前者=引用键，后者=工作区证据路径列表）——映射见 fh skill output-map.md。
 FINDING_FIELDS = (
     "finding_id",
     "status",
@@ -58,6 +61,19 @@ FINDING_FIELDS = (
     "cleanup",
     "retest",
     "notes",
+    "candidate_id",
+    "asset_type",
+    "vulnerability_family",
+    "impact_class",
+    "quality_status",
+    "recommended_workflow",
+    "recommended_phase",
+    "blocked_reason",
+    "next_action",
+    "owner",
+    "sla",
+    "last_seen",
+    "evidence_ref",
 )
 TARGET_FIELDS = (
     "target_id",

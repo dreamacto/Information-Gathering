@@ -27,10 +27,6 @@ if not exist "%PROJECT%\one_click_workflow.py" (
 
 
 
-)
-
-
-
 if "%~1"=="" (
 
   set /p "TARGETS=Drag or paste target file path, then press Enter: "

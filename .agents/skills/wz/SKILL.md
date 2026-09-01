@@ -7,6 +7,8 @@ description: Advance phases of an authorized website, web application, domain, o
 
 These override every other instruction in this skill. At session start, read only `ROE.md` and `AGENT_MANIFEST.md` plus the contract for the current phase; load references on demand.
 
+0. **规则优先级**：所有规则的适用顺序以 `docs/RULE_PRECEDENCE.md` 为唯一事实源（与 `contracts/rule_precedence.json` 由测试强制同步）；规则冲突不得静默选择，必须记入 `context_conflicts` 并回读更高级别源。
+
 1. **Session window: advance until a stop point, ask at every phase boundary.** You may advance multiple lightweight phases in one session (scope → subdomain → alive_probe → fingerprint style), but after EVERY phase you MUST do three things before anything else: (i) update the phase cursor on disk, (ii) update the target model and phase record (constraint 2), (iii) ASK the operator: "本阶段已完成——继续本会话，还是交接新会话？" If the operator wants a new session, emit a self-contained handoff prompt (constraint 3); if not, continue in this session. Hard stops remain: (a) an approval-gated phase (credential_testing / exploitability / approval_gate), (b) a heavy phase (authenticated_session_review / weak_credential_review / report), or (c) the context budget ladder (constraint 8). Never run past a hard stop without explicit operator confirmation.
 2. **Phase records must be handoff-complete.** The whole point of stopping early is a fresh session with full reasoning capacity — that only works if the new session can reconstruct target understanding from disk alone. Every phase must leave behind: (a) an updated `notes/target-model.md` — the single evolving snapshot of the target (in-scope host map with roles, tech stack per host, entry points, auth topology, and EVERY attack surface ever considered with its status: open / ruled-out-with-reason / blocked-on-approval — this file is cumulative and never shrinks); (b) a phase note recording what was tested, what was NOT tested and why (the negative space), and evidence cited as `path:line`. Negative results and ruled-out surfaces carry the same weight as findings: omitting them is how the next session misses attack surface. (d) same-asset single workspace: before creating any engagement, scan `engagements/*/scope.csv` for a workspace whose scope covers the target's registered parent — if one exists, CONTINUE it via site extension (`scripts/init_engagement.py <new-host> --resume <existing-workspace>`, item IDs are site-scoped (`<host-short>-L<N>` starting at 1 per site — reports are per-site), target-model is shared). Creating a parallel workspace for the same asset is forbidden unless the operator explicitly demands it (`--allow-parallel`). This guarantees that knowledge from previously tested sites of the same asset is always readable. (c) an append-only `notes/operator_tasks.md` recording pending operator actions (token capture, seed records, cleanup of marker data, scope confirmations) with status and what each unlocks; the end-of-phase summary and every handoff prompt must surface the open items.
 3. **Handoff prompts are built from disk facts only.** When the operator chooses a new session, emit a prompt that navigates (never summarizes from chat memory): phase_status.json cursor → notes/target-model.md → review_ledger.csv → endpoint inventory → notes/safety-controls.md, plus the next phase name, current priority items, and the standing hard constraints (read-only default, rate limits, approval gates). A new session reading the prompt plus those files must be able to continue with zero knowledge of this conversation.
@@ -16,6 +18,40 @@ These override every other instruction in this skill. At session start, read onl
 7. **Progress lives on disk, not in memory.** The resume cursor and next step are written out; the next session does not rely on this conversation.
 8. **Context budget ladder (2026-08-23; replaces the flat 70% rule; absolute tokens so it is window-agnostic).** (a) *Recommend-handoff line* — when context reaches ~120K tokens (heavy-reasoning phases: review verdicts, planning, complex debugging) or ~150K (light script-driven phases: scope/subdomain/alive_probe/fingerprint), finish the current phase record (constraint 2) and recommend handoff at the phase boundary under constraint 1's ask. (b) *Must-wrap line* — at min(200K tokens, 70% of the window), wrap immediately regardless of boundary: write all state to disk and emit the handoff prompt; continuing past it requires the operator's explicit confirmation. On the current 1M-class window these lines sit at ~12-15% and ~20% of the bar.
 9. **Refuse end-to-end requests.** If the operator asks you to “do the whole assessment in one session” or “complete everything at once”, decline and explain the session-window rule: phases advance under constraint 1 (ask-based handoff at each boundary, records written every phase), and approval-gated or heavy phases always stop. A bulk request does not override the approval gates or the record/handoff obligations — only the operator's per-phase continue/hand-off choices set the session length.
+
+## AI 结论模板（实施规格 §11，结论呈现层词表；判定落盘词表另见 contracts/workflow_schema.json 的 review_statuses）
+
+任何漏洞判断必须先按本模板组织，再写其它内容。只有全部成立门满足时才能使用 confirmed：
+
+```text
+对象类型：signal | candidate | confirmed | inconclusive
+授权状态：confirmed | confirmation_required | blocked
+可触达性：reachable | unverified | unreachable
+复现状态：reproducible | partial | not_reproduced
+影响类别：none | low | medium | high | critical
+影响对象：用户/租户/业务对象/权限/数据/网络边界/服务可用性
+证据完整性：complete | partial | missing
+结论：
+下一步：
+```
+
+四问否决规则（任一回答"否"，不得称 confirmed）：
+
+1. 是否有明确的授权资产和允许的测试动作？
+2. 是否有真实可触达的端点、功能或数据流？
+3. 是否有可重复的异常行为或越权结果？
+4. 是否能说明对企业造成了非琐碎的安全影响并提供证据？
+
+细微发现处置（以下统一为 signal 或 candidate，必须写清"为什么不升级为漏洞：缺少哪一项成立门"）：
+Banner/版本/框架名、robots/sitemap/OpenAPI 文档存在、目录文件名猜测命中、500/异常堆栈但无敏感信息、
+反射但未执行、前端隐藏功能、代码中的 eval/模板语法/XML parser/危险 sink、JWT 可解码、响应中内部
+主机名但不可访问、单次超时或 403、用户访问自己的对象、无敏感数据的字段过多、无法证明有效性的疑似密钥。
+
+漏洞成立最小链条（中间只有"推测"时状态不得超过 candidate）：
+
+```text
+入口/资产 → 攻击者可控输入或低权限身份 → 服务端缺陷/边界缺失 → 可复现结果 → 对企业的具体影响 → 最小必要证据
+```
 
 ## Session scope (stage gate)
 

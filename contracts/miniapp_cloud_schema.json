@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "contract": "miniapp_cloud_schema",
+  "description": "小程序云函数、对象存储与第三方边界契约（实施规格 6.7 1635-1660 行 + 6.2 拆分 1528-1534 行；Batch 12 落地，第 13 契约）。plugins_cloud_third_party 拆为 cloud_function_testing / cloud_storage_acl_testing / third_party_platform_boundary 三个 phase。前两个 phase 产出 review JSON 产物（rows=统一筛选模式候选行 8 状态，summaries=分支级汇总，branch_status 为 coverage_substatus 六值之一，由 src/authorized_assessment/triage/injection_candidates.aggregate_category_status 单一引擎聚合）；third_party_platform_boundary 产出第三方边界 CSV 清单。默认只做材料、配置、授权流量和最小读验证，任何写入、批量读取和真实支付必须审批。skill 脚本常量（init/audit）与本契约、三模块常量的一致性由 tests/test_xcx_cloud_reconciliation_phase_split.py 与 tests/test_miniapp_cloud_review.py 锁定。",
+  "type": "object",
+  "phases": {
+    "cloud_function_testing": {
+      "artifact": "artifacts/miniapp/cloud/cloud-function-review.json",
+      "artifact_format": "review_json",
+      "description": "云函数测试：匿名调用；函数参数和角色校验；云环境 ID 混用（环境 ID 跨应用/租户混用属云环境归属问题，归本 phase）。",
+      "branches": [
+        "anonymous_invocation",
+        "function_parameter_role_validation",
+        "cloud_env_id_mixing"
+      ]
+    },
+    "cloud_storage_acl_testing": {
+      "artifact": "artifacts/miniapp/cloud/object-storage-review.json",
+      "artifact_format": "review_json",
+      "description": "对象存储 ACL 测试：云数据库规则（数据库权限规则即访问控制规则，归 ACL 域）；对象存储 ACL；签名 URL 过期、路径绑定和跨对象访问（单分支覆盖三子项，证据形态区分、升级规则任一组满足）。",
+      "branches": [
+        "cloud_database_rules",
+        "object_storage_acl",
+        "signed_url_binding"
+      ]
+    },
+    "third_party_platform_boundary": {
+      "artifact": "artifacts/miniapp/cloud/third-party-boundary.csv",
+      "artifact_format": "csv",
+      "description": "第三方边界：地图、支付、推送等第三方服务边界；平台共享资产归属（不得误报为自有资产）。产物为边界清单 CSV。",
+      "branches": [
+        "third_party_service_boundary",
+        "platform_shared_asset_attribution"
+      ],
+      "csv_fields": [
+        "row_id",
+        "service_name",
+        "service_type",
+        "host",
+        "attribution",
+        "boundary_status",
+        "evidence_ref",
+        "reason",
+        "notes"
+      ],
+      "service_types": ["map", "payment", "push", "analytics", "plugin", "sdk", "other"],
+      "attribution_values": [
+        "in_scope",
+        "third_party",
+        "platform",
+        "platform_shared",
+        "out_of_scope",
+        "invalid",
+        "confirmation_required",
+        "unclassified"
+      ]
+    }
+  },
+  "coverage_substatus": {
+    "contract_ref": "coverage_substatus_schema",
+    "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+    "proven_values": ["tested", "not_applicable"],
+    "note": "六值枚举与 proven 子集单一来源引用 coverage_substatus_schema（不复定义）；branch_status 由 aggregate_category_status 聚合产生（approval_required 仅由复核显式设置，不由聚合产生）。"
+  },
+  "observation_schema_version": "1.0",
+  "artifact_fields": {
+    "row_fields": [
+      "row_id",
+      "branch",
+      "status",
+      "evidence_kinds",
+      "source",
+      "evidence_ref",
+      "precondition",
+      "reason"
+    ],
+    "summary_fields": [
+      "branch",
+      "branch_status",
+      "applicability_counts",
+      "status_counts",
+      "tested_count",
+      "reason",
+      "source",
+      "precondition"
+    ],
+    "artifact_keys": [
+      "schema_version",
+      "contract",
+      "phase",
+      "observation_schema_version",
+      "row_fields",
+      "summary_fields",
+      "substatuses",
+      "rows",
+      "summaries",
+      "violations",
+      "authorization_basis",
+      "updated_at"
+    ],
+    "review_json_phases": ["cloud_function_testing", "cloud_storage_acl_testing"]
+  },
+  "authorization_basis_values": ["operator_supplied_material", "local_traffic"],
+  "red_lines": [
+    "默认只做材料、配置、授权流量和最小读验证，任何写入、批量读取和真实支付必须审批（规格 1660 行）；云函数调用验证仅限最小读，不触发写型云函数",
+    "签名 URL 验证不批量读取对象、不下载对象内容；跨对象访问证明仅以最小读验证记录（服务端限定数量/字段时按 ROE 方案 A 执行）",
+    "平台共享资产不得误报为自有资产；attribution 归属枚举与 hosts 分类状态同源",
+    "确认证据只能来自既有只读证据（授权材料/本地流量/包副本/配置）的复核判定且可复现；confirmed 仍归漏洞成立五门判定，本契约只约束候选层筛选与 phase 完成可证明性"
+  ],
+  "invariants": [
+    "phases 键与 xcx init/audit 脚本的三 phase 名逐一相同（cloud_function_testing/cloud_storage_acl_testing/third_party_platform_boundary 替换 plugins_cloud_third_party 原位置）",
+    "每 phase branches 与 init/audit 的 substatuses 种子键集逐一相同；skill 脚本自包含复制常量，测试锁定无漂移",
+    "artifact 路径与规格 1643/1644/1645 行逐一相同，相对 engagement 工作区根",
+    "review_json_phases 两个 phase 的产物为 12 键 review JSON 形状（artifact_fields）；third_party_platform_boundary 产物为 CSV（csv_fields 精确表头），两种形状由 artifact_format 区分",
+    "review JSON rows[].status ∈ finding 8 状态；summaries[].branch_status ∈ coverage_substatus 六值；CSV boundary_status ∈ finding 8 状态",
+    "attribution_values 与 audit KNOWN_HOST_STATES 同源对齐（单一来源：hosts 分类状态），测试锁定无漂移",
+    "review JSON phase 完成（complete/not_applicable）按 batch10/11 proven 语义（全分支 substatus ∈ proven_values、产物 summaries 一致、not_applicable 需 reason、tested 需可解析 evidence_ref）；CSV phase 完成按 batch12 CSV 适配语义（全分支 proven + tested 需 ≥1 行 + not_applicable 需 phase 行 reason 非空）",
+    "骨架 substatuses 值为空串=未记录，仅完成时强制；审计不得把空串当作 not_applicable"
+  ]
+}

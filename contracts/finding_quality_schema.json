@@ -1,0 +1,408 @@
+{
+  "schema_version": "1.0",
+  "contract": "finding_quality",
+  "description": "Contract for the finding quality gate output (implementation spec sections 2.1-2.2, lines 125-262; 8-state superset per blocker B1 resolution). Produced by src/authorized_assessment/quality/finding_quality_gate.py with a dependency-free subset validator. A finding may use finding_status=confirmed only when all five gates pass and manual_validation_status=verified; unverified AI candidates must never be presented as confirmed vulnerabilities.",
+  "type": "object",
+  "finding_status_states": [
+    "signal",
+    "candidate",
+    "needs_manual_validation",
+    "confirmed",
+    "inconclusive",
+    "blocked",
+    "rejected",
+    "duplicate"
+  ],
+  "gates": [
+    "authorization",
+    "reachability",
+    "reproducibility",
+    "security_impact",
+    "evidence"
+  ],
+  "manual_validation_states": ["not_started", "in_progress", "verified", "rejected"],
+  "validation_result_states": ["verified", "failed", "inconclusive"],
+  "reachability_evidence_types": [
+    "live_response",
+    "authenticated_response",
+    "static_only",
+    "none"
+  ],
+  "impact_categories": [
+    "unauthorized_object_access",
+    "privilege_escalation",
+    "boundary_crossing",
+    "sensitive_data_exposure",
+    "code_or_command_execution",
+    "network_zone_access",
+    "business_state_change",
+    "resource_consumption_or_availability",
+    "auditable_attack_chain"
+  ],
+  "impact_category_semantics": {
+    "unauthorized_object_access": "Unauthorized read/modify/delete of another user's, tenant's, department's, or business object (spec 2.2 gate 4 bullet 1).",
+    "privilege_escalation": "Obtaining admin/ops/database/server/cloud/network-device or key application permissions beyond an ordinary user (bullet 2).",
+    "boundary_crossing": "Breaking authentication, session, tenant, or functional boundaries (bullet 3).",
+    "sensitive_data_exposure": "Disclosure of sensitive personal information, production business data, ops data, source code, keys, tokens, topology, remote-access credentials, or other important data (bullet 4).",
+    "code_or_command_execution": "Stable server-side command, template/expression/code, SQL/NoSQL execution or equivalent high-risk capability (bullet 5).",
+    "network_zone_access": "Entering a new network zone, isolation zone, ops zone, core production zone, or cross-boundary internal access (bullet 6).",
+    "business_state_change": "Affecting payment, orders, inventory, approval, points, refunds, identity binding, or other key business state (bullet 7).",
+    "resource_consumption_or_availability": "Batch resource consumption, batch data exposure, critical service unavailability, or high-probability business interruption (bullet 8).",
+    "auditable_attack_chain": "A clear, auditable attack chain reaching one of the high-impact outcomes above (bullet 9)."
+  },
+  "gate_reason_enums": {
+    "authorization": [
+      "authorization_proven",
+      "out_of_scope",
+      "scope_unconfirmed",
+      "credentials_not_authorized",
+      "approval_record_missing"
+    ],
+    "reachability": [
+      "live_reachability_proven",
+      "static_evidence_only",
+      "reachability_unproven"
+    ],
+    "reproducibility": [
+      "reproduction_proven",
+      "baseline_missing",
+      "anomalous_response_missing",
+      "not_repeatable",
+      "one_time_anomaly",
+      "reproduction_steps_missing"
+    ],
+    "security_impact": [
+      "impact_proven",
+      "impact_category_missing",
+      "impact_below_threshold"
+    ],
+    "evidence": [
+      "evidence_complete",
+      "evidence_field_missing",
+      "validation_result_missing_or_unverified"
+    ]
+  },
+  "evidence_required_fields": [
+    "finding_id",
+    "source_run",
+    "engagement_id",
+    "target",
+    "asset_identity",
+    "vulnerability_family",
+    "precondition",
+    "minimal_reproduction",
+    "observed_result",
+    "impact_statement",
+    "evidence_ref",
+    "validation_result",
+    "reviewer",
+    "reviewed_at"
+  ],
+  "inconclusive_indicators": ["waf_blocked", "rate_limited", "no_valid_response"],
+  "status_semantics": {
+    "signal": "Worth recording but no proven or even hypothesized vulnerability impact (banner/version, fixed-path 200, reflection without execution, static sink without reachability). Signal only enters the low-priority clue pool and never the final vulnerability report.",
+    "candidate": "Reproducible with a recorded impact hypothesis, but the enterprise impact is not yet proven; may enter the manual review queue but must not be presented as an existing vulnerability.",
+    "needs_manual_validation": "Authorization, reachability, reproducibility, and security impact all assess as proven, but human validation is missing (manual_validation_status != verified) or the evidence gate is incomplete; unverified AI candidates must never be submitted as formal vulnerabilities.",
+    "confirmed": "All five gates passed and manual_validation_status == verified; the only state that may appear as a confirmed vulnerability in a report.",
+    "inconclusive": "Validation result is inconclusive or probe degradation occurred (WAF block, rate limit, no valid response); neither a positive nor a negative conclusion may be drawn.",
+    "blocked": "The authorization gate failed (out of scope, scope unconfirmed, credentials not authorized, or approval record missing); even a technically real phenomenon stays blocked_authorization.",
+    "rejected": "Explicitly rejected via rejection_reason or manual_validation_status == rejected (for example a human re-validation that failed to reproduce).",
+    "duplicate": "An explicit merge reference (duplicate_of) is present; merge/canonical keys themselves belong to Batch 3."
+  },
+  "status_decision_order": [
+    {
+      "rule": "duplicate_merge_reference",
+      "condition": "duplicate_of is non-empty",
+      "status": "duplicate"
+    },
+    {
+      "rule": "explicit_rejection",
+      "condition": "rejection_reason is non-empty or manual_validation_status == rejected",
+      "status": "rejected"
+    },
+    {
+      "rule": "authorization_gate_failed",
+      "condition": "the authorization gate did not pass",
+      "status": "blocked"
+    },
+    {
+      "rule": "inconclusive_indicators",
+      "condition": "validation_result == inconclusive or inconclusive_indicators is non-empty",
+      "status": "inconclusive"
+    },
+    {
+      "rule": "five_gates_confirmed",
+      "condition": "all five gates passed and manual_validation_status == verified",
+      "status": "confirmed"
+    },
+    {
+      "rule": "validation_evidence_incomplete",
+      "condition": "authorization, reachability, reproducibility, and security_impact gates passed, but the evidence gate failed or manual_validation_status != verified",
+      "status": "needs_manual_validation"
+    },
+    {
+      "rule": "reachability_unproven",
+      "condition": "the reachability gate did not pass (static evidence only or no reachability evidence); per spec 2.2 gate 2 the ceiling is a whitebox candidate, mapped onto signal in the 8-state model",
+      "status": "signal"
+    },
+    {
+      "rule": "reproduction_unproven",
+      "condition": "the reproducibility gate did not pass",
+      "status": "signal"
+    },
+    {
+      "rule": "impact_unproven_with_hypothesis",
+      "condition": "an impact hypothesis is recorded but the security_impact gate did not pass",
+      "status": "candidate"
+    },
+    {
+      "rule": "impact_unproven_no_hypothesis",
+      "condition": "no impact category and no recorded impact hypothesis (pure phenomenon)",
+      "status": "signal"
+    }
+  ],
+  "required": [
+    "finding_id",
+    "finding_status",
+    "status_rule_applied",
+    "manual_validation_status",
+    "validation_result",
+    "duplicate_of",
+    "rejection_reason",
+    "inconclusive_indicators",
+    "gate_results",
+    "gates_passed",
+    "gates_failed",
+    "confirmed_allowed",
+    "blockers",
+    "missing_evidence_fields",
+    "impact_category",
+    "impact_hypothesis_recorded"
+  ],
+  "properties": {
+    "finding_id": { "type": "string" },
+    "finding_status": {
+      "type": "string",
+      "enum": [
+        "signal",
+        "candidate",
+        "needs_manual_validation",
+        "confirmed",
+        "inconclusive",
+        "blocked",
+        "rejected",
+        "duplicate"
+      ]
+    },
+    "status_rule_applied": {
+      "type": "string",
+      "enum": [
+        "duplicate_merge_reference",
+        "explicit_rejection",
+        "authorization_gate_failed",
+        "inconclusive_indicators",
+        "five_gates_confirmed",
+        "validation_evidence_incomplete",
+        "reachability_unproven",
+        "reproduction_unproven",
+        "impact_unproven_with_hypothesis",
+        "impact_unproven_no_hypothesis"
+      ]
+    },
+    "manual_validation_status": {
+      "type": "string",
+      "enum": ["not_started", "in_progress", "verified", "rejected"]
+    },
+    "validation_result": {
+      "type": ["string", "null"],
+      "enum": ["verified", "failed", "inconclusive", null]
+    },
+    "duplicate_of": { "type": "string" },
+    "rejection_reason": { "type": "string" },
+    "inconclusive_indicators": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["waf_blocked", "rate_limited", "no_valid_response"]
+      }
+    },
+    "gate_results": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "passed": { "type": "boolean" },
+          "reasons": { "type": "array", "items": { "type": "string" } }
+        },
+        "required": ["passed", "reasons"]
+      }
+    },
+    "gates_passed": { "type": "integer", "minimum": 0, "maximum": 5 },
+    "gates_failed": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "authorization",
+          "reachability",
+          "reproducibility",
+          "security_impact",
+          "evidence"
+        ]
+      }
+    },
+    "confirmed_allowed": { "type": "boolean" },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "missing_evidence_fields": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "finding_id",
+          "source_run",
+          "engagement_id",
+          "target",
+          "asset_identity",
+          "vulnerability_family",
+          "precondition",
+          "minimal_reproduction",
+          "observed_result",
+          "impact_statement",
+          "evidence_ref",
+          "validation_result",
+          "reviewer",
+          "reviewed_at"
+        ]
+      }
+    },
+    "impact_category": {
+      "type": ["string", "null"],
+      "enum": [
+        "unauthorized_object_access",
+        "privilege_escalation",
+        "boundary_crossing",
+        "sensitive_data_exposure",
+        "code_or_command_execution",
+        "network_zone_access",
+        "business_state_change",
+        "resource_consumption_or_availability",
+        "auditable_attack_chain",
+        null
+      ]
+    },
+    "impact_hypothesis_recorded": { "type": "boolean" }
+  },
+  "classification_enums": {
+    "finding_class": ["generic_vulnerability", "event_vulnerability"],
+    "platform_severity": ["high", "medium", "low", "not_collectible"],
+    "exercise_result_class": ["access", "boundary", "data", "business_impact", "signal_only"],
+    "submission_eligibility": ["eligible", "manual_review_required", "deprioritized", "ignored", "duplicate"],
+    "impact_scope": ["single_object", "single_user", "tenant", "organization", "multiple_organizations", "critical_network"]
+  },
+  "classification_notes": {
+    "dual_field_boundary": "Spec 2.8 names the two result-oriented fields exercise_result_class and platform_submission_class; spec 2.9's authoritative field list implements the latter as submission_eligibility. They must never be merged: exercise_result_class answers the exercise scoring orientation (access/boundary/data/business_impact/signal_only) while submission_eligibility answers the Butian platform collection orientation.",
+    "platform_severity_defaults": "The impact-category default table is a conservative derivation: spec 2.6's high/medium conditions require evidence-level distinctions finer than the category granularity. Callers should pass an explicit internal_priority (P0-P3) for accurate tiering; the table only applies when no priority is given and finding_status is confirmed."
+  },
+  "internal_priority_to_platform_severity": {
+    "P0": "high",
+    "P1": "high",
+    "P2": "medium",
+    "P3": "low"
+  },
+  "platform_severity_default_by_impact_category": {
+    "unauthorized_object_access": "medium",
+    "privilege_escalation": "high",
+    "boundary_crossing": "medium",
+    "sensitive_data_exposure": "medium",
+    "code_or_command_execution": "high",
+    "network_zone_access": "high",
+    "business_state_change": "medium",
+    "resource_consumption_or_availability": "low",
+    "auditable_attack_chain": "high"
+  },
+  "exercise_result_class_by_impact_category": {
+    "unauthorized_object_access": "data",
+    "privilege_escalation": "access",
+    "boundary_crossing": "boundary",
+    "sensitive_data_exposure": "data",
+    "code_or_command_execution": "access",
+    "network_zone_access": "boundary",
+    "business_state_change": "business_impact",
+    "resource_consumption_or_availability": "business_impact",
+    "auditable_attack_chain": "access"
+  },
+  "generic_vulnerability_fields": [
+    "product_or_component",
+    "product_version_or_build",
+    "vulnerability_family",
+    "affected_condition",
+    "vendor_or_upstream_reference",
+    "affected_instance_count",
+    "reproduction_stability",
+    "whether_public_or_0day"
+  ],
+  "suppression_rules": {
+    "RULE_1_LOW_VALUE_PATTERNS": {
+      "outcome": "deprioritized",
+      "description": "Open redirect, front-desk personal weak passwords, open registration, Self-XSS, mail bombing (spec 2.7 rule 1) unless higher impact is proven."
+    },
+    "RULE_2_CONFIG_HARDENING_ONLY": {
+      "outcome": "deprioritized",
+      "description": "CORS misconfiguration or generic hardening gap without cross-site read, privilege bypass, or sensitive impact (spec 2.7 rule 2)."
+    },
+    "RULE_3_UNEXPLOITABLE_INFO": {
+      "outcome": "ignored",
+      "description": "Internal hostnames, IPs, paths, banners, expired keys, or invalid tokens that cannot be exploited directly (spec 2.7 rule 3)."
+    },
+    "RULE_4_NO_SENSITIVE_DATA": {
+      "outcome": "ignored",
+      "description": "Desensitized info, public files, or API disclosures without usable content (spec 2.7 rule 4)."
+    },
+    "RULE_5_FORBIDDEN_PROOF_REQUIRED": {
+      "outcome": "ignored",
+      "description": "Results provable only by damaging the business, denial of service, or data tampering (spec 2.7 rule 5; those actions are forbidden anyway)."
+    },
+    "RULE_6_SAME_TYPE_OVER_LIMIT": {
+      "outcome": "duplicate",
+      "description": "More than three results of the same vulnerability type on the same system (spec 2.7 rule 6)."
+    },
+    "RULE_7_SQLI_PER_ENDPOINT_MERGE": {
+      "outcome": "duplicate",
+      "description": "SQL injection merges per endpoint; multiple parameters on one endpoint count once (spec 2.7 rule 7)."
+    },
+    "RULE_8_GENERIC_ROOT_CAUSE_DUPLICATE": {
+      "outcome": "duplicate",
+      "description": "The same generic-product root cause across enterprises must merge into one generic finding (spec 2.7 rule 8)."
+    },
+    "RULE_9_UNVERIFIED_AI_CANDIDATE": {
+      "outcome": "manual_review_required",
+      "description": "Unverified AI-generated candidates must not enter formal vulnerability submission (spec 2.7 rule 9); auto-derived from manual_validation_status != verified."
+    },
+    "RULE_10_LOW_VALUE_SITE": {
+      "outcome": "deprioritized",
+      "description": "Unmaintained sites, personal small sites, low-impact templates marked low_value_or_deprioritized; no splitting for volume (spec 2.7 rule 10)."
+    }
+  },
+  "submission_eligibility_precedence": [
+    "duplicate: finding_status == duplicate, or a suppression rule with outcome duplicate applies",
+    "ignored: finding_status in (signal, rejected, inconclusive, blocked), or a suppression rule with outcome ignored applies",
+    "manual_review_required: finding_status == needs_manual_validation or RULE_9 applies (unverified AI candidates)",
+    "deprioritized: a suppression rule with outcome deprioritized applies, or finding_status == candidate",
+    "eligible: finding_status == confirmed and manual_validation_status == verified and no suppression rule applies"
+  ],
+  "invariants": [
+    "finding_status == confirmed requires all five gates passed, manual_validation_status == verified, confirmed_allowed == true, and an empty blockers list",
+    "confirmed_allowed must equal (all five gates passed)",
+    "gates_passed must equal the number of passed gates and gates_failed must list exactly the failed gates in canonical gate order",
+    "the evidence gate passes if and only if missing_evidence_fields is empty and validation_result == verified",
+    "the security_impact gate passes if and only if impact_category is one of impact_categories",
+    "finding_status and status_rule_applied must match status_decision_order applied to the echoed classification inputs",
+    "invalid input enum values are normalized to the most conservative default (manual_validation_status -> not_started, validation_result -> null, unknown reachability evidence_type -> none semantics)",
+    "credential-like keys are forbidden anywhere in the payload; the exact key 'authorization' is exempt because it names the gate itself",
+    "submission_eligibility == eligible requires finding_status == confirmed, manual_validation_status == verified, and no applied suppression rule",
+    "platform_severity high/medium may only be suggested when finding_status == confirmed (spec 2.6); needs_manual_validation and candidate cap at low; signal/rejected/inconclusive/blocked/duplicate are not_collectible",
+    "submission_eligibility == duplicate requires finding_status == duplicate or at least one applied suppression rule with outcome duplicate",
+    "suppression rule ids must exist in suppression_rules; unknown ids are rejected",
+    "spec 2.7 lists ten suppression rules; the catalog must keep exactly ten entries"
+  ]
+}

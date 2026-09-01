@@ -91,6 +91,7 @@ echo.
 
   --subdomain-qps 1.2 ^
 
+rem --subdomain-concurrency 6 属 DNS 专项预算（受控子域发现的 DNS 查询并发），不与 HTTP host 并发（--max-concurrency）或跨 host worker 并发混淆（实施规格 7.4）
   --subdomain-concurrency 6 ^
 
   --subdomain-max-words 40 ^

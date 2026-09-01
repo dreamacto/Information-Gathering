@@ -39,6 +39,27 @@ Repeat applicable tests across create, read, update, delete, export, approve, ca
 invite, recover, and administrative transitions. For unsafe writes, document the untested branch or use
 approved disposable data with an explicit cleanup plan.
 
+## Application mapping subphases (applicability first)
+
+The `application_mapping` phase is audited through five subphases. Each writes its artifact under
+`artifacts/application-map/`, and every artifact row carries at least the seven contract fields
+(`applicable`, `status`, `source`, `asset`, `endpoint_or_surface`, `reason`, `evidence_ref`):
+
+| Subphase | Artifact | Applicability questions |
+|---|---|---|
+| `graphql_mapping` | `graphql-manifest.json` | Are GraphQL endpoints or operations discoverable (introspection, schema files, JS references, captured traffic)? |
+| `websocket_mapping` | `websocket-inventory.csv` | Are WebSocket/SSE/realtime channels discoverable from JS, traffic, or docs? |
+| `file_surface_mapping` | `file-surface-inventory.csv` | Are upload, download, preview, import, and export file surfaces discoverable? |
+| `auth_surface_mapping` | `auth-surface-inventory.csv` | Are login, logout, registration, recovery, MFA, and token-refresh surfaces discoverable? |
+| `webhook_mapping` | `webhook-inventory.csv` | Are outbound webhook configurations or inbound callback endpoints discoverable? |
+
+Answer the five applicability questions (surface exists? known inputs? authorized material? low-risk
+check allowed? successful response available?) before claiming `applicable`; only applicable surfaces
+enter testing. Record `not_applicable` with a reason instead of skipping silently. A `tested` row needs
+an `evidence_ref` resolving inside the workspace. A subphase that cannot proceed is `blocked`,
+`approval_required`, `needs_manual_validation`, or `inconclusive` in the phase's `substatuses` map —
+never dropped; the mapping phase is complete only when all five substatuses are recorded and provable.
+
 ## Result discipline
 
 - `tested_no_issue`: executed with an adequate negative control and no boundary failure observed.

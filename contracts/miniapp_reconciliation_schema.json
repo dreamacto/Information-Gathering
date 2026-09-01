@@ -1,0 +1,70 @@
+{
+  "schema_version": "1.0",
+  "contract": "miniapp_reconciliation_schema",
+  "description": "小程序静态/动态端点对账契约（实施规格 6.4 1558-1581 行 + 6.2 拆分 1507-1511 行；Batch 12 落地，第 12 契约）。dynamic_mapping 后新增 static_dynamic_reconciliation phase，将静态提取端点与动态映射端点对账为一份 CSV 清单（artifacts/miniapp/reconciliation/static-dynamic-endpoints.csv）。对账为离线比较既有静态证据与授权动态证据，不发任何新请求（unreachable/stale 不得通过探测'复核'）；十值端点状态为 CSV 行级状态，与 coverage_substatus 六值不同源（substatus 是 phase 覆盖枚举，endpoint_states 是对账行状态；两枚举互不映射、互不 substitute）。skill 脚本常量（init/audit）与本契约、模块常量的一致性由 tests/test_xcx_cloud_reconciliation_phase_split.py 与 tests/test_static_dynamic_reconciliation.py 锁定。",
+  "type": "object",
+  "phases": {
+    "static_dynamic_reconciliation": {
+      "artifact": "artifacts/miniapp/reconciliation/static-dynamic-endpoints.csv",
+      "artifact_format": "csv",
+      "description": "静态/动态端点对账：比较恢复的路由与端点和运行时导航及代理流量，按十值状态标记每一端点，用对比发现隐藏流程并避免把死代码当作活跃问题上报。",
+      "branches": [
+        "static_endpoint_base",
+        "dynamic_endpoint_base",
+        "match_status_classification",
+        "hidden_flow_identification",
+        "stale_entry_disposition"
+      ],
+      "csv_fields": [
+        "endpoint_id",
+        "host",
+        "method",
+        "path",
+        "source_material",
+        "static_evidence_ref",
+        "dynamic_evidence_ref",
+        "status",
+        "reason",
+        "notes"
+      ],
+      "endpoint_states": [
+        "static_only",
+        "dynamic_only",
+        "both_seen",
+        "feature_gated",
+        "stale",
+        "version_specific",
+        "third_party",
+        "platform_shared",
+        "unreachable",
+        "needs_manual_validation"
+      ],
+      "judgment_states": ["stale", "unreachable", "needs_manual_validation"]
+    }
+  },
+  "coverage_substatus": {
+    "contract_ref": "coverage_substatus_schema",
+    "status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+    "proven_values": ["tested", "not_applicable"],
+    "note": "六值枚举与 proven 子集单一来源引用 coverage_substatus_schema（不复定义）；与 endpoint_states 十值行级状态不同源，互不映射（唯一语义交集为 needs_manual_validation：同名值在行级承载对账判定、在 phase 层承载覆盖状态，语义不同、不互相 substitute）。"
+  },
+  "csv_phase_completion_invariant": {
+    "description": "CSV 产物 phase 的完成可证明性（batch10 proven 语义的 CSV 等价形式）：phase 完成（complete/not_applicable）要求全部分支 substatus 已记录且 ∈ proven_values；tested 分支要求 CSV 存在且 ≥1 数据行（测试过的对账必然产生行）；not_applicable 分支要求 phase 行 reason 非空（静默省略禁止）；判定行（judgment_states）需行内 reason 非空。",
+    "note": "CSV 产物无 summaries 结构，branch 级完成证明由 substatuses + 行存在性 + phase reason 承载，替代 review JSON 的 summaries 载体。"
+  },
+  "red_lines": [
+    "对账为离线比较既有静态证据与授权动态证据，不发任何新请求；unreachable/stale 不得通过探测'复核'（unreachable 是状态判定不是测试邀请）",
+    "third_party/platform_shared 行按归属状态记录；平台共享资产不得误报为自有资产漏洞",
+    "stale/unreachable 条目不得作为活跃问题上报（死代码防误报）；dynamic_only/feature_gated 行进入隐藏流程发现，只生成后续测试假设",
+    "凭证、token 等敏感值不复制到 CSV 明文列、日志、报告、prompt、ledger 或交接内容"
+  ],
+  "invariants": [
+    "phases 键与 xcx init/audit 脚本的 phase 名逐一相同（static_dynamic_reconciliation 位于 dynamic_mapping 后、platform_login_exchange 前）",
+    "branches 与 init/audit 的 substatuses 种子键集逐一相同；skill 脚本自包含复制常量，测试锁定无漂移",
+    "artifact 路径与规格 1564 行相同，相对 engagement 工作区根；CSV 表头与 csv_fields 逐一相同（精确匹配，顺序敏感）",
+    "endpoint_states 十值与规格 1570-1581 行逐一相同；行级 status ∈ endpoint_states，与 coverage_substatus 六值不同源",
+    "judgment_states ⊂ endpoint_states；判定行 reason 非空强制",
+    "CSV phase 完成可证明性按 csv_phase_completion_invariant 执行",
+    "本契约不引入 review JSON 12 键形状（无 rows/summaries）；对账产物只有 CSV 一种形状"
+  ]
+}

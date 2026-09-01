@@ -1,0 +1,211 @@
+{
+  "schema_version": "1.0",
+  "contract": "injection_candidate_schema",
+  "description": "统一注入候选契约（实施规格 5.4 input_testing：injection_candidate_screening + parser_deserialization_screening）。15 类 category 统一登记；每个类别输出 10 字段汇总（规格 5.4『每个类别都必须输出』）；候选条目按 finding 8 状态分级。src/authorized_assessment/triage/injection_candidates.py 为唯一实现。候选筛选只读离线：候选不是漏洞；SQLMap 与一切高风险 payload 均为审批门动作，本契约层不发任何 payload。",
+  "categories": [
+    "sql",
+    "nosql",
+    "ldap",
+    "xpath",
+    "ssti",
+    "expression_language",
+    "os_command",
+    "header_injection",
+    "template_injection",
+    "path_traversal",
+    "lfi",
+    "xxe",
+    "xml_parser",
+    "yaml_parser",
+    "unsafe_deserialization"
+  ],
+  "category_screening": {
+    "injection_candidate_screening": [
+      "sql",
+      "nosql",
+      "ldap",
+      "xpath",
+      "ssti",
+      "expression_language",
+      "os_command",
+      "header_injection",
+      "template_injection",
+      "path_traversal",
+      "lfi"
+    ],
+    "parser_deserialization_screening": [
+      "xxe",
+      "xml_parser",
+      "yaml_parser",
+      "unsafe_deserialization"
+    ]
+  },
+  "category_screening_rule": "两子阶段归属划分完备且互斥（规格 5.4：XXE/XML/YAML/反序列化属于 parser_deserialization_screening，不与 SQLi 混记）；阶段汇总按归属分组计数，禁止同一 category 双重计数。",
+  "category_summary_required_fields": [
+    "category",
+    "category_status",
+    "applicability_counts",
+    "status_counts",
+    "tested_count",
+    "reason",
+    "source",
+    "precondition"
+  ],
+  "summary_structure": "三个统计概念分离（操作员决定①③，不得合并）：category_status=该类别整体推进状态，取六状态枚举（与 coverage_substatus_schema.status_values 同源）；applicability_counts={applicable/not_applicable/unknown 三键非负整数计数}——适用性判定分布；status_counts={finding 8 状态八键非负整数计数}——候选分级分布。tested_count 为独立标量：实际执行并产生确定结果的观察项数量。",
+  "tested_count_semantics": "tested_count = status_counts 中 DEFINITIVE_RESULT_STATUSES（candidate/confirmed/blocked/rejected/duplicate）之和。排除：signal（未执行测试的初分类）、needs_manual_validation（已执行但结果待人工，无确定结果）、inconclusive（已执行但无结论）。实现常量 DEFINITIVE_RESULT_STATUSES 单一定义于 injection_candidates.py。",
+  "category_status_aggregation": "确定性聚合优先级：① 无 applicable/unknown 观察且无 not_applicable 记录 → inconclusive（未做任何判定）；② 无 applicable/unknown 观察但有 not_applicable 记录 → not_applicable；③ 有任一 definitive 状态候选 → tested；④ 有 needs_manual_validation 候选 → needs_manual_validation；⑤ 其余 → inconclusive。approval_required 不由聚合产生（六状态合法值，供复核显式设置，设置时必须有 candidate 计数）。",
+  "category_status_values": ["tested", "not_applicable", "blocked", "approval_required", "needs_manual_validation", "inconclusive"],
+  "definitive_result_statuses": ["candidate", "confirmed", "blocked", "rejected", "duplicate"],
+  "applicable_values": ["applicable", "not_applicable", "unknown"],
+  "candidate_status_values": [
+    "signal",
+    "candidate",
+    "needs_manual_validation",
+    "confirmed",
+    "inconclusive",
+    "blocked",
+    "rejected",
+    "duplicate"
+  ],
+  "candidate_status_rule": "与 finding_quality_schema.finding_status_states / finding_quality_gate.FINDING_STATUS_STATES 三方同源；confirmed 的完整五门判定仍由 finding_quality_gate 承担，本契约只做候选层分级与升级证据校验。",
+  "evidence_kinds": [
+    "query_input_point",
+    "error_based",
+    "differential",
+    "semantic_anomaly",
+    "server_side_evaluation",
+    "parser_confirmed",
+    "external_input_into_parser",
+    "unsafe_type_recovery",
+    "reproducible_impact",
+    "reflected_only",
+    "template_syntax_seen",
+    "client_template_or_echo",
+    "fingerprint_or_name_only",
+    "xml_content_seen",
+    "static_sink_only"
+  ],
+  "insufficient_evidence_kinds": [
+    "reflected_only",
+    "template_syntax_seen",
+    "client_template_or_echo",
+    "fingerprint_or_name_only",
+    "xml_content_seen",
+    "static_sink_only"
+  ],
+  "insufficient_evidence_rule": "13.2 负例语义：仅反射不可执行（reflected_only）、仅模板语法形态 {{ }}/${ }（template_syntax_seen）、客户端模板/普通字符串回显/错误页（client_template_or_echo）、仅依赖名/类名/版本指纹/序列化格式（fingerprint_or_name_only）、仅 XML 输入未证明解析器（xml_content_seen）、仅静态 sink 无可达链路（static_sink_only）永不满足升级条件。",
+  "upgrade_rules": {
+    "sql": {
+      "required_any_groups": [
+        ["query_input_point"],
+        ["error_based", "differential", "semantic_anomaly"]
+      ]
+    },
+    "nosql": {
+      "required_any_groups": [
+        ["query_input_point"],
+        ["error_based", "differential", "semantic_anomaly"]
+      ]
+    },
+    "ldap": {
+      "required_any_groups": [["error_based", "differential", "semantic_anomaly", "server_side_evaluation"]]
+    },
+    "xpath": {
+      "required_any_groups": [["error_based", "differential", "semantic_anomaly", "server_side_evaluation"]]
+    },
+    "ssti": {
+      "required_any_groups": [["server_side_evaluation"]]
+    },
+    "expression_language": {
+      "required_any_groups": [["server_side_evaluation"]]
+    },
+    "template_injection": {
+      "required_any_groups": [["server_side_evaluation"]]
+    },
+    "os_command": {
+      "required_any_groups": [["error_based", "differential", "semantic_anomaly", "server_side_evaluation"]]
+    },
+    "header_injection": {
+      "required_any_groups": [["error_based", "differential", "semantic_anomaly", "server_side_evaluation"]]
+    },
+    "path_traversal": {
+      "required_any_groups": [["error_based", "differential", "semantic_anomaly", "server_side_evaluation"]]
+    },
+    "lfi": {
+      "required_any_groups": [["error_based", "differential", "semantic_anomaly", "server_side_evaluation"]]
+    },
+    "xxe": {
+      "required_any_branches": [
+        ["parser_confirmed"],
+        ["external_input_into_parser", "unsafe_type_recovery"]
+      ]
+    },
+    "xml_parser": {
+      "required_any_branches": [
+        ["parser_confirmed"],
+        ["external_input_into_parser", "unsafe_type_recovery"]
+      ]
+    },
+    "yaml_parser": {
+      "required_any_branches": [
+        ["parser_confirmed"],
+        ["external_input_into_parser", "unsafe_type_recovery"]
+      ]
+    },
+    "unsafe_deserialization": {
+      "required_all": [
+        "external_input_into_parser",
+        "unsafe_type_recovery",
+        "reproducible_impact"
+      ]
+    }
+  },
+  "upgrade_rule_semantics": "required_any_groups：组间 AND、组内 OR；required_any_branches：branch 间 OR、branch 内 AND；required_all：全部必须存在。SQL/NoSQL 需真实查询输入点 + 错误/差分/语义异常之一。SSTI/表达式/模板注入必须证明输入进入服务端模板或表达式解释器且最小无破坏性表达式产生可重复、上下文相关的求值结果（server_side_evaluation）；仅看到 {{ }}、${ }、模板文件名或模板框架名称不算漏洞。XXE/XML/YAML 解析需确认后端解析器，或证明外部输入进入解析器且存在不安全类型/对象恢复。反序列化需同时证明外部可控输入进入危险解析器、存在不安全类型/对象恢复/表达式处理、可复现安全影响。默认只做解析器和实体处理能力的低风险判定，不读取本地敏感文件、不访问内网、不导出数据；高风险 payload 均需审批门。",
+  "row_rules": {
+    "summary_not_applicable_requires_reason": "category_status=not_applicable 时 reason 必须非空，且 status_counts 八键全 0、applicability_counts.applicable 与 .unknown 均为 0（applicability_counts.not_applicable 豁免——它恰是记录不适用观察数的字段，操作员决定③）",
+    "summary_counts_shape": "applicability_counts 恰好三键（applicable/not_applicable/unknown）、status_counts 恰好八键（candidate_status_values），全部为非负整数（bool 不算）",
+    "summary_tested_count_consistency": "tested_count 必须等于 status_counts 中 definitive 各键（candidate/confirmed/blocked/rejected/duplicate）之和，行数矛盾拒绝",
+    "summary_status_proves_counts": "category_status=tested 必须 tested_count>0；category_status=needs_manual_validation 必须 status_counts.needs_manual_validation>0；category_status=approval_required 必须 status_counts.candidate>0（人工显式设置该状态时）",
+    "summary_counts_require_source": "status_counts.candidate>0 或 tested_count>0 时 source 必须非空（候选可追溯）",
+    "summary_candidate_requires_precondition": "status_counts.candidate>0 时 precondition 必须非空（升级/验证前置条件落盘）",
+    "candidate_status_in_enum": "候选 status 必须在 candidate_status_values 内",
+    "candidate_upgrade_required": "status=candidate/confirmed 时证据形态必须满足该 category 的 upgrade_rules，且 evidence_ref 非空",
+    "candidate_unknown_evidence_kind": "evidence_kinds 必须为非空列表且元素全部在 evidence_kinds 枚举内"
+  },
+  "observation_schema": {
+    "version": "1.0",
+    "versioning_rule": "观察键名集合可版本化演进：增删/改名键必须 bump 本 version 并同步实现常量 OBSERVATION_SCHEMA_VERSION 与本节 fields，不声明永久不可修改（操作员决定②）",
+    "not_proof_semantics": "观察记录是筛选输入，不是漏洞证明：*_observed 是观察到的现象、*_confirmed 是已确认的事实，二者只用于候选分级；任何观察都不直接构成漏洞，signal 不是漏洞，candidate/confirmed 仍受五门与 evidence gate 约束",
+    "source_required": "每条观察必须可追溯：显式 source（产物/证据路径引用）或 endpoint + parameter_name 拼接后非空，否则为违例",
+    "version_field": "观察可携带 observation_schema_version 字段；缺失视为当前版本（向后兼容），显式给出且与当前版本不符记违例",
+    "fields": {
+      "query_input_point_confirmed": "已确认该参数进入真实查询（SQL/NoSQL 升级第一要素）",
+      "error_message_observed": "观察到数据库/解释器错误响应",
+      "differential_observed": "观察到可控差分（不同输入产生可复现的不同响应）",
+      "semantic_anomaly_observed": "观察到语义异常（响应内容/结构随输入发生不合理解释的变化）",
+      "server_side_evaluation_confirmed": "已确认最小无破坏表达式在服务端求值且结果可重复、上下文相关",
+      "parser_confirmed": "已确认后端解析器处理该输入（XML/YAML/反序列化面）",
+      "external_input_into_parser_observed": "观察到外部可控输入进入解析器",
+      "unsafe_type_recovery_observed": "观察到不安全类型/对象恢复或表达式处理",
+      "reproducible_impact_confirmed": "已确认可复现的安全影响",
+      "reflected_observed": "观察到反射（不足以证明可执行）",
+      "template_syntax_observed": "观察到模板语法形态 {{ }}/${ }（不算漏洞证据）",
+      "client_template_or_echo_observed": "观察到客户端模板/普通字符串回显/错误页",
+      "fingerprint_or_name_only_observed": "仅依赖名/类名/版本指纹/序列化格式",
+      "xml_content_observed": "观察到 XML 内容但未证明解析器行为",
+      "static_sink_observed": "仅静态 sink，无可达链路"
+    }
+  },
+  "invariants": [
+    "categories 15 枚举与实现常量 INJECTION_CATEGORIES 单一定义同源",
+    "candidate_status_values 8 状态与 finding_quality_schema.finding_status_states 及 finding_quality_gate.FINDING_STATUS_STATES 三方一致",
+    "category_screening 两子阶段归属划分完备且互斥，并集等于 categories",
+    "upgrade_rules 必须覆盖全部 15 个 category，且引用的证据形态全部在 evidence_kinds 枚举内",
+    "insufficient_evidence_kinds 是 evidence_kinds 的子集，且永不满足任何 upgrade_rules",
+    "category_status 六状态与 coverage_substatus_schema.status_values 同源（实现复用 COVERAGE_SUBSTATUSES）",
+    "category_status / applicability_counts / status_counts 三个统计概念分离，不得合并回单一计数字段（操作员决定①③）",
+    "tested_count 与 status_counts 的 definitive 键之和严格一致（行数矛盾拒绝）",
+    "观察 schema 版本化：observation_schema.version 与实现常量 OBSERVATION_SCHEMA_VERSION 一致，键名演进必须 bump 版本",
+    "未人工验证的 AI 候选不得作为正式有效漏洞提交；SQLMap 只能在审批门下对单候选使用，禁止 dump、批量、全量扫描和数据导出"
+  ]
+}

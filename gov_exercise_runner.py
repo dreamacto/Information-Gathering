@@ -68,6 +68,7 @@ from healthcare_privacy_triage import write_outputs as write_healthcare_privacy_
 from operator_action_hub import build_operator_action_hub
 from weak_credential_review import run_review as run_weak_credential_review
 from policy_engine import load_policy_engine
+from authorized_assessment.runtime.runtime_inventory import enrich_runtime_inventory
 
 
 DEFAULT_WORKFLOW = config_path("workflow")
@@ -1870,8 +1871,8 @@ def run_evidence_builder_stage(run_dir: Path, args: argparse.Namespace) -> None:
         sys.executable,
         str(stage_script(BASE_DIR, "evidence_builder")),
         str(run_dir),
-        "--config",
-        str(args.config),
+        "--report-config",
+        str(config_path("reporting")),
     ]
     proc = run_sync_stage(
         cmd,
@@ -1927,7 +1928,7 @@ def main() -> int:
                 raise SystemExit(f"Probe refused for {target.url}: {decision.reason}")
     write_workflow_plan(run_dir, workflow, args)
 
-    runtime = collect_runtime_inventory(cfg)
+    runtime = enrich_runtime_inventory(collect_runtime_inventory(cfg))
     write_json(run_dir / "runtime_inventory.json", runtime)
     write_tool_strategy_plan(run_dir, tool_strategy, runtime)
     write_compliance_files(run_dir, cfg, args)

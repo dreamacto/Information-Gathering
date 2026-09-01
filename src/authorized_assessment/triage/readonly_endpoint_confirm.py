@@ -17,6 +17,26 @@ from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+import uuid
+
+try:
+    from authorized_assessment.triage.response_baseline import (
+        assess_response_record,
+        build_baseline_profile,
+        load_baseline_profiles,
+        origin_of,
+        summarize_body,
+    )
+except ImportError:  # 直接以文件方式执行时把 src/ 加入 sys.path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+    from authorized_assessment.triage.response_baseline import (
+        assess_response_record,
+        build_baseline_profile,
+        load_baseline_profiles,
+        origin_of,
+        summarize_body,
+    )
+
 
 KEYWORDS = {
     "swagger": ["swagger", "swagger-ui", "openapi", "api-docs", "swaggerresources"],
@@ -47,7 +67,20 @@ def classify(text: str) -> dict[str, list[str]]:
     }
 
 
-def fetch(url: str, timeout: float) -> dict[str, object]:
+def attach_fixed_path_assessment(
+    record: dict, *, text: str, baselines: list | None = None
+) -> dict:
+    """为已抓取记录附加 fixed_path_assessment（纯函数，fetch 与测试共用）。
+
+    无基线时 fail-closed：baseline_available=False、promotion_status=not_promoted。
+    """
+    record["fixed_path_assessment"] = assess_response_record(
+        record, list(baselines or []), body_lines=summarize_body(text)
+    )
+    return record
+
+
+def fetch(url: str, timeout: float, baselines: list | None = None) -> dict[str, object]:
     record: dict[str, object] = {
         "checked_at": datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds"),
         "url": url,
@@ -77,6 +110,7 @@ def fetch(url: str, timeout: float) -> dict[str, object]:
                     "keyword_groups": classify(text),
                 }
             )
+            attach_fixed_path_assessment(record, text=text, baselines=baselines)
     except HTTPError as exc:
         raw = exc.read(1024 * 64)
         content_type = exc.headers.get("Content-Type", "")
@@ -94,6 +128,7 @@ def fetch(url: str, timeout: float) -> dict[str, object]:
                 "keyword_groups": classify(text),
             }
         )
+        attach_fixed_path_assessment(record, text=text, baselines=baselines)
     except URLError as exc:
         record.update({"error": str(exc.reason)[:300]})
     except Exception as exc:  # noqa: BLE001 - summary probe should record errors.
@@ -101,19 +136,68 @@ def fetch(url: str, timeout: float) -> dict[str, object]:
     return record
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser()
     parser.add_argument("--urls", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--delay", type=float, default=2.0)
     parser.add_argument("--timeout", type=float, default=10.0)
-    args = parser.parse_args()
+    parser.add_argument(
+        "--baseline-file",
+        type=Path,
+        default=None,
+        help="离线基线记录 JSONL（build_baseline_profile 产物；零新增请求）",
+    )
+    parser.add_argument(
+        "--with-baseline",
+        action="store_true",
+        help="显式 opt-in：为每个 origin 抓取首页与随机不存在路径作为基线（每 origin 新增 2 个 GET）；"
+        "默认关闭，默认网络行为不变",
+    )
+    return parser
+
+
+def capture_baselines(url: str, timeout: float) -> list[dict]:
+    """显式 opt-in 的基线抓取（仅在 --with-baseline 时调用）。
+
+    每个 origin 新增 2 个 GET：首页（target_baseline）与随机不存在路径
+    （generic_error_page）。登录页/CDN/WAF 页无需预抓取——比较时由
+    response_baseline.detect_known_false_positive_pattern 按已知模式识别。
+    """
+    origin = origin_of(url)
+    profiles = []
+    for kind, probe_url in (
+        ("target_baseline", origin + "/"),
+        ("generic_error_page", origin + "/" + uuid.uuid4().hex + ".json"),
+    ):
+        record = fetch(probe_url, timeout)
+        record.setdefault("origin", origin)
+        profiles.append(build_baseline_profile(record, kind=kind))
+    return profiles
+
+
+def main() -> int:
+    args = build_parser().parse_args()
+
+    file_baselines = load_baseline_profiles(args.baseline_file) if args.baseline_file else []
+    baseline_cache: dict[str, list[dict]] = {}
+    captured_origins: set[str] = set()
+
+    def baselines_for(url: str) -> list[dict]:
+        origin = origin_of(url)
+        if origin not in baseline_cache:
+            matching = [row for row in file_baselines if str(row.get("origin") or "") == origin]
+            if args.with_baseline and origin not in captured_origins:
+                matching.extend(capture_baselines(url, args.timeout))
+                captured_origins.add(origin)
+            baseline_cache[origin] = matching
+        return baseline_cache[origin]
 
     urls = [line.strip() for line in args.urls.read_text(encoding="utf-8").splitlines() if line.strip()]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     with args.out.open("w", encoding="utf-8") as handle:
         for idx, url in enumerate(urls):
-            handle.write(json.dumps(fetch(url, args.timeout), ensure_ascii=False) + "\n")
+            handle.write(json.dumps(fetch(url, args.timeout, baselines=baselines_for(url)), ensure_ascii=False) + "\n")
             handle.flush()
             if idx != len(urls) - 1:
                 time.sleep(args.delay)

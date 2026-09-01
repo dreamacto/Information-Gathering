@@ -357,10 +357,13 @@ def default_tianhu_base(config: dict) -> Path | None:
 
 def collect_runtime_inventory(config: dict) -> dict:
     tianhu = default_tianhu_base(config)
+    # 统一 Python 选择顺序（实施规格 7.4）：项目 .venv → 明确登记的兼容 Python（天狐）
+    # → sys.executable/PATH。launcher 以 .venv 启动 runner，inventory 记录必须与实际
+    # 启动解释器一致（外部天狐/codex 运行时仅为兼容回退）。
     python_candidates = [
+        BASE_DIR / ".venv" / "Scripts" / "python.exe",
         expand_template(config.get("python"), tianhu),
         tianhu / "python3" / "python.exe" if tianhu else None,
-        BASE_DIR / ".venv" / "Scripts" / "python.exe",
         sys.executable,
         "python",
         "py",

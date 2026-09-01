@@ -3,8 +3,12 @@ chcp 65001 >nul
 setlocal
 
 set "PROJECT=D:\PythonSource\PythonProjects\PythonProject4"
-set "PY=C:\Users\ASUS\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
+rem 统一 Python 选择顺序（规格 7.4）：项目 .venv → 明确登记的兼容 Python（天狐）→ 外部兼容回退（codex）→ PATH python
+set "PY=%PROJECT%\.venv\Scripts\python.exe"
+if not exist "%PY%" set "PY=D:\Desktop\天狐渗透工具箱-社区版V3.0+4.0更新升级包\天狐渗透工具箱-社区版V3.0\python3\python.exe"
+if not exist "%PY%" set "PY=C:\Users\ASUS\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe"
 if not exist "%PY%" set "PY=python"
+echo Using Python: %PY%
 
 if "%~1"=="" (
   set /p "TARGETS=请输入目标文件路径: "

@@ -30,6 +30,7 @@ import argparse
 import hashlib
 import json
 import re
+import struct
 import sys
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
@@ -66,6 +67,39 @@ def printable_ratio(data: bytes, sample: int = 20000) -> float:
     return n / len(s)
 
 
+def wxapkg_index_score(data: bytes) -> int:
+    """结构化选键打分：能连续通过结构校验的索引条目数（0 = 头不合法/立即失败）。
+
+    可打印率启发式不可靠：JSON/压缩 JS 文本 XOR 0x5F 后大多仍可打印，而正确键的
+    解码含索引区二进制 offset/size 字段反而拉低得分——曾导致主包选错 XOR 键。
+    """
+    ok = 0
+    try:
+        if len(data) < 22 or data[0] != 0xBE or data[13] != 0xED:
+            return 0
+        pos = 14
+        count = struct.unpack(">I", data[pos:pos + 4])[0]
+        pos += 4
+        if not (0 < count <= 100000):
+            return 0
+        for _ in range(count):
+            nl = struct.unpack(">I", data[pos:pos + 4])[0]
+            pos += 4
+            if not (0 < nl < 4096):
+                break
+            data[pos:pos + nl].decode("utf-8")
+            pos += nl
+            off = struct.unpack(">I", data[pos:pos + 4])[0]
+            sz = struct.unpack(">I", data[pos + 4:pos + 8])[0]
+            pos += 8
+            if off + sz > len(data):
+                break
+            ok += 1
+    except Exception:
+        pass
+    return ok
+
+
 def decrypt_package(raw: bytes, appid: str) -> tuple[bytes, str, bool]:
     """返回 (明文, 采用的XOR键说明, 是否加密包)。无 V1MMWX 头视为已解密直接透传。"""
     if raw[:6] != b"V1MMWX":
@@ -76,15 +110,22 @@ def decrypt_package(raw: bytes, appid: str) -> tuple[bytes, str, bool]:
     if first_len <= 0:
         return body, "too_short", True
     first = aes_cbc_decrypt(body[:first_len], appid)
+    # 加密方对前 first_len-1 字节做 PKCS7 填充后整块加密：解密结果末尾是填充字节，
+    # 必须剥离；XOR 区从 body[first_len] 起（body[first_len-1] 只是填充的密文载体）。
+    # 不剥离会导致尾部明文整体错位 1 字节（索引/文件内容全损）。
+    pad = first[-1]
+    if 1 <= pad <= 16 and first[-pad:] == bytes([pad]) * pad:
+        first = first[:-pad]
     rest = body[first_len:]
-    best, best_ratio, best_key = None, -1.0, None
+    best, best_ratio, best_key, best_score = None, -1.0, None, -1
     for xor_key in [ord(appid[-2]), ord(appid[-1]), 0x66, 0x00]:
         decoded_rest = rest if xor_key == 0 else bytes(b ^ xor_key for b in rest)
         decoded = first + decoded_rest
+        score = wxapkg_index_score(decoded)
         ratio = printable_ratio(decoded)
-        if ratio > best_ratio:
-            best, best_ratio, best_key = decoded, ratio, xor_key
-    return best, f"XOR_{best_key:02x}(printable={best_ratio:.1%})", True
+        if score > best_score or (score == best_score and ratio > best_ratio):
+            best, best_ratio, best_key, best_score = decoded, ratio, xor_key, score
+    return best, f"XOR_{best_key:02x}(index={best_score},printable={best_ratio:.1%})", True
 
 
 def extract_leads(data: bytes) -> tuple[list[str], list[str]]:

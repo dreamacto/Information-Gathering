@@ -1,0 +1,73 @@
+{
+  "schema_version": "1.0",
+  "contract": "api_reconciliation_schema",
+  "description": "API 版本盘点与文档↔流量对账契约（实施规格 5.3 API schema/version 小节 + 操作员 batch8_5 决定⑤⑥；CONTEXT_LOADING_MAP phases.api_inventory_reconciliation 引用）。对账是清单不是漏洞：六类差异状态不构成漏洞证明，确认越过边界后另行投递对应筛选域；object_field_authorization 为机器可审计子状态（决定②），仅记录覆盖事实。唯一实现：src/authorized_assessment/analysis/api_inventory_reconcile.py。全部离线：不发请求、不抓取/下载 OpenAPI 原文、不做高并发或资源压力验证。",
+  "reconciliation_statuses": ["doc_only", "traffic_only", "method_mismatch", "content_type_mismatch", "version_mismatch", "matched"],
+  "status_semantics": {
+    "doc_only": "文档登记但无 B/C 流量证据（文档有但不可达待复核）",
+    "traffic_only": "实际可达但文档未登记（来源 B/C 流量）",
+    "method_mismatch": "同键双侧 method 集合不一致",
+    "content_type_mismatch": "同键双侧 Content-Type 集合不一致（参数差异不算差异）",
+    "version_mismatch": "同键双侧版本集合无交集",
+    "matched": "文档与流量一致"
+  },
+  "status_priority_rule": "差异共存时单值 status 取固定优先级 method_mismatch > content_type_mismatch > version_mismatch（操作员决定⑤：优先级与冲突处理入契约）；共存的次级差异写入 reason 不改变单值 status；doc_only/traffic_only 与差异类互斥（无另一侧即无差异可比）。",
+  "reconcile_key_semantics": "对账键 = (canonical_host, normalize_endpoint 后两侧一致剥离首个版本段)（canonical_keys 单一实现 + api_inventory_reconcile._reconcile_path）。两侧一致剥离保证同资源不同版本落同键、版本差异由 versions 集比较产生 version_mismatch，而非伪 doc_only/traffic_only；版本段可能是真实资源名的风险由两侧一致剥离抵消（键对齐不受影响）。",
+  "source_kinds": {
+    "A": "OpenAPI/Swagger/GraphQL schema 明确声明（规格 4.3）",
+    "B": "前端 JS 实际调用（规格 4.3）",
+    "C": "浏览器/Burp 真实流量（规格 4.3）",
+    "D": "HTML 表单或链接（规格 4.3；需额外响应语义证据）",
+    "E": "猜测路径/固定字典（规格 4.3；默认只能 low_confidence_signal）",
+    "unknown": "缺失/非法标记（不猜测）"
+  },
+  "source_kind_rule": "对账流量侧仅接受 queue_eligible = A/B/C（canonical_keys.SOURCE_KIND_ELIGIBILITY 单一实现）；D/E 流量记录拒收并记违例——猜测路径不能证明可达，不能进入\"文档有但不可达\"的反向证据；D/E 在盘点侧接受（盘点不是队列准入）；D/E 只能降低置信度或形成 signal，不得被当作\"已验证不存在\"（操作员决定⑥）。",
+  "versioned_definition": {
+    "api_inventory_schema_version": "1.0",
+    "versioning_rule": "版本登记表/shadow 标记表/对账状态枚举/子状态枚举均为版本化实现定义（操作员决定⑥）：增删改必须 bump api_inventory_schema_version 并同步模块常量与本契约，不声明永久不可修改",
+    "version_labels": ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "v8", "v9", "v10"],
+    "version_labels_rule": "路径段→查询版本参数→host 标签三优先级派生；语义版本取主版本（\"1.0\"→v1）；v11+/0.x 不猜测——declared_version 保留文档原值，推断结果只能作为对账依据，不能单独形成漏洞结论（操作员决定⑥）",
+    "shadow_markers": ["shadow", "test", "debug", "staging", "uat", "qa", "dev", "preprod", "internal", "demo", "beta", "experimental"],
+    "shadow_markers_rule": "分隔符（-_./）切分后完整部件相等（latest/contest 等偶然子串不得命中升级）；shadow 只产生 signal 或 inventory 标记，不得自动称为暴露漏洞；命中必须记录完整部件、来源与匹配上下文（操作员决定⑥）"
+  },
+  "object_field_authorization": {
+    "statuses": ["tested", "candidate", "needs_manual_validation", "confirmed", "rejected", "blocked", "inconclusive", "not_applicable"],
+    "default": "inconclusive",
+    "side_precedence": "双侧声明时流量侧优先（流量对实际行为更权威）；多声明取排序末位保确定性",
+    "auditability_rule": "candidate/confirmed/needs_manual_validation 必须 evidence_ref 非空（子状态升级必须可审计）",
+    "not_proof_semantics": "OpenAPI 字段存在、前端字段可见、客户端可提交字段均不构成字段级授权漏洞证据；确认越权后由下游投递授权候选或人工复核队列；对账模块只产清单不产候选（操作员决定②）"
+  },
+  "csv_artifacts": {
+    "artifact_root": "artifacts/api/",
+    "files": {
+      "api-version-inventory.csv": {
+        "fields": ["endpoint_or_surface", "canonical_host", "http_method", "content_type", "source_kind", "declared_version", "version_label", "shadow_markers", "source", "evidence_ref"],
+        "list_field_serialization": "shadow_markers：sorted 后以 \"|\" 连接（确定性）"
+      },
+      "api-reconciliation.csv": {
+        "fields": ["applicable", "status", "source", "asset", "endpoint_or_surface", "reason", "evidence_ref", "object_field_authorization"],
+        "row_shape": "规格 5.2 七字段（RECONCILIATION_ROW_FIELDS）+ object_field_authorization（v1.1，操作员决定②）"
+      },
+      "resource-control-review.csv": {
+        "owner_module": "src/authorized_assessment/triage/api_resource_controls.py",
+        "fields_rule": "表头常量 RESOURCE_CONTROL_REVIEW_CSV_FIELDS（与该模块同源，本契约登记归属不重复定义字段）"
+      },
+      "third-party-boundary.csv": {
+        "owner_module": "src/authorized_assessment/triage/third_party_api_review.py",
+        "fields_rule": "表头常量 THIRD_PARTY_BOUNDARY_CSV_FIELDS（与该模块同源，本契约登记归属不重复定义字段）"
+      }
+    },
+    "serialization_rule": "序列化必须确定性：同输入两次序列化逐字节相等；列表字段 sorted 后 \"|\" 连接；缺失值统一空串；后续批次落盘接线沿用本节字段，不得重新发明（操作员决定⑥）"
+  },
+  "invariants": [
+    "reconciliation_statuses 六状态与实现常量 RECONCILIATION_STATUSES 同源",
+    "version_labels/shadow_markers 与实现常量 VERSION_LABELS/SHADOW_MARKERS 同源",
+    "object_field_authorization.statuses 与实现常量 OBJECT_FIELD_AUTHORIZATION_STATUSES 同源",
+    "csv_artifacts.files 的 fields 与实现常量 API_VERSION_INVENTORY_CSV_FIELDS/API_RECONCILIATION_CSV_FIELDS 同源；resource-control-review.csv/third-party-boundary.csv 的表头由 owner_module 常量单一实现",
+    "对账状态不是 coverage 子状态：对账行校验为模块内自足实现（不复用 validate_application_map_row）",
+    "对账清单不是漏洞：不产生候选、不做 8 状态分级、差异状态不构成漏洞证明",
+    "流量侧仅 A/B/C；D/E 拒收记违例",
+    "api_inventory_schema_version 与实现常量 API_INVENTORY_SCHEMA_VERSION 同源",
+    "全部离线：不发请求、不抓取/下载 OpenAPI 原文、不做高并发或资源压力验证"
+  ]
+}

@@ -1,0 +1,368 @@
+{
+  "schema_version": "1.0",
+  "description": "轻量工具 registry（实施规格 7.1）。status 只表示本地路径可解析性，不表示授权状态；速率/并发/审批门由 ROE.md、policy_engine.py、tool_strategy.json 与阶段代码统一控制。版本事实来源：tools/managed/managed_inventory.json、路径版本段、压缩包文件名（纯离线）。由 scripts/maintenance/rebuild_tool_inventory.py 校验/再生成，不手改 status。",
+  "tools": [
+    {
+      "tool_id": "afrog",
+      "display_name": "Afrog",
+      "path": "tools/managed/afrog/3.5.3/afrog.exe",
+      "version": "3.5.3",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "仅限已确认的中国 OA 产品模板；固定本地 POC 目录，禁止运行时联网更新 POC；输出为候选，不构成漏洞确认",
+      "config_key": "afrog",
+      "notes": "POC 目录固定本地；更新提示只记录不自动执行"
+    },
+    {
+      "tool_id": "ehole",
+      "display_name": "EHole",
+      "path": "tools/ehole.exe",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "指纹识别输出为单一产品信号，不得作为漏洞确认",
+      "config_key": "ehole"
+    },
+    {
+      "tool_id": "xray",
+      "display_name": "Xray",
+      "path": "tools/xray.exe",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "主动扫描需人工审批门；默认流程不自动启动",
+      "config_key": "xray"
+    },
+    {
+      "tool_id": "weekpasswd",
+      "display_name": "Weekpasswd",
+      "path": "tools/weekpasswd.exe",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "GUI 弱口令工具，仅审批门内人工使用；凭证不入任何产物",
+      "config_key": "weekpasswd"
+    },
+    {
+      "tool_id": "oneforall",
+      "display_name": "OneForAll",
+      "path": "tools/oneforall/oneforall.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [
+        "requests"
+      ],
+      "known_limitations": "子域枚举低频；产出需先经 scope 确认再 HTTP 探测",
+      "config_key": "oneforall"
+    },
+    {
+      "tool_id": "ksubdomain",
+      "display_name": "ksubdomain",
+      "path": "tools/ksubdomain_bin/ksubdomain.exe",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "DNS 专项预算工具；--subdomain-concurrency 属 DNS 专项预算，不与 HTTP 并发混淆",
+      "config_key": "ksubdomain"
+    },
+    {
+      "tool_id": "dirsearch",
+      "display_name": "dirsearch",
+      "path": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/dirsearch/dirsearch.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [
+        "requests"
+      ],
+      "known_limitations": "小词表、低速率、默认不递归；200 不等于存在敏感资源",
+      "config_key": "dirsearch",
+      "notes": "路径在天狐兼容运行时内（项目根之外）"
+    },
+    {
+      "tool_id": "sqlmap",
+      "display_name": "sqlmap",
+      "path": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/sqlmap/sqlmap.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [],
+      "known_limitations": "审批门：仅单候选 URL、risk=1、level=1、technique BE、带 delay、无 dump",
+      "config_key": "sqlmap",
+      "notes": "路径在天狐兼容运行时内（项目根之外）"
+    },
+    {
+      "tool_id": "ShiroAttack2",
+      "display_name": "ShiroAttack2",
+      "path": "tools/managed/shiroattack2/5.1.1/shiro_attack-5.1.1-zulu-8-jfx.jar",
+      "version": "5.1.1",
+      "status": "active",
+      "runtime": "java",
+      "dependencies": [],
+      "known_limitations": "仅单授权候选 key/rememberMe 人工验证；命令执行/内存马/上传/持久化为审批门且默认禁用",
+      "config_key": "shiro_attack"
+    },
+    {
+      "tool_id": "shiro_loader",
+      "display_name": "ShiroLoader",
+      "path": "tools/shiro/shiro/ShiroLoader.bat",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "Shiro 本地加载辅助器，仅本地准备环节使用",
+      "config_key": "shiro_loader"
+    },
+    {
+      "tool_id": "nuclei",
+      "display_name": "Nuclei",
+      "path": "tools/managed/nuclei/3.8.0/nuclei.exe",
+      "version": "3.8.0",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "固定引擎版本+本地模板目录，禁止模板自更新；intrusive 模板审批门；输出候选需人工复核",
+      "config_key": "nuclei",
+      "notes": "模板目录见 nuclei_templates 条目；OOB 依赖本地 interactsh"
+    },
+    {
+      "tool_id": "httpx",
+      "display_name": "httpx (projectdiscovery)",
+      "path": "tools/managed/httpx/1.9.0/httpx.exe",
+      "version": "1.9.0",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "技术检测单目标+外置延迟；指纹输出不是漏洞",
+      "config_key": "httpx"
+    },
+    {
+      "tool_id": "katana",
+      "display_name": "Katana",
+      "path": "tools/managed/katana/1.6.1/katana.exe",
+      "version": "1.6.1",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "固定 depth=2、concurrency=1、parallelism=1、rate-limit=1；仅同站爬取",
+      "config_key": "katana"
+    },
+    {
+      "tool_id": "packerfuzzer",
+      "display_name": "PackerFuzzer",
+      "path": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/webpackscan/PackerFuzzer.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [],
+      "known_limitations": "webpack 包解析为 JS 线索来源，需经内置 parser 归一化后使用",
+      "config_key": "packerfuzzer",
+      "notes": "路径在天狐兼容运行时内（项目根之外）"
+    },
+    {
+      "tool_id": "api_tool",
+      "display_name": "API-T00L",
+      "path": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/apitool/API-T00L_v1.2.jar",
+      "version": "",
+      "status": "active",
+      "runtime": "java",
+      "dependencies": [],
+      "known_limitations": "API 工具，仅人工 GUI 场景使用",
+      "config_key": "api_tool",
+      "notes": "路径在天狐兼容运行时内（项目根之外）"
+    },
+    {
+      "tool_id": "api_explorer",
+      "display_name": "API-Explorer",
+      "path": "D:/Desktop/天狐渗透工具箱-社区版V3.0+4.0更新升级包/天狐渗透工具箱-社区版V3.0/tools/gui_scan/apitool/API-Explorer_v1.0.1.exe",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "API 工具，仅人工 GUI 场景使用",
+      "config_key": "api_explorer",
+      "notes": "路径在天狐兼容运行时内（项目根之外）"
+    },
+    {
+      "tool_id": "tidefinger",
+      "display_name": "TideFinger",
+      "path": "tools/managed/tidefinger/3.2.3/TideFinger_windows_amd64_v3.2.3.exe",
+      "version": "3.2.3",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "指纹采样备份工具；单一产品指纹不构成漏洞",
+      "config_key": "tidefinger"
+    },
+    {
+      "tool_id": "FastjsonScan.exe",
+      "display_name": "FastjsonScan",
+      "path": "tools/managed/fastjsonscan/FastjsonScan.exe",
+      "version": "",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "仅单候选 CLI（-u）；真实 RCE/OOB 超出探测即审批门"
+    },
+    {
+      "tool_id": "SpringBoot-Scan.py",
+      "display_name": "SpringBoot-Scan",
+      "path": "tools/managed/springbootscan/SpringBoot-Scan-main/SpringBoot-Scan.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [
+        "requests"
+      ],
+      "known_limitations": "仅单候选；-v/-d exploit 与 heapdump 下载为审批门；其 inc/poc.py 被 Defender 标记，需操作者本机排除后方可运行"
+    },
+    {
+      "tool_id": "Struts2Scan.py",
+      "display_name": "Struts2Scan",
+      "path": "tools/managed/struts2scan/Struts2-Scan-master/Struts2Scan.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [],
+      "known_limitations": "仅单候选；本地副本已修 -n name 判定 bug；S2 系列 payload 利用为审批门"
+    },
+    {
+      "tool_id": "weblogic21839_poc",
+      "display_name": "CVE-2023-21839 POC",
+      "path": "tools/managed/weblogic21839/POC_CVE-2023-21839/CVE-2023-21839.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [],
+      "known_limitations": "纯 T3/IIOP 握手探测；LDAP 指向需本地 OOB（interactsh）"
+    },
+    {
+      "tool_id": "interactsh",
+      "display_name": "interactsh (local OOB stack)",
+      "path": "tools/managed/interactsh/interactsh-server.exe",
+      "version": "1.3.1",
+      "status": "active",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "本地 OOB 回调栈；-d 必须等于 server IP 形式（127.0.0.1），否则 DNS 回调不匹配"
+    },
+    {
+      "tool_id": "nuclei_templates",
+      "display_name": "Nuclei Templates (pinned)",
+      "path": "tools/managed/nuclei-templates/10.4.4",
+      "version": "10.4.4",
+      "status": "active",
+      "runtime": "data",
+      "dependencies": [
+        "nuclei"
+      ],
+      "known_limitations": "固定本地模板目录，禁止自更新；模板版本以目录标识记录，template_manifest_hash 为可选字段非强制门",
+      "notes": "配套 nuclei 引擎 3.8.0；版本事实见 tools/managed/tool_release_manifest.json"
+    },
+    {
+      "tool_id": "oa-exptool",
+      "display_name": "OA-EXPTOOL",
+      "path": "tools/OA-EXPTOOL/scan.py",
+      "version": "",
+      "status": "active",
+      "runtime": "python",
+      "dependencies": [
+        "requests"
+      ],
+      "known_limitations": "OA 产品验证工具，审批门内人工使用；产物只记元数据"
+    },
+    {
+      "tool_id": "dddd",
+      "display_name": "dddd（源码树）",
+      "path": "tools/dddd",
+      "version": "",
+      "status": "hold",
+      "runtime": "go",
+      "dependencies": [],
+      "known_limitations": "本地为 Go 源码树（main.go/compile.sh），无编译产物，当前不直接调用；其 lib/ 内嵌 subfinder/dnsx/httpx/nuclei/masscan 为源码库目录，不作为独立工具登记"
+    },
+    {
+      "tool_id": "ffuf",
+      "display_name": "ffuf",
+      "path": "tools/managed/ffuf/ffuf.exe",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "受控目录候选：固定小词表 wordlists/ffuf_dirs_small.txt、单目标、-t 1、-delay>=2s、无递归；200 不等于敏感资源存在；候选行只产 signal/candidate（src/authorized_assessment/triage/ffuf_directory_candidates.py）",
+      "notes": "本地未下载（禁止自动下载）；候选路径为操作者将来放置位置，放置后由 rebuild --check fail-closed 复核"
+    },
+    {
+      "tool_id": "xsstrike",
+      "display_name": "XSStrike",
+      "path": "tools/managed/xsstrike/XSStrike/xsstrike.py",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "python",
+      "dependencies": [],
+      "known_limitations": "单候选 XSS 验证（规格 7.2 二选一胜出，Dalfox 不引入）：只处理已筛选反射/DOM 候选，单目标单参数，no_crawl/no_blind/no_update；结果回指请求/响应/浏览器上下文/证据索引（src/authorized_assessment/triage/single_candidate_xss_validation.py）",
+      "notes": "本地未下载（禁止自动下载）；Python 运行时匹配项目规范"
+    },
+    {
+      "tool_id": "dalfox",
+      "display_name": "Dalfox",
+      "path": "tools/managed/dalfox/dalfox.exe",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "未选用：规格 7.2 单候选 XSS 验证二选一，XSStrike 胜出；本条目仅为显式留档，不接入任何 strategy 角色",
+      "notes": "本地未下载；二选一败者显式登记 unavailable（严格规范第十节：不得写成模糊 or）"
+    },
+    {
+      "tool_id": "subfinder",
+      "display_name": "subfinder",
+      "path": "tools/managed/subfinder/subfinder.exe",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "仅被动模式：-active 主动枚举旗标在计划路径级禁入；新发现域名必须 confirmation_required（src/authorized_assessment/discovery/passive_subdomain_candidates.py）",
+      "notes": "本地未下载；tools/dddd/lib/subfinder 为 vendored 源码非可执行文件"
+    },
+    {
+      "tool_id": "dnsx",
+      "display_name": "dnsx",
+      "path": "tools/managed/dnsx/dnsx.exe",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "仅已知候选清单解析（-l 模式）：-w 字典爆破旗标禁入；只解析 filter_known_candidates 放行的 in_scope host",
+      "notes": "本地未下载；tools/dddd/lib/dnsx 为 vendored 源码非可执行文件"
+    },
+    {
+      "tool_id": "semgrep",
+      "display_name": "Semgrep",
+      "path": "tools/managed/semgrep/semgrep.exe",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "离线白盒（规格 7.2 二选一胜出，CodeQL 不引入）：规则固定本地、--config 拒绝 auto/p//r//registry/http(s)、--metrics=off 禁遥测；静态命中只产 signal，不能自动变成漏洞（src/authorized_assessment/analysis/static_analysis_signals.py）",
+      "notes": "本地未下载；规则集由操作者固定本地提供，本模块不捆绑不下载"
+    },
+    {
+      "tool_id": "codeql",
+      "display_name": "CodeQL",
+      "path": "tools/managed/codeql/codeql.exe",
+      "version": "",
+      "status": "unavailable",
+      "runtime": "native",
+      "dependencies": [],
+      "known_limitations": "未选用：规格 7.2 离线白盒二选一，Semgrep 胜出；本条目仅为显式留档，不接入任何 strategy 角色",
+      "notes": "本地未下载；二选一败者显式登记 unavailable（严格规范第十节：不得写成模糊 or）"
+    }
+  ]
+}

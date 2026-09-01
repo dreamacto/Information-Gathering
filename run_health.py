@@ -8,6 +8,7 @@ import json
 from collections import Counter
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 def now_iso() -> str:
@@ -38,7 +39,15 @@ def read_jsonl(path: Path) -> list[dict]:
 
 
 def pct(part: int, total: int) -> float:
-    return round(part / total, 4) if total else 0.0
+    # 覆盖率类比值强制钳制 [0,1]（实施规格 3.2：不允许 2.0 类重复计数结果）
+    return round(min(part / total, 1.0), 4) if total else 0.0
+
+
+def _host_of(url: object) -> str:
+    try:
+        return (urlparse(str(url or "")).hostname or "").lower()
+    except ValueError:
+        return ""
 
 
 def build_health(run_dir: Path) -> dict:
@@ -61,14 +70,46 @@ def build_health(run_dir: Path) -> dict:
 
     status_counts = Counter(str(row.get("status") or "error") for row in probes)
     ok_count = sum(1 for row in probes if row.get("ok"))
-    target_count = int(targets.get("count") or 0)
-    completed_target_ratio = pct(len({row.get("url") for row in probes if row.get("url")}), target_count)
+    target_rows = [t for t in (targets.get("targets") or []) if isinstance(t, dict)]
+    target_count = int(targets.get("count") or len(target_rows))
+    in_scope_urls = {str(t.get("url") or "").strip() for t in target_rows} - {""}
+    in_scope_hosts = {str(t.get("host") or "").strip().lower() for t in target_rows} - {""}
+
+    # 覆盖率只以唯一 in-scope target 为分母，分子为至少一次成功探测的唯一 target
+    # （实施规格 3.2）。有 targets 列表时 probe 行按 url 精确匹配或 host 匹配归入目标，
+    # out-of-scope 探测不计入；仅存 count 的旧 targets.json 回退为"成功 url 数 / count"。
+    probed_urls = {str(row.get("url") or "").strip() for row in probes} - {""}
+    ok_urls = {str(row.get("url") or "").strip() for row in probes if row.get("ok")} - {""}
+
+    if target_rows:
+        probed_targets: set[str] = set()
+        ok_target_ids: set[str] = set()
+        for row in probes:
+            url = str(row.get("url") or "").strip()
+            if not url:
+                continue
+            if url in in_scope_urls:
+                key = url
+            else:
+                host = _host_of(url)
+                if not host or host not in in_scope_hosts:
+                    continue
+                key = f"host:{host}"
+            probed_targets.add(key)
+            if row.get("ok"):
+                ok_target_ids.add(key)
+        coverage_denominator = len(target_rows)
+        unique_targets_with_successful_probe = len(ok_target_ids)
+    else:
+        coverage_denominator = target_count or len(probed_urls)
+        unique_targets_with_successful_probe = len(ok_urls)
+    completed_target_ratio = pct(unique_targets_with_successful_probe, coverage_denominator)
     false_positive_ratio = pct(len(false_positive), len(false_positive) + len(verified))
     missing_tools = sorted(name for name, path in (runtime.get("tools", {}) or {}).items() if not path)
 
     score = 100
     recommendations = []
-    if target_count and completed_target_ratio < 0.9:
+    if (target_count or probes) and completed_target_ratio < 0.9:
         score -= 20
         recommendations.append("Probe coverage is below 90%; resume this run or inspect failures before trusting negative results.")
     if probes and pct(ok_count, len(probes)) < 0.6:
@@ -92,6 +133,13 @@ def build_health(run_dir: Path) -> dict:
     if rate_skips:
         score -= 5
         recommendations.append("Some hosts hit repeated-error backoff; review rate_limit_skips.jsonl.")
+    if probes and ok_count == 0:
+        # 实施规格 13.2 负例：全部失败不得得到较高健康分
+        score = min(score, 40)
+        recommendations.append(
+            "No probe returned a successful response; treat the run as FAILED for conclusions "
+            "(see run quality gate) and verify network/VPN before rerunning."
+        )
 
     score = max(0, min(100, score))
     return {
@@ -99,6 +147,8 @@ def build_health(run_dir: Path) -> dict:
         "run_dir": str(run_dir),
         "health_score": score,
         "target_count": target_count,
+        "unique_in_scope_targets": coverage_denominator,
+        "unique_targets_with_successful_probe": unique_targets_with_successful_probe,
         "probe_rows": len(probes),
         "probe_unique_urls": len({row.get("url") for row in probes if row.get("url")}),
         "probe_coverage_ratio": completed_target_ratio,
@@ -135,6 +185,7 @@ def write_markdown(run_dir: Path, health: dict) -> Path:
         f"- Generated: {health['generated_at']}",
         f"- Score: {health['health_score']}/100",
         f"- Targets: {health['target_count']}",
+        f"- In-scope targets probed successfully: {health['unique_targets_with_successful_probe']}/{health['unique_in_scope_targets']}",
         f"- Probe coverage: {health['probe_coverage_ratio']}",
         f"- Probe OK ratio: {health['probe_ok_ratio']}",
         f"- Verified / false-positive: {health['verified_exposures']} / {health['false_positive_exposures']}",

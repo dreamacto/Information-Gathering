@@ -26,14 +26,23 @@ from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 
-try:
-    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
-except Exception:
-    pass
+# 导入期零副作用（操作员 batch8_5 决定③根治）：本模块不得在导入期修改全局
+# 环境（PYTHONUTF8/PYTHONIOENCODING/locale）或重配置全局 stdout/stderr 编码——
+# 导入期环境变更会让后续子进程继承 UTF-8 输出，而 GBK locale 的父进程读取线程
+# 解码中文输出时崩溃（batch8_0 第 4 条根因链）。输出编码兑底仅对“作为 CLI 入口
+# 运行”生效（__main__ guard，main() 调用前）；任何导入方（含进程内调用 main()
+# 的测试）都不改变全局环境——编码兼容是运行环境设置，非模块正确性前提。
 
-os.environ.setdefault("PYTHONUTF8", "1")
-os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+
+def _configure_cli_output_encoding() -> None:
+    """CLI 入口输出编码兑底（仅 __main__ guard 调用，导入方与进程内 main() 调用均不受影响）。"""
+    try:
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+    os.environ.setdefault("PYTHONUTF8", "1")
+    os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 
 DEFAULT_WORDS = (
@@ -1221,6 +1230,8 @@ def write_csv(path: Path, rows: list[dict]) -> None:
 
 
 def main() -> int:
+    # 运行环境兼容设置已移至 __main__ guard（操作员 batch8_5 决定③）：main() 可被
+    # 进程内调用（如测试）而不改变全局环境；仅直接 CLI 运行时设置输出编码。
     parser = argparse.ArgumentParser(description="Low-rate subdomain brute-force discovery")
     parser.add_argument("--targets", type=Path, required=True)
     parser.add_argument("--out-dir", type=Path, required=True)
@@ -1442,4 +1453,5 @@ def main() -> int:
 
 
 if __name__ == "__main__":
+    _configure_cli_output_encoding()
     raise SystemExit(main())

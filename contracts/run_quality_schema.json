@@ -1,0 +1,91 @@
+{
+  "schema_version": "1.0",
+  "contract": "run_quality",
+  "description": "Contract for the run quality gate output (implementation spec section 3.2, lines 615-697). Produced by src/authorized_assessment/quality/run_quality_gate.py with a dependency-free subset validator. Any gate condition forbids quality_status=VALID and forbids a negative ('no vulnerabilities found') conclusion.",
+  "type": "object",
+  "quality_status_states": ["VALID", "PARTIAL", "INCONCLUSIVE", "FAILED", "BLOCKED"],
+  "status_precedence": ["BLOCKED", "FAILED", "INCONCLUSIVE", "PARTIAL", "VALID"],
+  "status_semantics": {
+    "VALID": "No gate condition triggered and no degradation signal; the only state that may allow negative_conclusion_allowed=true.",
+    "PARTIAL": "No gate condition triggered, but sub-threshold degradation signals exist (transport errors, WAF blocks, or rate-limit skips).",
+    "INCONCLUSIVE": "At least one mandatory gate condition triggered; negative conclusions are forbidden.",
+    "FAILED": "No in-scope target ever returned a successful response; the run cannot support any conclusion.",
+    "BLOCKED": "The run is explicitly blocked (stop condition, approval gate, or scope not confirmed)."
+  },
+  "gate_thresholds": {
+    "probe_coverage_min": 0.9,
+    "probe_ok_ratio_min": 0.5,
+    "rate_limit_skip_ratio_max": 0.2,
+    "transport_error_ratio_max": 0.3,
+    "waf_block_ratio_max": 0.1
+  },
+  "gate_threshold_notes": {
+    "waf_block_ratio_max": "The spec only requires a configurable WAF/block threshold; 0.1 is the documented conservative default and may be overridden by callers.",
+    "metric_definitions": {
+      "probe_coverage": "unique in-scope targets with at least one successful probe / unique in-scope targets; clamped to [0,1]; duplicate counting above 1.0 is forbidden",
+      "probe_ok_ratio": "probe rows with ok=true / total probe rows; clamped to [0,1]",
+      "rate_limit_skip_ratio": "rate_limit_skips / unique in-scope targets",
+      "transport_error_ratio": "probe rows with error_class in transport classes (dns, timeout, connection) / total probe rows",
+      "waf_block_ratio": "probe rows with error_class=waf / total probe rows"
+    }
+  },
+  "gate_reasons": [
+    "probe_coverage_below_threshold",
+    "probe_ok_ratio_below_threshold",
+    "rate_limit_skip_ratio_high",
+    "transport_error_ratio_high",
+    "no_successful_probe",
+    "waf_block_ratio_exceeded",
+    "no_in_scope_targets",
+    "run_blocked"
+  ],
+  "required": [
+    "quality_status",
+    "negative_conclusion_allowed",
+    "unique_in_scope_targets",
+    "unique_targets_with_successful_probe",
+    "probe_coverage",
+    "probe_ok_ratio",
+    "transport_errors",
+    "dns_errors",
+    "timeouts",
+    "waf_blocks",
+    "rate_limit_skips",
+    "quality_gate_reasons"
+  ],
+  "properties": {
+    "quality_status": { "type": "string", "enum": ["VALID", "PARTIAL", "INCONCLUSIVE", "FAILED", "BLOCKED"] },
+    "negative_conclusion_allowed": { "type": "boolean" },
+    "unique_in_scope_targets": { "type": "integer", "minimum": 0 },
+    "unique_targets_with_successful_probe": { "type": "integer", "minimum": 0 },
+    "probe_coverage": { "type": "number", "minimum": 0, "maximum": 1 },
+    "probe_ok_ratio": { "type": "number", "minimum": 0, "maximum": 1 },
+    "transport_errors": { "type": "integer", "minimum": 0 },
+    "dns_errors": { "type": "integer", "minimum": 0 },
+    "timeouts": { "type": "integer", "minimum": 0 },
+    "waf_blocks": { "type": "integer", "minimum": 0 },
+    "rate_limit_skips": { "type": "integer", "minimum": 0 },
+    "quality_gate_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "probe_coverage_below_threshold",
+          "probe_ok_ratio_below_threshold",
+          "rate_limit_skip_ratio_high",
+          "transport_error_ratio_high",
+          "no_successful_probe",
+          "waf_block_ratio_exceeded",
+          "no_in_scope_targets",
+          "run_blocked"
+        ]
+      }
+    }
+  },
+  "invariants": [
+    "negative_conclusion_allowed must be true if and only if quality_status == VALID",
+    "unique_targets_with_successful_probe <= unique_in_scope_targets",
+    "quality_gate_reasons must be non-empty for every state other than VALID",
+    "credential-like keys are forbidden anywhere in the payload"
+  ]
+}
