@@ -1,0 +1,56 @@
+{
+  "worker_type": "code",
+  "status": "ok",
+  "scope": "construction_table_02_only",
+  "facts": {
+    "new_runtime_modules": [
+      "src/authorized_assessment/runtime/event_journal.py",
+      "src/authorized_assessment/runtime/checkpoint.py",
+      "src/authorized_assessment/runtime/lease.py",
+      "src/authorized_assessment/runtime/idempotency.py",
+      "src/authorized_assessment/runtime/task_lineage.py",
+      "src/authorized_assessment/runtime/recovery.py",
+      "src/authorized_assessment/runtime/state_version.py"
+    ],
+    "compatibility_files_checked": [
+      "src/authorized_assessment/runtime/run_identity.py",
+      "src/authorized_assessment/runtime/run_dedup.py"
+    ],
+    "test_files": [
+      "tests/test_event_journal.py",
+      "tests/test_checkpoint.py",
+      "tests/test_lease.py",
+      "tests/test_idempotency.py",
+      "tests/test_task_lineage.py",
+      "tests/test_recovery.py"
+    ],
+    "targeted_tests": "48 passed, 1 warning",
+    "full_pytest": "1373 passed, 1 warning",
+    "compile": "pass",
+    "direct_import": "pass",
+    "diff_check": "pass",
+    "network_requests": 0,
+    "credentials_read": 0,
+    "sessions_read": 0,
+    "har_raw_read": 0,
+    "real_runtime_artifacts_read": 0
+  },
+  "commands": [
+    {"command": ".venv/Scripts/python.exe -m py_compile src/authorized_assessment/runtime/{event_journal,checkpoint,lease,idempotency,task_lineage,recovery,state_version}.py tests/test_{event_journal,checkpoint,lease,idempotency,task_lineage,recovery}.py", "returncode": 0},
+    {"command": "PYTHONPATH=src;. .venv/Scripts/python.exe -c import all seven runtime modules", "returncode": 0, "summary": "imports_ok"},
+    {"command": ".venv/Scripts/python.exe -m pytest -q tests/test_event_journal.py tests/test_checkpoint.py tests/test_lease.py tests/test_idempotency.py tests/test_task_lineage.py tests/test_recovery.py tests/test_run_identity.py tests/test_run_dedup.py", "returncode": 0, "summary": "48 passed, 1 warning"},
+    {"command": ".venv/Scripts/python.exe -m pytest -q", "returncode": 0, "summary": "1373 passed, 1 warning"},
+    {"command": "git diff --check", "returncode": 0}
+  ],
+  "security": {
+    "network": false,
+    "credentials_read": false,
+    "sessions_read": false,
+    "har_raw_read": false,
+    "real_target_requests": false,
+    "approval_gated_actions": false,
+    "out_of_scope_files_modified": false,
+    "synthetic_sensitive_negative_tests_only": true
+  },
+  "created_at": "2026-09-01T00:00:00+00:00"
+}

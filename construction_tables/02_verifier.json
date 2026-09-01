@@ -1,0 +1,26 @@
+{
+  "status": "verified",
+  "scope_check": {"status": "pass", "detail": "施工表02列出的9个runtime文件（7新增、2兼容）与6个专属测试文件均在范围内；既有脏文件未修改"},
+  "tests_check": {"status": "pass", "targeted": "48 passed, 1 warning", "full_pytest": "1373 passed, 1 warning", "compile": "pass", "direct_import": "pass", "diff_check": "pass"},
+  "contract_check": {"status": "pass", "detail": "event/checkpoint 结构、单调序列、WZ/XCX cursor 文件隔离、幂等 replay、租约 owner/token hash、retry lineage、恢复 hash fail-closed 与 state/schema version 分离均有实现和负例测试"},
+  "dual_result_check": {"status": "pass", "detail": "Code Worker 事实记录与 Analyst 完整游标结构化分析均已落盘；本记录由 Verifier 门控产生 verified"},
+  "cursor_check": {"status": "pass", "detail": "施工表02独立使用 construction_tables/02_phase_status.json；未触碰 WZ phase_status.json、XCX phase_status.miniapp.json 或具体 engagement 游标"},
+  "security_check": {"status": "pass", "detail": "无网络、无真实目标请求、无凭证/session/HAR/raw/真实运行产物读取、无审批门动作；敏感扫描命中仅为合成负例测试字面量，未包含真实秘密"},
+  "issues": [],
+  "evidence": [
+    "construction_tables/02_phase_status.json",
+    "construction_tables/02_code_worker.json",
+    "construction_tables/02_analyst_worker.json",
+    "construction_tables/02_acceptance_record.md",
+    "src/authorized_assessment/runtime/event_journal.py",
+    "src/authorized_assessment/runtime/checkpoint.py",
+    "src/authorized_assessment/runtime/lease.py",
+    "src/authorized_assessment/runtime/idempotency.py",
+    "src/authorized_assessment/runtime/task_lineage.py",
+    "src/authorized_assessment/runtime/recovery.py",
+    "src/authorized_assessment/runtime/state_version.py",
+    "src/authorized_assessment/runtime/run_identity.py",
+    "src/authorized_assessment/runtime/run_dedup.py"
+  ],
+  "created_at": "2026-09-01T00:00:00+00:00"
+}

@@ -1,0 +1,34 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "02",
+  "status": "complete",
+  "cursor": {"current_phase": "complete", "next_phase": null, "last_completed_phase": "runtime_acceptance"},
+  "target_model": {"status": "not_applicable", "reason": "本施工表仅实现离线 runtime 控制面，不绑定具体网站、小程序或 engagement"},
+  "coverage": {
+    "runtime_modules_total": 9,
+    "runtime_modules_implemented": 7,
+    "runtime_modules_compatibility_checked": 2,
+    "test_files_total": 6,
+    "test_files_passed": 6,
+    "targeted_tests_passed": 48,
+    "full_pytest_passed": 1373,
+    "warnings": 1
+  },
+  "analysis": {
+    "code_worker_ref": "construction_tables/02_code_worker.json",
+    "analyst_worker_ref": "construction_tables/02_analyst_worker.json",
+    "verifier_ref": "construction_tables/02_verifier.json"
+  },
+  "not_tested": [
+    {"item": "真实目标请求、网络、主动探测", "reason": "施工表与 ROE 要求离线实施"},
+    {"item": "凭证、真实 session、HAR/raw 响应和真实运行产物", "reason": "安全边界明确禁止读取"},
+    {"item": "具体 engagement 的 target-model、coverage、候选、ledger 和真实 phase cursor", "reason": "本施工表不绑定目标；仅验证 WZ/XCX 文件名隔离"},
+    {"item": "并发进程级锁争用和真实权限拒绝环境", "reason": "本地测试覆盖结构化 fail-closed 路径，未改变系统权限或启动多进程"}
+  ],
+  "operator_tasks": [],
+  "failed": [],
+  "blocked": [],
+  "approval_required": [],
+  "handoff_ready": true,
+  "completed_at": "2026-09-01T00:00:00+00:00"
+}

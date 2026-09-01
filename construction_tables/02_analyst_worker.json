@@ -1,0 +1,79 @@
+{
+  "worker_type": "analyst",
+  "status": "ok",
+  "facts_used": [
+    "construction_tables/02_phase_status.json",
+    "construction_tables/02_code_worker.json",
+    "construction_tables/02_施工表_Runtime事件检查点租约幂等.md",
+    "construction_tables/00_phase_status.json",
+    "construction_tables/00_code_worker.json",
+    "construction_tables/00_analyst_worker.json",
+    "construction_tables/00_verifier.json",
+    "AGENTS.md: 项目边界、阶段落盘与不读敏感源",
+    "ROE.md: 只读/离线、安全数据与禁止动作",
+    "docs/RULE_PRECEDENCE.md: 规则优先级与 fail-closed 冲突处理",
+    "docs/CONTEXT_LOADING_MAP.yaml: 必需 L0、WZ/XCX cursor 隔离与历史数据禁入",
+    "docs/AGENT_WORKER_CONTRACT.md: Code/Analyst/Verifier 权限与结构化输出",
+    "docs/AGENT_STATE_AND_EVENT_MODEL.md: checkpoint/event/恢复/审批边界",
+    "contracts/event_schema.json",
+    "contracts/checkpoint_schema.json",
+    "src/authorized_assessment/runtime/event_journal.py",
+    "src/authorized_assessment/runtime/checkpoint.py",
+    "src/authorized_assessment/runtime/lease.py",
+    "src/authorized_assessment/runtime/idempotency.py",
+    "src/authorized_assessment/runtime/task_lineage.py",
+    "src/authorized_assessment/runtime/recovery.py",
+    "src/authorized_assessment/runtime/state_version.py",
+    "src/authorized_assessment/runtime/run_identity.py",
+    "src/authorized_assessment/runtime/run_dedup.py",
+    "tests/test_event_journal.py",
+    "tests/test_checkpoint.py",
+    "tests/test_lease.py",
+    "tests/test_idempotency.py",
+    "tests/test_task_lineage.py",
+    "tests/test_recovery.py",
+    "runtime/policy_snapshot.json (仅策略状态摘要，未读取敏感内容)"
+  ],
+  "reasoning_summary": "施工表02补齐了离线 runtime 控制面：事件追加与重放不执行写操作，checkpoint 通过原子保存和单调 sequence 恢复，租约/幂等使用本地原子状态且不保存明文 token 或请求 payload，task lineage 对 retry/跨 workflow/自环 fail-closed，recovery 先验 policy/scope/context hash 与 WZ/XCX cursor stream，state_version 与 schema_version 分离并执行乐观并发检查。既有 run_identity/run_dedup 行为保持兼容。",
+  "alternative_explanations": [
+    "当前工作树仍有施工表02之外的既有脏文件和未跟踪文件；这些不是本阶段实现，也未被覆盖或清理。",
+    "全量测试中的单个 warning 不改变通过结果，但未在本阶段修改其来源。",
+    "真实 engagement 的 target-model、coverage、candidate/ledger、artifact refs 不适用；本阶段只验证控制面形状与引用隔离。"
+  ],
+  "hypotheses": [
+    "后续 WZ/XCX/FH 编排可通过事件、checkpoint、lease、operation key 和 lineage 引用实现可恢复的本地状态，而不把秘密带入控制面。",
+    "恢复消费者应继续把 hash drift、取消、权限拒绝和 blocked 当作人工复核或阻断，而不是自动重试。"
+  ],
+  "unknowns": [
+    "未在真实 engagement 实例上验证游标/策略/source hash 装配。",
+    "未验证多进程文件锁争用、断电恢复和真实操作系统权限错误。",
+    "未执行真实目标、认证态流程或任何 approval-gated 动作。"
+  ],
+  "coverage": {
+    "runtime_modules": 7,
+    "compatibility_modules": 2,
+    "专属测试文件": 6,
+    "targeted_passed": 48,
+    "full_pytest_passed": 1373,
+    "event_append_replay_sequence": true,
+    "checkpoint_atomic_monotonic_cursor_isolation": true,
+    "lease_ttl_owner_expiry": true,
+    "idempotency_replay_conflict": true,
+    "lineage_retry_cross_boundary": true,
+    "recovery_hash_cursor_fail_closed": true,
+    "state_version_optimistic_concurrency": true,
+    "sensitive_negative_tests": true
+  },
+  "not_tested": [
+    {"item": "真实目标请求/网络/主动探测", "reason": "离线施工与 ROE 禁止"},
+    {"item": "凭证、session、HAR/raw 和真实运行产物", "reason": "上下文白名单与安全边界禁止"},
+    {"item": "具体目标完整游标、target-model、coverage、候选/ledger/artifact 实例", "reason": "本表不绑定 engagement"},
+    {"item": "多进程锁、断电和真实权限环境", "reason": "未改变系统状态"
+    }
+  ],
+  "next_hints": [
+    "具体 workflow 消费 runtime 状态时，必须加载完整当前 cursor、policy/scope/context 摘要与 hash refs。",
+    "任何需要写端点、认证凭证、审批或 finding confirmed 的动作仍须沿现有审批门，不得由 runtime 恢复逻辑自动触发。"
+  ],
+  "created_at": "2026-09-01T00:00:00+00:00"
+}
