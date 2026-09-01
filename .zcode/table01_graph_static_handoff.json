@@ -1,0 +1,120 @@
+{
+  "construction_table": "01",
+  "baseline": "74ab28c",
+  "status": "needs_manual_validation",
+  "handoff_ready": true,
+  "scope": "static graph planning only; no tools, network, credentials, sessions, HAR/raw responses, or real runs",
+  "cursor": {
+    "workflow_streams": ["wz", "xcx", "fh"],
+    "wz_cursor": "phase_status.json",
+    "xcx_cursor": "phase_status.miniapp.json",
+    "fh_cursor": null,
+    "phase_cursor_modified": false
+  },
+  "target_model": {
+    "graph": "GraphSpec/NodeSpec/EdgeSpec with stable IDs and deterministic topology",
+    "planning": "to_planning_dict/from_planning_dict preserve graph_version, conditions, stream, loop and terminal metadata",
+    "contract": "to_dict remains compatible with v3 graph_schema.json projection",
+    "controls": "stream factories explicitly include authorization/scope/approval/verifier controls"
+  },
+  "coverage": {
+    "ordering_and_conditions": true,
+    "fan_out_fan_in": true,
+    "all_any_barrier": true,
+    "restricted_loop_metadata_and_termination": true,
+    "dag_cycle_rejection": true,
+    "terminal_metadata": true,
+    "graph_version": true,
+    "wz_xcx_fh_stream_factories": true,
+    "cursor_isolation": true,
+    "fail_closed_routes_and_barriers": true,
+    "negative_inputs": true,
+    "network_or_tool_execution": false
+  },
+  "code_worker": {
+    "result": "pass",
+    "commands": [
+      {"command": "py_compile six graph modules", "returncode": 0},
+      {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q tests/test_graph.py tests/test_graph_routes.py tests/test_graph_barriers.py tests/test_graph_contracts.py", "returncode": 0, "summary": "21 passed, 1 warning"},
+      {"command": "git diff --check", "returncode": 0}
+    ],
+    "evidence": [
+      "src/authorized_assessment/orchestration/graph.py",
+      "src/authorized_assessment/orchestration/graph_validation.py",
+      "src/authorized_assessment/orchestration/graph_builder.py",
+      "src/authorized_assessment/orchestration/graph_routes.py",
+      "src/authorized_assessment/orchestration/graph_barriers.py",
+      "src/authorized_assessment/orchestration/stream_graphs.py",
+      "tests/test_graph.py",
+      "tests/test_graph_routes.py",
+      "tests/test_graph_barriers.py"
+    ]
+  },
+  "analyst": {
+    "result": "complete",
+    "facts_used": [
+      "construction table 01 and v3 graph_schema.json",
+      "six graph modules and three table-specific tests",
+      "existing test_graph_contracts.py",
+      "known Code Worker graph suite result"
+    ],
+    "reasoning_summary": "The implementation is side-effect-free and models static DAG planning with explicit conditional edges, joins, stream factories, and fail-closed routing/barrier decisions. Runtime execution remains outside this table.",
+    "alternative_explanations": [
+      "loop metadata may be intentionally consumed by a later runtime phase",
+      "FH may intentionally have no phase cursor because it is review-oriented"
+    ],
+    "hypotheses": [
+      "planning metadata must stay separate from strict v3 contract projection",
+      "later runtime work must connect join readiness and loop termination to execution"
+    ],
+    "unknowns": [
+      "downstream runtime consumer contract",
+      "full JSON Schema engine integration",
+      "actual runtime semantics of loop and approval gates"
+    ],
+    "coverage": ["graph model", "validation", "builder", "routes", "barriers", "WZ/XCX/FH factories", "offline tests"],
+    "not_tested": ["real execution", "network", "credentials", "sessions", "HAR/raw", "real runs", "downstream supervisor"],
+    "next_hints": ["施工表02/后续 runtime 应消费 planning metadata，并单独验证执行期 join/loop/approval 行为"]
+  },
+  "verifier": {
+    "result": "pass_with_remaining_risks",
+    "blocking_issues": [],
+    "schema_compatibility": "v3 contract projection passes existing contract tests; planning metadata uses a separate serializer",
+    "stream_isolation": "WZ phase_status.json, XCX phase_status.miniapp.json, FH no WZ/XCX cursor",
+    "static_no_side_effects": "pass; no network/tool/subprocess/state writes observed",
+    "remaining_risks": [
+      "planning nested unknown-field rejection is not exhaustive",
+      "loop execution and termination are not implemented in this static table",
+      "route predecessor readiness is delegated to later runtime",
+      "JSON Schema engine is not invoked by the current contract test",
+      "workspace contains unrelated pre-existing modifications"
+    ],
+    "verifier_disposition": "needs_manual_validation before claiming complete"
+  },
+  "not_tested": [
+    "real targets or requests",
+    "credentials, session files, HAR/raw responses, or real run contents",
+    "runtime execution, supervisor, worker, verifier integration",
+    "approval state consumption",
+    "JSON Schema engine end-to-end validation"
+  ],
+  "operator_tasks": [
+    "Review downstream runtime contract for loop/join/approval consumption",
+    "Decide whether planning metadata needs a formally versioned schema in a later construction table",
+    "Confirm construction table 00 completion/merge gate before releasing table 03-06"
+  ],
+  "failed": [],
+  "blocked": [],
+  "approval_required": [],
+  "analysis_artifact_refs": [
+    "src/authorized_assessment/orchestration/graph.py",
+    "src/authorized_assessment/orchestration/graph_validation.py",
+    "src/authorized_assessment/orchestration/graph_builder.py",
+    "src/authorized_assessment/orchestration/graph_routes.py",
+    "src/authorized_assessment/orchestration/graph_barriers.py",
+    "src/authorized_assessment/orchestration/stream_graphs.py",
+    "tests/test_graph.py",
+    "tests/test_graph_routes.py",
+    "tests/test_graph_barriers.py"
+  ]
+}
