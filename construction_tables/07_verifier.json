@@ -1,0 +1,30 @@
+{
+  "construction_table": "07",
+  "worker_type": "verifier",
+  "status": "verified",
+  "baseline": "v3:74ab28c",
+  "code_result_ref": "construction_tables/07_code_worker.json",
+  "analyst_result_ref": "construction_tables/07_analyst_worker.json",
+  "checks": {
+    "compile_each_file": "passed",
+    "direct_import_each_production_module": "passed",
+    "contract_shapes": "passed",
+    "focused_unit_tests": "12 passed",
+    "compatibility_regression": "71 passed, 1 warning",
+    "empty_invalid_inputs": "passed",
+    "timeout_cancel_permission_denial": "passed",
+    "approval_rejection_and_two_key_gate": "passed",
+    "cursor_isolation": "passed",
+    "sensitive_field_checks": "passed",
+    "network_request_count": 0,
+    "git_diff_check": "passed"
+  },
+  "findings": [],
+  "remaining_risks": [
+    "In-process scheduler is not a substitute for OS process supervision.",
+    "Live target adapters and real engagement assembly remain intentionally out of scope.",
+    "Lease renewal and full specialist result-chain integration need a later controlled stage."
+  ],
+  "security_boundary": "No real target request, credential/session/HAR/raw response read, legacy runner launch, or write-side action occurred.",
+  "handoff_ready": true
+}

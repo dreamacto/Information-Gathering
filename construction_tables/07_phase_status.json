@@ -1,0 +1,30 @@
+{
+  "construction_table": "07",
+  "baseline": "v3:74ab28c",
+  "status": "complete",
+  "status_file": "phase_status.json (WZ) / phase_status.miniapp.json (XCX isolated)",
+  "cursor_policy": {
+    "wz": "phase_status.json",
+    "xcx": "phase_status.miniapp.json",
+    "fh": "run_status.json (generic contract only; not used by table07 tests)"
+  },
+  "coverage": ["supervisor", "scheduler", "fanout", "fanin", "approval_interrupt", "kill_switch", "retry_policy", "orchestration_runtime", "checkpoint/event integration", "lease conflict adapter", "WZ/ XCX cursor isolation"],
+  "not_tested": ["cross-process OS child termination", "live network adapters", "real engagement/run artifacts", "credentials/session/HAR/raw responses", "operator approval UI", "lease renewal during long-running process", "FH end-to-end graph"],
+  "blocked": [],
+  "approval_required": ["Any future write endpoint, active network adapter, credential testing, or other ROE approval-gated action"],
+  "operator_tasks": ["Review cross-process cancellation and lease renewal before extending beyond local in-process runtime", "Review specialist Code/Analyst/Verifier result-chain integration before a later construction table"],
+  "artifact_refs": [
+    "construction_tables/07_code_worker.json",
+    "construction_tables/07_analyst_worker.json",
+    "construction_tables/07_verifier.json",
+    "tests/test_supervisor.py",
+    "tests/test_scheduler.py",
+    "tests/test_fanout_fanin.py",
+    "tests/test_approval_interrupt.py",
+    "tests/test_retry_policy.py",
+    "tests/test_kill_switch.py"
+  ],
+  "network_requests": 0,
+  "real_target_requests": 0,
+  "handoff_ready": true
+}

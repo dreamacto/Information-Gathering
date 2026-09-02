@@ -1,0 +1,44 @@
+{
+  "construction_table": "07",
+  "worker_type": "code",
+  "status": "completed",
+  "baseline": "v3:74ab28c",
+  "facts": {
+    "modified_files": [
+      "src/authorized_assessment/orchestration/supervisor.py",
+      "src/authorized_assessment/orchestration/scheduler.py",
+      "src/authorized_assessment/orchestration/fanout.py",
+      "src/authorized_assessment/orchestration/fanin.py",
+      "src/authorized_assessment/orchestration/approval_interrupt.py",
+      "src/authorized_assessment/orchestration/kill_switch.py",
+      "src/authorized_assessment/orchestration/retry_policy.py",
+      "src/authorized_assessment/orchestration/orchestration_runtime.py",
+      "tests/test_supervisor.py",
+      "tests/test_scheduler.py",
+      "tests/test_fanout_fanin.py",
+      "tests/test_approval_interrupt.py",
+      "tests/test_retry_policy.py",
+      "tests/test_kill_switch.py"
+    ],
+    "compile": {"command": "python -m py_compile <table07 files>", "returncode": 0},
+    "direct_import": {"modules": 8, "returncode": 0},
+    "focused_tests": {"command": "python -m pytest -q table07 tests", "passed": 12, "failed": 0},
+    "compatibility_tests": {"passed": 71, "failed": 0, "warning_count": 1},
+    "network_requests": 0,
+    "real_target_requests": 0,
+    "credentials_sessions_har_raw_read": 0,
+    "security_properties": [
+      "TaskEnvelope action remains offline/read_only/metadata through existing builder",
+      "approval uses existing two-key verifier and blocked-action precedence",
+      "kill switch prevents new dispatch and propagates child cancellation",
+      "WZ/XCX cursor isolation is validated",
+      "checkpoint writes use existing atomic monotonic save_checkpoint",
+      "event summaries contain only safe identifiers/statuses"
+    ]
+  },
+  "coverage": ["retry", "kill_switch", "approval_interrupt", "fanout", "fanin", "scheduler", "runtime", "supervisor", "WZ cursor", "XCX cursor", "lease adapter"],
+  "not_tested": ["cross-process OS process termination", "real engagement assembly", "network tool invocation", "FH end-to-end graph", "live approval operator UI"],
+  "operator_tasks": ["Review cross-process cancellation and lease renewal in a later controlled stage"],
+  "handoff_ready": true,
+  "evidence_paths": ["tests/test_supervisor.py", "tests/test_scheduler.py", "tests/test_fanout_fanin.py", "tests/test_approval_interrupt.py", "tests/test_retry_policy.py", "tests/test_kill_switch.py"]
+}

@@ -1,0 +1,57 @@
+{
+  "construction_table": "07",
+  "worker_type": "analyst",
+  "status": "completed",
+  "facts_used": [
+    "AGENTS.md security boundary and cursor ownership",
+    "ROE.md read-only/approval/blocked-action rules",
+    "docs/RULE_PRECEDENCE.md precedence and fail-closed conflict handling",
+    "docs/CONTEXT_LOADING_MAP.yaml whitelist and historical-data exclusions",
+    "docs/AGENT_ORCHESTRATION_ARCHITECTURE.md control-plane model",
+    "docs/AGENT_STATE_AND_EVENT_MODEL.md checkpoint/event/approval rules",
+    "docs/AGENT_WORKER_CONTRACT.md worker/result/error contracts",
+    "construction_tables/06_acceptance_record.md prior XCX graph/worker handoff",
+    "src/authorized_assessment/orchestration/graph.py, graph_validation.py, graph_barriers.py",
+    "src/authorized_assessment/orchestration/task_envelope.py, worker_executor.py, worker_output_verifier.py",
+    "src/authorized_assessment/runtime/checkpoint.py, event_journal.py, lease.py, recovery.py",
+    "construction_tables/07_code_worker.json"
+  ],
+  "reasoning_summary": "The implementation closes the documented table-07 integration gap with a local control-plane path. Scheduler readiness is dependency/barrier based and deterministic; runtime owns events and the workflow-specific checkpoint stream; workers remain injected/read-only. Approval and kill-switch decisions are fail-closed. Existing contracts remain the source of truth, so a missing or invalid policy/worker result cannot become verified.",
+  "alternative_explanations": [
+    "A passing synthetic callback does not prove a real worker implementation is safe; real network adapters remain intentionally untested.",
+    "A completed synthetic graph does not establish production cross-process cancellation or lease renewal semantics.",
+    "The current verifier integration validates control-plane readiness; it does not invent a proven finding without Code and Analyst evidence."
+  ],
+  "hypotheses": [
+    "Table 07 acceptance requires deterministic local graph execution and durable cursor/event transitions.",
+    "Approval and stop controls must be consumed before dispatch and must dominate lower-level allow decisions.",
+    "Fan-out/fan-in correctness is best represented by stable IDs and barrier status aggregation rather than raw branch payloads."
+  ],
+  "unknowns": [
+    "Whether a future deployment needs a process-backed executor rather than the current in-process executor.",
+    "Whether FH will be admitted to formal graph validation in a later table; this implementation preserves run_status.json only in generic runtime mapping.",
+    "Operator-specific approval persistence and lease renewal cadence."
+  ],
+  "coverage": {
+    "target_model": "Synthetic local graph only; no target assets loaded",
+    "cursor_streams": ["phase_status.json", "phase_status.miniapp.json"],
+    "phases": ["scope", "fanout/fanin", "approval", "verifier-shaped terminal"],
+    "evidence": "IDs, hashes, safe paths, statuses, and test references only",
+    "tests": 71
+  },
+  "not_tested": [
+    "real target requests and active tools",
+    "credentials, sessions, HAR/raw response and real runs",
+    "cross-process kill and OS child termination",
+    "network backoff/host stop conditions",
+    "full Code→Analyst→Verifier result synthesis with specialist handlers",
+    "operator approval UI and durable approval record loading"
+  ],
+  "next_hints": [
+    "Keep table 07 handoff at local/offline boundary.",
+    "Require explicit operator approval before any future write or active adapter work.",
+    "Use the persisted cursor, events, coverage and not_tested fields as the only resume inputs."
+  ],
+  "operator_tasks": ["Review cross-process cancellation, lease renewal, and specialist result-chain integration before any later table."],
+  "handoff_ready": true
+}
