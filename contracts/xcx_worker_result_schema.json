@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "xcx_worker_result_schema",
+  "title": "XCX worker result envelope",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["result_id", "task_id", "worker_id", "worker_type", "status", "created_at", "lineage", "gate", "workflow", "cursor_file", "phase", "facts", "artifact_refs", "coverage", "not_tested"],
+  "properties": {
+    "result_id": {"type": "string", "pattern": "^result_[A-Za-z0-9._-]+$"},
+    "task_id": {"type": "string", "minLength": 1},
+    "worker_id": {"type": "string", "pattern": "^worker_xcx_[A-Za-z0-9._-]+$"},
+    "worker_type": {"enum": ["code", "analyst", "verifier"]},
+    "status": {"enum": ["ok", "partial", "blocked", "cancelled", "failed", "needs_manual_validation"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "workflow": {"const": "xcx"},
+    "cursor_file": {"const": "phase_status.miniapp.json"},
+    "phase": {"type": "string", "minLength": 1},
+    "subphase": {"type": ["string", "null"]},
+    "facts": {"type": "array"},
+    "artifact_refs": {"type": "array"},
+    "coverage": {"type": "object"},
+    "not_tested": {"type": "array"},
+    "lineage": {"$ref": "#/$defs/lineage"},
+    "gate": {"$ref": "#/$defs/gate"},
+    "facts_used": {"type": "array"},
+    "reasoning_summary": {"type": "string"},
+    "alternative_explanations": {"type": "array"},
+    "hypotheses": {"type": "array"},
+    "unknowns": {"type": "array"},
+    "next_hints": {"type": "array"},
+    "finding_status": {"enum": ["signal", "candidate", "inconclusive", "tested_no_issue", "confirmed"]},
+    "disposition": {"enum": ["verified", "blocked", "needs_manual_validation", "rejected"]}
+  },
+  "$defs": {
+    "lineage": {"type": "object", "additionalProperties": false, "required": ["assessment_id", "correlation_id"], "properties": {"assessment_id": {"type": "string", "minLength": 1}, "correlation_id": {"type": "string", "minLength": 1}, "parent_id": {"type": ["string", "null"]}}},
+    "gate": {"type": "object", "additionalProperties": false, "required": ["code_result_id", "analyst_result_id", "verifier_result_id", "dual_result_satisfied"], "properties": {"code_result_id": {"type": ["string", "null"]}, "analyst_result_id": {"type": ["string", "null"]}, "verifier_result_id": {"type": ["string", "null"]}, "dual_result_satisfied": {"type": "boolean"}}}
+  },
+  "allOf": [{"if": {"properties": {"worker_type": {"const": "analyst"}}}, "then": {"required": ["facts_used", "reasoning_summary", "alternative_explanations", "hypotheses", "unknowns", "next_hints"]}}],
+  "x-safety": {"network": "none", "write_scope": false, "write_approval": false, "write_cursor": false, "write_confirmed": false, "code_and_analyst_forbidden_finding_status": ["proven", "confirmed"], "only_verifier_may_disposition_verified": true, "forbidden_fields": ["cookie", "token", "password", "secret", "session", "raw_response", "traceback", "authorization"]}
+}

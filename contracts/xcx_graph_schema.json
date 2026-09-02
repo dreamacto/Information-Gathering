@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "xcx_graph_schema",
+  "title": "XCX mini-program orchestration graph",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["graph_id", "assessment_id", "workflow", "nodes", "edges", "created_at"],
+  "properties": {
+    "graph_id": {"type": "string", "pattern": "^graph_[A-Za-z0-9._-]+$"},
+    "assessment_id": {"type": "string", "minLength": 1},
+    "workflow": {"const": "xcx"},
+    "created_at": {"type": "string", "minLength": 1},
+    "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/node"}},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/edge"}}
+  },
+  "$defs": {
+    "node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "kind", "phase", "order"],
+      "properties": {
+        "node_id": {"type": "string", "pattern": "^node_[A-Za-z0-9._-]+$"},
+        "kind": {"enum": ["task", "worker", "gate", "checkpoint", "approval", "verifier"]},
+        "phase": {"type": "string", "minLength": 1},
+        "order": {"type": "integer", "minimum": 0},
+        "join": {"enum": ["all", "any", "barrier"]},
+        "cursor_file": {"const": "phase_status.miniapp.json"},
+        "timeout_seconds": {"type": "integer", "minimum": 1},
+        "retry_limit": {"type": "integer", "minimum": 0},
+        "cancellable": {"type": "boolean"}
+      }
+    },
+    "edge": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["edge_id", "from", "to", "kind"],
+      "properties": {
+        "edge_id": {"type": "string", "minLength": 1},
+        "from": {"type": "string", "pattern": "^node_[A-Za-z0-9._-]+$"},
+        "to": {"type": "string", "pattern": "^node_[A-Za-z0-9._-]+$"},
+        "kind": {"enum": ["depends_on", "produces", "gates", "joins"]}
+      }
+    }
+  },
+  "x-xcx-safety": {
+    "status_file": "phase_status.miniapp.json",
+    "forbidden_cursors": ["phase_status.json", "run_status.json"],
+    "approval_and_verifier_are_control_nodes": true,
+    "package_dependency_barrier": "package_integrity_update_review"
+  }
+}

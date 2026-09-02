@@ -1,0 +1,53 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "06",
+  "baseline": "74ab28c",
+  "workflow": "xcx",
+  "status_file": "phase_status.miniapp.json",
+  "status": "complete",
+  "cursor": {"current_phase": "complete", "next_phase": null, "last_completed_phase": "xcx_specialist_worker_graph_adaptation"},
+  "target_model": {"status": "not_applicable", "reason": "施工表06实现离线XCX图、Worker和计划适配，不绑定具体小程序或engagement；未读取真实运行产物。"},
+  "coverage": {
+    "implementation_files_total": 4,
+    "implementation_files_compiled": 4,
+    "implementation_files_imported": 4,
+    "contract_files_total": 2,
+    "contract_files_validated": 2,
+    "test_files_total": 6,
+    "test_files_compiled": 6,
+    "test_files_passed": 6,
+    "focused_tests_passed": 32,
+    "compatibility_tests_passed": 49,
+    "generated_graph_nodes": 98,
+    "generated_graph_edges": 136,
+    "phase_worker_bindings": 34,
+    "worker_manifests": 102,
+    "network_requests": 0,
+    "credentials_or_sessions_read": 0,
+    "har_or_raw_responses_read": 0,
+    "real_run_artifacts_read": 0,
+    "sensitive_values_emitted": 0
+  },
+  "analysis": {
+    "code_worker_ref": "construction_tables/06_code_worker.json",
+    "analyst_worker_ref": "construction_tables/06_analyst_worker.json",
+    "verifier_ref": "construction_tables/06_verifier.json"
+  },
+  "not_tested": [
+    {"item": "真实目标请求和动态/写型操作", "reason": "施工表与ROE要求离线、只读和审批门隔离"},
+    {"item": "凭证、真实session、HAR/raw响应和真实运行产物", "reason": "安全边界禁止读取"},
+    {"item": "具体engagement完整游标与目标材料装配", "reason": "未指定engagement，且本表不读取真实运行产物"},
+    {"item": "Supervisor跨进程调度、并发、重试和运行期取消", "reason": "后续施工表范围"},
+    {"item": "XCX Skill副本drift", "reason": "不在本表文件清单内，未跨表修改"}
+  ],
+  "operator_tasks": [
+    {"task": "施工表07接线前确认表05与表06均有Verifier=verified", "status": "pending", "approval_required": false},
+    {"task": "具体engagement运行前加载完整XCX phase_status.miniapp.json上下文并脱敏", "status": "pending", "approval_required": false},
+    {"task": "任何主动认证、业务收口、云函数/支付/写型动作走既有审批门", "status": "pending", "approval_required": true}
+  ],
+  "failed": [],
+  "blocked": [],
+  "approval_required": ["实际目标主动验证和任何写型/认证态动作不属于本表自动执行"],
+  "handoff_ready": true,
+  "completed_at": "2026-09-02T00:00:00+00:00"
+}

@@ -1,0 +1,65 @@
+{
+  "status": "verified",
+  "construction_table": "06",
+  "baseline": "74ab28c",
+  "scope": "construction_table_06_only",
+  "dual_result_check": {
+    "status": "pass",
+    "code_worker": "construction_tables/06_code_worker.json",
+    "analyst_worker": "construction_tables/06_analyst_worker.json",
+    "detail": "Code Worker facts and Analyst structured context are present; this Verifier record is the only record granting verified."
+  },
+  "tests_check": {
+    "status": "pass",
+    "focused": "32 passed, 1 warning",
+    "compatibility": "49 passed, 1 warning",
+    "compile": "pass",
+    "direct_import": "4/4 pass",
+    "schema_check": "pass",
+    "diff_check": "pass"
+  },
+  "contract_check": {
+    "status": "pass",
+    "detail": "XCX graph/result schemas validate generated synthetic artifacts; workflow/cursor isolation, analyst fields, queue-only worker outputs and fail-closed negative cases pass."
+  },
+  "gate_check": {
+    "status": "pass",
+    "detail": "Every XCX graph phase has Code/Analyst/Verifier bindings; verifier output remains manual/inconclusive unless a separate dual-result validation supplies matching Code and Analyst references."
+  },
+  "cursor_check": {
+    "status": "pass",
+    "detail": "XCX implementation and synthetic phase contexts are bound only to phase_status.miniapp.json; no concrete engagement cursor was modified."
+  },
+  "security_check": {
+    "status": "pass",
+    "network_requests": 0,
+    "credentials_read": 0,
+    "sessions_read": 0,
+    "har_raw_read": 0,
+    "real_run_artifacts_read": 0,
+    "approval_gated_actions": 0,
+    "sensitive_values_emitted": 0,
+    "detail": "Offline-only implementation and tests; sensitive violations retain paths without values."
+  },
+  "issues": [],
+  "remaining_risks": [
+    "Supervisor-level graph scheduling, retry, cancellation and cross-process execution remain for later construction tables.",
+    "Concrete engagement cursor/target-model/artifact assembly was not exercised by design.",
+    "Three XCX Skill copies and skill drift were not modified or checked because they are outside the table06 file list.",
+    "The pre-existing unrelated dirty worktree files were preserved."
+  ],
+  "evidence": [
+    "construction_tables/06_phase_status.json",
+    "construction_tables/06_code_worker.json",
+    "construction_tables/06_analyst_worker.json",
+    "contracts/xcx_graph_schema.json",
+    "contracts/xcx_worker_result_schema.json",
+    "tests/test_xcx_graph.py",
+    "tests/test_xcx_worker_plans.py",
+    "tests/test_xcx_worker_context.py",
+    "tests/test_xcx_graph_integration.py",
+    "tests/test_xcx_graph_phase_status_isolation.py",
+    "tests/test_xcx_graph_package_dependencies.py"
+  ],
+  "created_at": "2026-09-02T00:00:00+00:00"
+}
