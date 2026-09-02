@@ -14,6 +14,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from .compatibility_mode import gate_graph_execution, resolve_mode
+
 
 BASE_DIR = _ROOT
 
@@ -36,6 +38,12 @@ def parse_args() -> argparse.Namespace:
         choices=["full", "subdomains"],
         default="full",
         help="full=完整流程；subdomains=已有子域名后的剩余流程",
+    )
+    parser.add_argument(
+        "--orchestration-mode",
+        choices=["legacy", "graph_shadow", "graph_readonly", "graph_active_approved"],
+        default="legacy",
+        help="独立编排模式；默认 legacy 保持旧行为",
     )
     parser.add_argument("--delay", type=float, default=3.0, help="请求间隔秒数")
     parser.add_argument("--limit", type=int, default=0, help="限制目标数量，0 表示不限制")
@@ -65,6 +73,7 @@ def parse_args() -> argparse.Namespace:
 
 def runner_command(args: argparse.Namespace) -> list[str]:
     label = "one_click_full_weak" if args.mode == "full" else "one_click_subdomains"
+    orchestration_mode = getattr(args, "orchestration_mode", "legacy")
     cmd = [
         sys.executable,
         str(BASE_DIR / "gov_exercise_runner.py"),
@@ -90,6 +99,8 @@ def runner_command(args: argparse.Namespace) -> list[str]:
         "--delay",
         str(args.delay),
     ]
+    if orchestration_mode != "legacy":
+        cmd[2:2] = ["--orchestration-mode", orchestration_mode]
     if args.header_sqli_login_data:
         cmd.extend(["--header-sqli-login-data", args.header_sqli_login_data])
     if args.no_review_intelligence:
@@ -144,9 +155,19 @@ def runner_command(args: argparse.Namespace) -> list[str]:
     return cmd
 
 
+def orchestration_gate(args: argparse.Namespace) -> dict:
+    """Local pre-dispatch gate; callers can monkeypatch this in offline tests."""
+    return gate_graph_execution(getattr(args, "orchestration_mode", "legacy"), {"action": "offline"}, blocked_actions=())
+
+
 def main() -> int:
     setup_console()
     args = parse_args()
+    gate = orchestration_gate(args)
+    orchestration_mode = getattr(args, "orchestration_mode", "legacy")
+    if not gate.get("ok") or (orchestration_mode == "graph_readonly" and gate.get("status") == "allowed") or gate.get("status") == "shadow":
+        print(json.dumps({"orchestration_mode": orchestration_mode, "gate": gate}, ensure_ascii=False))
+        return 0 if gate.get("status") in {"shadow", "allowed"} else 3
     targets = args.targets.expanduser().resolve()
     if not targets.exists():
         print(f"[!] 目标文件不存在: {targets}", file=sys.stderr)

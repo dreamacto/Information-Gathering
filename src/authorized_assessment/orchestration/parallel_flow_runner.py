@@ -25,9 +25,17 @@ import re
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from urllib.parse import urlparse
+
+from .compatibility_mode import (
+    acquire_run_ownership,
+    gate_graph_execution,
+    release_run_ownership,
+    resolve_mode,
+)
 
 
 os.environ.setdefault("PYTHONUTF8", "1")
@@ -389,14 +397,17 @@ def launch_ready_batches(
             break
 
 
-def run_scheduler(args: argparse.Namespace, batch_dir: Path, batches: list[BatchPlan], runner_args: list[str]) -> int:
+def run_scheduler(args: argparse.Namespace, batch_dir: Path, batches: list[BatchPlan], runner_args: list[str], *, orchestration_extra: dict | None = None) -> int:
     pending = list(batches)
     running: list[RunningBatch] = []
     finished: list[dict] = []
     failures: list[dict] = []
     status_path = batch_dir / "parallel_status.json"
     started_at = now_iso()
-    write_status(status_path, "starting", batch_dir, batches, running, finished, failures, {"started_at": started_at})
+    status_extra = {"started_at": started_at}
+    if orchestration_extra:
+        status_extra.update(orchestration_extra)
+    write_status(status_path, "starting", batch_dir, batches, running, finished, failures, status_extra)
 
     while pending or running:
         launch_ready_batches(pending, running, finished, failures, args, batch_dir, runner_args)
@@ -408,7 +419,7 @@ def run_scheduler(args: argparse.Namespace, batch_dir: Path, batches: list[Batch
             running,
             finished,
             failures,
-            {"pending": [batch.index for batch in pending], "started_at": started_at},
+            {"pending": [batch.index for batch in pending], "started_at": started_at, **(orchestration_extra or {})},
         )
         for item in list(running):
             returncode = item.process.poll()
@@ -436,6 +447,9 @@ def run_scheduler(args: argparse.Namespace, batch_dir: Path, batches: list[Batch
             time.sleep(max(1.0, args.poll_interval))
 
     final_state = "failed" if failures else "completed"
+    final_extra = {"started_at": started_at, "finished_at": now_iso()}
+    if orchestration_extra:
+        final_extra.update(orchestration_extra)
     write_status(
         status_path,
         final_state,
@@ -444,7 +458,7 @@ def run_scheduler(args: argparse.Namespace, batch_dir: Path, batches: list[Batch
         running,
         finished,
         failures,
-        {"started_at": started_at, "finished_at": now_iso()},
+        final_extra,
     )
     return 1 if failures else 0
 
@@ -465,7 +479,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--max-runner-targets", type=int, default=500)
     parser.add_argument("--stop-on-failure", action="store_true")
     parser.add_argument("--plan-only", action="store_true", help="Write plan files but do not launch runners")
+    parser.add_argument("--orchestration-mode", choices=["legacy", "graph_shadow", "graph_readonly", "graph_active_approved"], default="legacy")
     parser.add_argument("--poll-interval", type=float, default=5.0)
+    parser.add_argument("--orchestration-lock", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument(
         "runner_args",
         nargs=argparse.REMAINDER,
@@ -481,6 +497,84 @@ def normalize_runner_args(args: argparse.Namespace) -> list[str]:
     return runner_args or default_runner_args(args.profile)
 
 
+def orchestration_gate(args: argparse.Namespace, context: dict | None = None) -> dict:
+    """Local pre-dispatch gate; replaceable by offline tests."""
+    return gate_graph_execution(
+        getattr(args, "orchestration_mode", "legacy"),
+        context or {"action": "offline"},
+        blocked_actions=(),
+    )
+
+
+def orchestration_context(args: argparse.Namespace, targets: list[TargetLine]) -> dict:
+    target_hash = hashlib.sha256(args.targets.read_bytes()).hexdigest()
+    target_ref = {"kind": "approved_targets", "path": str(args.targets), "sha256": target_hash}
+    assessment_id = "assessment_" + hashlib.sha256(
+        f"{args.label}|{target_hash}".encode("utf-8")
+    ).hexdigest()[:24]
+    ref = {"kind": "local_control_plane", "path": str(args.workspace), "sha256": ""}
+    return {
+        "assessment_id": assessment_id,
+        "phase": "parallel_dispatch",
+        "target_ref": target_ref,
+        "policy_ref": ref,
+        "scope_ref": target_ref,
+        "scope_confirmed": True,
+        "policy_valid": True,
+        "cursor_valid": True,
+        "action": "offline",
+    }
+
+
+def orchestration_lock_path(args: argparse.Namespace) -> Path:
+    configured = getattr(args, "orchestration_lock", None)
+    return Path(configured).expanduser().resolve() if configured else args.workspace / "runtime" / "orchestration_leases.json"
+
+
+def acquire_scheduler_ownership(args: argparse.Namespace, context: dict) -> tuple[dict, str]:
+    """Acquire the scheduler lease using an in-memory token (easy to monkeypatch)."""
+    token = uuid.uuid4().hex
+    result = acquire_run_ownership(
+        orchestration_lock_path(args),
+        context["assessment_id"],
+        context["assessment_id"],
+        f"parallel_flow_runner:{os.getpid()}",
+        3600.0,
+        token=token,
+    )
+    return result, token
+
+
+def release_scheduler_ownership(args: argparse.Namespace, context: dict, token: str) -> dict:
+    """Release the scheduler lease; token is deliberately never serialized."""
+    return release_run_ownership(
+        orchestration_lock_path(args),
+        context["assessment_id"],
+        context["assessment_id"],
+        f"parallel_flow_runner:{os.getpid()}",
+        token=token,
+    )
+
+
+def run_owned_scheduler(
+    args: argparse.Namespace,
+    batch_dir: Path,
+    batches: list[BatchPlan],
+    runner_args: list[str],
+    context: dict,
+    orchestration_extra: dict,
+) -> int:
+    """Run the non-legacy scheduler while holding one assessment lease."""
+    ownership, token = acquire_scheduler_ownership(args, context)
+    if not ownership.get("ok"):
+        print(json.dumps({"orchestration_mode": context.get("orchestration_mode"), "ownership": ownership}, ensure_ascii=False))
+        return 3
+    try:
+        return run_scheduler(args, batch_dir, batches, runner_args, orchestration_extra=orchestration_extra)
+    finally:
+        release_scheduler_ownership(args, context, token)
+
+
 def main() -> int:
     args = parse_args()
     args.targets = args.targets.expanduser().resolve()
@@ -493,10 +587,29 @@ def main() -> int:
     if args.max_parallel < 1:
         raise SystemExit("--max-parallel must be >= 1")
 
-    runner_args = normalize_runner_args(args)
     targets = load_target_lines(args.targets, args.group_mode)
     if not targets:
         raise SystemExit(f"No targets loaded from {args.targets}")
+
+    orchestration_mode = getattr(args, "orchestration_mode", "legacy")
+    orchestration = resolve_mode(orchestration_mode, explicit=True)
+    if not orchestration.get("ok"):
+        print(json.dumps({"orchestration_mode": orchestration_mode, "gate": orchestration}, ensure_ascii=False))
+        return 3
+    orchestration_context_data = orchestration_context(args, targets)
+    gate = orchestration_gate(args, orchestration_context_data)
+    if not gate.get("ok") and not (getattr(args, "plan_only", False) and gate.get("status") == "shadow"):
+        print(json.dumps({"orchestration_mode": orchestration_mode, "gate": gate}, ensure_ascii=False))
+        return 3
+    orchestration_extra = {
+        "orchestration_mode": orchestration["mode"],
+        "orchestration_snapshot": orchestration["snapshot"],
+        "orchestration_snapshot_hash": orchestration["snapshot_hash"],
+    }
+    runner_args = normalize_runner_args(args)
+    if orchestration_mode != "legacy" and "--orchestration-mode" not in runner_args:
+        runner_args = ["--orchestration-mode", orchestration_mode, *runner_args]
+
     groups = group_targets(targets)
     batch_count = choose_batch_count(len(targets), args)
     batches = build_batches(groups, batch_count)
@@ -525,6 +638,9 @@ def main() -> int:
         "max_parallel": args.max_parallel,
         "delay_per_runner": args.delay,
         "profile": args.profile,
+        "orchestration_mode": orchestration["mode"],
+        "orchestration_snapshot": orchestration["snapshot"],
+        "orchestration_snapshot_hash": orchestration["snapshot_hash"],
         "runner_args": runner_args,
         "same_group_parallel_policy": "never",
         "batches": [plan_to_dict(batch_dir, batch) for batch in batches],
@@ -532,10 +648,23 @@ def main() -> int:
     write_json(batch_dir / "parallel_plan.json", manifest)
 
     print(json.dumps(manifest, ensure_ascii=False, indent=2))
-    if args.plan_only:
-        print(f"[plan-only] Wrote plan to {batch_dir}")
+    if args.plan_only or orchestration_mode == "graph_shadow":
+        if orchestration_mode == "graph_shadow":
+            print("[graph-shadow] Plan written; no runner subprocess launched")
+        else:
+            print(f"[plan-only] Wrote plan to {batch_dir}")
         return 0
-    return run_scheduler(args, batch_dir, batches, runner_args)
+    if orchestration_mode == "legacy":
+        return run_scheduler(args, batch_dir, batches, runner_args, orchestration_extra=orchestration_extra)
+    orchestration_context_data["orchestration_mode"] = orchestration_mode
+    return run_owned_scheduler(
+        args,
+        batch_dir,
+        batches,
+        runner_args,
+        orchestration_context_data,
+        orchestration_extra,
+    )
 
 
 if __name__ == "__main__":

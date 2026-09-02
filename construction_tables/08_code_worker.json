@@ -1,0 +1,33 @@
+{
+  "construction_table": "08",
+  "status": "complete",
+  "handoff_ready": true,
+  "updated_at": "2026-09-02",
+  "scope": "入口迁移与兼容模式",
+  "code_worker": {
+    "status": "complete",
+    "files": [
+      "src/authorized_assessment/orchestration/feature_flags.py",
+      "src/authorized_assessment/orchestration/compatibility_mode.py",
+      "src/authorized_assessment/orchestration/one_click_workflow.py",
+      "src/authorized_assessment/orchestration/parallel_flow_runner.py",
+      "gov_exercise_runner.py",
+      "tests/test_orchestration_compatibility.py",
+      "tests/test_launcher_orchestration.py"
+    ],
+    "facts": [
+      "四模式已实现，默认 legacy；显式 graph 模式才进入新门控。",
+      "legacy runner command 不注入 --orchestration-mode；显式 graph 模式传递该参数。",
+      "shadow/readonly 在入口层不启动 runner 子进程；parallel plan/status 保存非敏感 mode snapshot/hash。",
+      "active 使用既有 approval interrupt 双钥匙校验并 fail-closed。",
+      "blocked_actions 规范化并优先于 allow；ownership 使用 assessment_id 资源键。"
+    ],
+    "commands": [
+      {"command": ".venv/Scripts/python.exe -m py_compile <table08 python files>", "returncode": 0},
+      {"command": "PYTHONPATH=src .venv/Scripts/python.exe -c <direct imports>", "returncode": 0},
+      {"command": ".venv/Scripts/python.exe -m pytest -q tests/test_orchestration_compatibility.py tests/test_launcher_orchestration.py tests/test_one_click_workflow.py tests/test_launcher_python_unification.py", "returncode": 0, "result": "24 passed, 1 warning"}
+    ],
+    "network_requests": 0,
+    "sensitive_reads": 0
+  }
+}

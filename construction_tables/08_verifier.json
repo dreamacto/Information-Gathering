@@ -1,0 +1,38 @@
+{
+  "construction_table": "08",
+  "worker": "Verifier",
+  "status": "verified",
+  "files_checked": {
+    "src/authorized_assessment/orchestration/feature_flags.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"},
+    "src/authorized_assessment/orchestration/compatibility_mode.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"},
+    "src/authorized_assessment/orchestration/one_click_workflow.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"},
+    "src/authorized_assessment/orchestration/parallel_flow_runner.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"},
+    "gov_exercise_runner.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"},
+    "tests/test_orchestration_compatibility.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"},
+    "tests/test_launcher_orchestration.py": {"compile": "pass", "import": "pass", "contract": "pass", "compatibility": "pass", "error_path": "pass"}
+  },
+  "evidence": [
+    "24 targeted tests passed with 1 warning",
+    "py_compile passed for all table08 Python files",
+    "PYTHONPATH=src direct imports passed",
+    "git diff --check passed",
+    "shadow/readonly no-subprocess and active missing-approval gates verified",
+    "ownership uses assessment_id and conflict/release cases verified"
+  ],
+  "security_boundary": {
+    "network": "not used",
+    "credentials": "not read",
+    "sessions": "not read",
+    "har": "not read",
+    "raw_responses": "not read",
+    "real_runs": "not read",
+    "worker_scope_mutation": "not performed",
+    "confirmed_or_proven_written_by_worker": false
+  },
+  "remaining_risks": [
+    "1 pytest warning remains",
+    "active approved positive dispatch not tested",
+    "cross-process lease atomicity and long-task renewal not tested",
+    "FH end-to-end graph not tested"
+  ]
+}

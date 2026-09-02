@@ -1,0 +1,58 @@
+{
+  "construction_table": "08",
+  "worker": "Analyst",
+  "status": "complete",
+  "facts_used": [
+    "construction_tables/07_phase_status.json",
+    "construction_tables/07_acceptance_record.md",
+    "construction_tables/07_code_worker.json",
+    "construction_tables/07_analyst_worker.json",
+    "construction_tables/07_verifier.json",
+    "src/authorized_assessment/orchestration/feature_flags.py",
+    "src/authorized_assessment/orchestration/compatibility_mode.py",
+    "src/authorized_assessment/orchestration/one_click_workflow.py",
+    "src/authorized_assessment/orchestration/parallel_flow_runner.py",
+    "gov_exercise_runner.py",
+    "tests/test_orchestration_compatibility.py",
+    "tests/test_launcher_orchestration.py"
+  ],
+  "reasoning_summary": "入口迁移满足离线控制面目标：legacy 兼容、shadow/readonly 不派发、active 双钥匙审批 fail-closed、blocked action 优先、assessment_id ownership 统一、parallel snapshot 可审计。WZ/XCX cursor 隔离沿用表07已验证契约。",
+  "alternative_explanations": [
+    "本阶段只证明本地控制面和 mock 子进程路径，不证明真实 worker/adapter 的未来行为。",
+    "assessment_id lease 在本地适配器上统一，但未证明分布式部署的跨进程原子竞争。",
+    "active 模式验证了无审批时阻断，未执行真实批准后的 live dispatch。"
+  ],
+  "hypotheses": [
+    {"id": "H08-01", "statement": "legacy command shape remains compatible when orchestration mode is omitted", "assessment": "supported"},
+    {"id": "H08-02", "statement": "graph_shadow and graph_readonly do not launch tested runner paths", "assessment": "supported"},
+    {"id": "H08-03", "statement": "active mode requires context-bound two-key approval", "assessment": "supported for fail-closed path"},
+    {"id": "H08-04", "statement": "blocked actions dominate lower-level allow decisions", "assessment": "supported"},
+    {"id": "H08-05", "statement": "ownership resource identity is assessment_id", "assessment": "supported"}
+  ],
+  "unknowns": [
+    "真实目标请求、真实运行产物、凭证/session/HAR/raw 响应均未读取。",
+    "长任务 lease renewal、跨进程 OS 监督和 FH 端到端 graph 未测。",
+    "operator approval UI 与批准后 active live dispatch 未测。"
+  ],
+  "coverage": {
+    "network_requests": 0,
+    "real_target_requests": 0,
+    "credentials_sessions_har_raw_reads": 0,
+    "modes": ["legacy", "graph_shadow", "graph_readonly", "graph_active_approved"],
+    "entrypoints": ["one_click_workflow", "parallel_flow_runner", "gov_exercise_runner", "root wrappers"],
+    "cursor_contract": ["WZ phase_status.json", "XCX phase_status.miniapp.json"]
+  },
+  "not_tested": [
+    "live network adapters",
+    "real run resume/cursor writes",
+    "cross-process lease race and renewal",
+    "active approved positive dispatch",
+    "FH end-to-end graph",
+    "OS child termination"
+  ],
+  "next_hints": [
+    "保留 active/write/credential testing 的脚本审批门与人工确认。",
+    "后续若扩展长任务，增加 lease renewal/fencing 与跨进程测试。",
+    "继续以 phase_status.json 与 phase_status.miniapp.json 分离 WZ/XCX。"
+  ]
+}

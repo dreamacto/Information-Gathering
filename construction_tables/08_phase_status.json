@@ -1,0 +1,38 @@
+{
+  "construction_table": "08",
+  "status": "complete",
+  "phase": "entry_migration_compatibility_modes",
+  "cursor": "complete",
+  "handoff_ready": true,
+  "updated_at": "2026-09-02",
+  "target_model": {
+    "scope": "local offline orchestration control plane",
+    "entrypoints": ["gov_exercise_runner.py", "one_click_workflow.py", "parallel_flow_runner.py"],
+    "wz_cursor": "phase_status.json",
+    "xcx_cursor": "phase_status.miniapp.json",
+    "fh_cursor": "run_status.json",
+    "real_target_requests": 0
+  },
+  "coverage": {
+    "modes": ["legacy", "graph_shadow", "graph_readonly", "graph_active_approved"],
+    "tested": ["mode parsing", "snapshot/hash", "sensitive-field rejection", "blocked-action precedence", "approval fail-closed", "ownership conflict/release/expiry", "legacy command compatibility", "shadow/readonly no-subprocess", "parallel plan/status snapshot"],
+    "network_requests": 0,
+    "credentials_sessions_har_raw_reads": 0
+  },
+  "analysis": {
+    "status": "verified",
+    "code_worker": "complete",
+    "analyst": "complete",
+    "verifier": "verified",
+    "pytest": "24 passed, 1 warning"
+  },
+  "not_tested": ["live adapters", "real runs", "operator approval UI", "active approved positive dispatch", "lease renewal", "cross-process supervision", "FH end-to-end graph"],
+  "operator_tasks": ["Keep active/write/credential-testing actions behind script approval plus explicit human confirmation", "Do not treat local gate tests as authorization for live targets"],
+  "failed": [],
+  "blocked": [],
+  "approval_required": ["graph_active_approved positive dispatch requires operator approval"],
+  "handoff": {
+    "ready": true,
+    "next_focus": "Only a separately authorized follow-up may test active positive dispatch, live adapters, lease renewal or cross-process behavior"
+  }
+}

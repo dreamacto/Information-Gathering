@@ -13,6 +13,7 @@ Use --probe only for low-rate HTTP metadata collection against approved targets.
 from __future__ import annotations
 
 import argparse
+import atexit
 import csv
 import hashlib
 import http.client
@@ -68,6 +69,12 @@ from healthcare_privacy_triage import write_outputs as write_healthcare_privacy_
 from operator_action_hub import build_operator_action_hub
 from weak_credential_review import run_review as run_weak_credential_review
 from policy_engine import load_policy_engine
+from authorized_assessment.orchestration.compatibility_mode import (
+    acquire_run_ownership,
+    gate_graph_execution,
+    release_run_ownership,
+    resolve_mode,
+)
 from authorized_assessment.runtime.runtime_inventory import enrich_runtime_inventory
 
 
@@ -1099,6 +1106,36 @@ def write_summary(run_dir: Path, targets: list, runtime: dict, cfg: dict, args: 
     write_json(run_dir / "run_summary.json", summary)
 
 
+def _orchestration_ref(path: Path, kind: str) -> dict:
+    """Return a stable, non-sensitive control-plane reference."""
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        digest = ""
+    return {"kind": kind, "path": str(path), "sha256": digest}
+
+
+def _orchestration_context(args: argparse.Namespace, cfg: dict, workflow_path: Path, strategy_path: Path,
+                          run_label: str, targets: list) -> dict:
+    target_ref = _orchestration_ref(args.targets, "approved_targets")
+    assessment_id = "assessment_" + hashlib.sha256(
+        f"{run_label}|{target_ref['sha256']}".encode("utf-8")
+    ).hexdigest()[:24]
+    return {
+        "assessment_id": assessment_id,
+        "phase": "runner_dispatch",
+        "target_ref": target_ref,
+        "policy_ref": _orchestration_ref(args.config, "runner_policy"),
+        "scope_ref": target_ref,
+        "scope_confirmed": True,
+        "policy_valid": bool(cfg and workflow_path and strategy_path),
+        "cursor_valid": args.resume_run_dir is None or args.resume_run_dir.is_dir(),
+        "action": "offline",
+    }
+
+
+def _orchestration_lock_path(args: argparse.Namespace) -> Path:
+    return (args.orchestration_lock or (BASE_DIR / "runtime" / "orchestration_leases.json")).expanduser().resolve()
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Guangxi government exercise controlled runner")
     parser.add_argument("--targets", type=Path, required=True, help="Approved target list, one URL per line or url|name")
@@ -1106,6 +1143,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--workflow", type=Path, default=None, help="Workflow JSON")
     parser.add_argument("--label", default="", help="Run label suffix")
     parser.add_argument("--resume-run-dir", type=Path, default=None, help="Resume an existing run directory")
+    parser.add_argument("--orchestration-mode", choices=["legacy", "graph_shadow", "graph_readonly", "graph_active_approved"], default="legacy", help="独立编排模式")
+    parser.add_argument("--orchestration-lock", type=Path, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--force", action="store_true", help="Ignore stage checkpoints and append fresh results")
     parser.add_argument("--subdomain-bruteforce", action="store_true", help="Run low-rate DNS subdomain discovery and write scope-confirmation handoff files")
     parser.add_argument("--subdomain-wordlist", type=Path, default=None, help="Optional subdomain wordlist")
@@ -1906,6 +1945,35 @@ def main() -> int:
     _hint = domain_hint_from_targets(targets)
     if _hint and _hint not in run_label:
         run_label = f"{_hint}_{run_label}"
+
+    orchestration_mode = getattr(args, "orchestration_mode", "legacy")
+    orchestration = resolve_mode(orchestration_mode, explicit=True)
+    if not orchestration.get("ok"):
+        print(json.dumps({"orchestration_mode": orchestration_mode, "gate": orchestration}, ensure_ascii=False))
+        return 3
+    orchestration_context = _orchestration_context(args, cfg, workflow_path, strategy_path, run_label, targets)
+    gate = gate_graph_execution(orchestration_mode, orchestration_context, blocked_actions=cfg.get("blocked_actions", ()))
+    # Shadow is a successful, offline decision and must not create a run or artifacts.
+    if orchestration_mode == "graph_shadow":
+        print(json.dumps({
+            "orchestration_mode": orchestration["mode"],
+            "gate": {k: v for k, v in gate.items() if k not in {"token", "secret"}},
+            "snapshot": orchestration["snapshot"],
+            "snapshot_hash": orchestration["snapshot_hash"],
+        }, ensure_ascii=False, sort_keys=True))
+        return 0
+    if orchestration_mode == "graph_readonly":
+        print(json.dumps({
+            "orchestration_mode": orchestration["mode"],
+            "gate": gate,
+            "snapshot": orchestration["snapshot"],
+            "snapshot_hash": orchestration["snapshot_hash"],
+        }, ensure_ascii=False, sort_keys=True))
+        return 0
+    if not gate.get("ok"):
+        print(json.dumps({"orchestration_mode": orchestration_mode, "gate": gate}, ensure_ascii=False))
+        return 3
+
     if args.resume_run_dir:
         run_dir = args.resume_run_dir
         if not run_dir.exists():
@@ -1914,6 +1982,39 @@ def main() -> int:
             (run_dir / subdir).mkdir(parents=True, exist_ok=True)
     else:
         run_dir = create_run_dir(run_label)
+
+    ownership_cleanup = None
+    if orchestration_mode != "legacy":
+        assessment_id = orchestration_context["assessment_id"]
+        owner = f"gov_runner:{run_dir.name}"
+        lease_token = uuid.uuid4().hex
+        ownership_path = _orchestration_lock_path(args)
+        acquired = acquire_run_ownership(
+            ownership_path, assessment_id, str(run_dir), owner, 300,
+            token=lease_token,
+        )
+        if not acquired.get("ok"):
+            print(json.dumps({
+                "orchestration_mode": orchestration_mode,
+                "gate": {"ok": False, "status": acquired.get("status", "blocked"), "reason": acquired.get("reason", "ownership_failed")},
+            }, ensure_ascii=False))
+            return 3
+
+        def _release_ownership() -> None:
+            nonlocal ownership_cleanup
+            if ownership_cleanup is None:
+                return
+            try:
+                release_run_ownership(
+                    ownership_path, assessment_id, str(run_dir), owner,
+                    token=lease_token,
+                )
+            finally:
+                ownership_cleanup = None
+
+        ownership_cleanup = _release_ownership
+        atexit.register(_release_ownership)
+
     write_targets(run_dir, targets, args.targets)
     policy = load_policy_engine(
         cfg, workflow, tool_strategy, targets, run_dir,
@@ -2083,7 +2184,10 @@ def main() -> int:
         "target_count": len(targets),
         "mode": "probe" if args.probe else "check",
         "summary": str(run_dir / "run_summary.json"),
+        "orchestration_mode": orchestration_mode,
     }, ensure_ascii=False, indent=2))
+    if ownership_cleanup is not None:
+        ownership_cleanup()
     return 0
 
 
