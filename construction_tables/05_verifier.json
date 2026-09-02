@@ -1,0 +1,42 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "05",
+  "baseline": "74ab28c",
+  "worker_type": "verifier",
+  "status": "verified",
+  "dual_result_check": {
+    "code_result": "construction_tables/05_code_worker.json",
+    "analyst_result": "construction_tables/05_analyst_worker.json",
+    "both_present": true,
+    "structured_fields_complete": true
+  },
+  "tests_check": {"focused": 16, "compatibility": 71, "returncode": 0},
+  "contract_check": {"wz_graph_schema": "parsed", "wz_worker_result_schema": "parsed", "diff_check": 0},
+  "gate_check": {"five_way_fanout": true, "all_join": true, "serial_approval_verifier": true, "only_verifier_may_verify": true},
+  "cursor_check": {"workflow": "wz", "status_file": "phase_status.json", "xcx_cursor_used": false, "fh_cursor_used": false},
+  "security_check": {
+    "network_requests": 0,
+    "credentials_or_sessions_read": 0,
+    "har_or_raw_responses_read": 0,
+    "sensitive_values_emitted": 0,
+    "write_permissions": false,
+    "existing_dirty_workspace_preserved": true
+  },
+  "issues": [],
+  "remaining_risks": [
+    "The shared generic graph CURSORS FH compatibility gap remains outside table 05 and was not modified.",
+    "Production Supervisor and real engagement phase persistence require later integration work."
+  ],
+  "evidence": [
+    "construction_tables/05_code_worker.json",
+    "construction_tables/05_analyst_worker.json",
+    "tests/test_wz_graph.py",
+    "tests/test_wz_worker_plans.py",
+    "tests/test_wz_worker_context.py",
+    "tests/test_wz_graph_integration.py",
+    "tests/test_wz_graph_phase_boundary.py",
+    "tests/test_wz_graph_isolation.py"
+  ],
+  "handoff_ready": true,
+  "created_at": "2026-09-02T00:00:00+00:00"
+}

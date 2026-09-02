@@ -1,0 +1,41 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "05",
+  "baseline": "74ab28c",
+  "status": "complete",
+  "cursor": {"current_phase": "complete", "next_phase": null, "last_completed_phase": "wz_specialist_graph_worker_acceptance"},
+  "target_model": {"status": "not_applicable", "reason": "施工表05仅实现离线 WZ 图与专精 Worker 接线，不绑定具体网站、小程序或 engagement"},
+  "coverage": {
+    "implementation_files_total": 6,
+    "implementation_files_compiled": 4,
+    "contract_files_total": 2,
+    "contract_files_parsed": 2,
+    "test_files_total": 6,
+    "focused_tests_passed": 16,
+    "compatibility_tests_passed": 71,
+    "network_requests": 0,
+    "credentials_or_sessions_read": 0,
+    "har_or_raw_responses_read": 0,
+    "real_run_artifacts_read": 0,
+    "sensitive_values_emitted": 0,
+    "diff_check_returncode": 0
+  },
+  "analysis": {
+    "code_worker_ref": "construction_tables/05_code_worker.json",
+    "analyst_worker_ref": "construction_tables/05_analyst_worker.json",
+    "verifier_ref": "construction_tables/05_verifier.json"
+  },
+  "not_tested": [
+    {"item": "真实目标请求、网络、工具执行", "reason": "施工表与 ROE 明确要求离线"},
+    {"item": "凭证、真实 session、HAR/raw 响应和真实运行产物", "reason": "安全边界明确禁止"},
+    {"item": "具体 engagement 完整游标、target-model、coverage、候选/ledger、artifact refs", "reason": "本表不绑定具体目标"},
+    {"item": "生产 Supervisor、跨进程调度、真实权限拒绝环境", "reason": "不在施工表05范围"},
+    {"item": "FH graph CURSORS 兼容修复", "reason": "本表只接入 WZ，不跨表修改共享 FH 接线"}
+  ],
+  "operator_tasks": [],
+  "failed": [],
+  "blocked": [],
+  "approval_required": [],
+  "handoff_ready": true,
+  "completed_at": "2026-09-02T00:00:00+00:00"
+}

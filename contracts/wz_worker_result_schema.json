@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "wz_worker_result_schema",
+  "title": "WZ specialist worker result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["result_id", "task_id", "worker_id", "worker_type", "status", "created_at", "lineage", "gate", "workflow", "cursor_file", "phase", "facts", "artifact_refs", "coverage", "not_tested"],
+  "properties": {
+    "result_id": {"type": "string", "minLength": 1},
+    "task_id": {"type": "string", "minLength": 1},
+    "worker_id": {"type": "string", "pattern": "^worker_wz_"},
+    "worker_type": {"enum": ["code", "analyst", "verifier"]},
+    "status": {"enum": ["ok", "partial", "blocked", "cancelled", "failed", "needs_manual_validation"]},
+    "created_at": {"type": "string", "minLength": 1},
+    "workflow": {"const": "wz"},
+    "cursor_file": {"const": "phase_status.json"},
+    "phase": {"type": "string", "minLength": 1},
+    "subphase": {"type": ["string", "null"]},
+    "facts": {"type": "array"},
+    "artifact_refs": {"type": "array"},
+    "coverage": {"type": "object"},
+    "not_tested": {"type": "array"},
+    "lineage": {"type": "object"},
+    "gate": {"type": "object"},
+    "finding_status": {"enum": ["signal", "candidate", "inconclusive", "tested_no_issue", "confirmed"]},
+    "disposition": {"type": "string"}
+  },
+  "allOf": [{"if": {"properties": {"worker_type": {"const": "analyst"}}}, "then": {"required": ["facts_used", "reasoning_summary", "alternative_explanations", "hypotheses", "unknowns", "next_hints"]}}],
+  "x-safety": {
+    "workflow": "wz",
+    "cursor_file": "phase_status.json",
+    "network": "none",
+    "write_scope": false,
+    "write_approval": false,
+    "write_cursor": false,
+    "write_confirmed": false,
+    "code_and_analyst_forbidden_finding_status": ["proven", "confirmed"],
+    "only_verifier_may_disposition_verified": true,
+    "forbidden_artifact_paths": ["runs/", "postrun_review", "phase_status.miniapp.json", "run_status.json", "evidence/raw", "auth_sessions.local.json", "sessions.jsonl"]
+  }
+}

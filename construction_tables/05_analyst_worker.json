@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "05",
+  "baseline": "74ab28c",
+  "worker_type": "analyst",
+  "status": "ok",
+  "scope": "offline WZ specialist graph, routes, workers, plans, contracts and tests only",
+  "facts_used": [
+    "construction_tables/05_code_worker.json",
+    "construction_tables/00_phase_status.json through construction_tables/04_phase_status.json",
+    "existing generic graph/worker/context/phase verifier contracts and targeted test results",
+    "WZ application mapping five-subphase contract and WZ/FH isolation rules"
+  ],
+  "reasoning_summary": "The implementation adds a WZ-only static graph adapter with five-way application mapping fan-out/fan-in, specialist route allowlists, offline handlers, and a complete-context planner. Existing generic execution and context compatibility remains unchanged; WZ-specific rejection is enforced at route, plan, graph, artifact, and result boundaries.",
+  "alternative_explanations": [
+    "A missing mapping surface may be genuinely not applicable rather than untested.",
+    "A historical lead may explain a candidate but cannot establish current WZ coverage.",
+    "A blocked or approval-gated branch is a workflow state, not a negative security result.",
+    "A structured artifact reference can be valid only when its engagement and phase scope are proven."
+  ],
+  "hypotheses": [
+    "The five application-mapping branches can be independently planned and later reconciled only after all branch results exist.",
+    "API, product, input and evidence specialists can share the generic WorkerExecutor while remaining queue-only and read-only.",
+    "WZ/FH/ XCX cross-contamination is prevented when route workflow, cursor file, artifact path and historical classification are validated together."
+  ],
+  "unknowns": [
+    "No real target request or live application response was examined.",
+    "No real engagement target-model, candidate ledger, phase history or evidence body was loaded.",
+    "Cross-process supervisor scheduling and production phase-status persistence are outside this table.",
+    "FH graph cursor compatibility remains an existing out-of-scope issue because this table does not alter FH wiring."
+  ],
+  "coverage": {
+    "wz_graph": "five-way fan-out and all-join reconciliation covered",
+    "specialist_routes": "application mapping/API/product/input/evidence routes covered",
+    "analyst_contract": "all eight required fields covered",
+    "isolation": "WZ cursor, forbidden paths, historical lead non-upgrade covered",
+    "error_paths": "empty/invalid/cancelled/permission/sensitive paths covered",
+    "tests": {"focused": 16, "compatibility": 71}
+  },
+  "not_tested": [
+    {"item": "真实目标请求/网络/主动探测", "reason": "施工表与 ROE 要求离线"},
+    {"item": "凭证、真实 session、HAR/raw 响应和真实运行产物", "reason": "安全边界禁止读取"},
+    {"item": "生产 Supervisor、跨进程调度、真实权限环境", "reason": "不在施工表05范围"},
+    {"item": "全仓 pytest", "reason": "未用全量测试替代逐文件验收"}
+  ],
+  "next_hints": [
+    "Keep phase_status.json ownership in the control plane.",
+    "Run Code Worker before Analyst Worker and pass both to Verifier.",
+    "Do not promote historical leads, signals, candidates or approval-required branches to confirmed."
+  ],
+  "created_at": "2026-09-02T00:00:00+00:00"
+}

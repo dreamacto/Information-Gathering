@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0",
+  "construction_table": "05",
+  "baseline": "74ab28c",
+  "worker_type": "code",
+  "status": "ok",
+  "scope": "offline WZ specialist graph, routes, workers, plans, contracts and six test files",
+  "facts": {
+    "network_requests": 0,
+    "credentials_or_sessions_read": 0,
+    "har_or_raw_responses_read": 0,
+    "real_run_artifacts_read": 0,
+    "files_added": 12,
+    "focused_tests_passed": 16,
+    "compatibility_tests_passed": 71,
+    "diff_check_returncode": 0,
+    "error_path_check": "ERROR_PATHS_OK"
+  },
+  "commands": [
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q tests/test_wz_graph.py tests/test_wz_worker_plans.py tests/test_wz_worker_context.py tests/test_wz_graph_integration.py tests/test_wz_graph_phase_boundary.py tests/test_wz_graph_isolation.py", "returncode": 0, "summary": "16 passed"},
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m pytest -q tests/test_graph.py tests/test_graph_contracts.py tests/test_graph_routes.py tests/test_worker_context.py tests/test_worker_contracts.py tests/test_worker_executor.py tests/test_worker_output_verifier.py tests/test_phase_verifier.py tests/test_wz_application_mapping.py tests/test_wz_fh_isolation.py", "returncode": 0, "summary": "71 passed"},
+    {"command": "PYTHONPATH=src .venv/Scripts/python.exe -m compileall -q <four WZ Python modules>", "returncode": 0, "summary": "compile ok"},
+    {"command": "direct import of four WZ Python modules and json.load of two contracts", "returncode": 0, "summary": "IMPORT_OK and CONTRACT_OK"},
+    {"command": "offline empty/invalid/cancel/permission/timeout-sensitive checks", "returncode": 0, "summary": "ERROR_PATHS_OK"},
+    {"command": "git diff --check -- <table05 scope>", "returncode": 0, "summary": "no whitespace errors"}
+  ],
+  "security": {
+    "network": "none",
+    "read_only": true,
+    "write_scope": false,
+    "write_approval": false,
+    "write_cursor": false,
+    "write_confirmed": false,
+    "sensitive_values_emitted": 0,
+    "existing_dirty_workspace_preserved": true
+  },
+  "files": [
+    {"path": "src/authorized_assessment/orchestration/wz_graph.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "src/authorized_assessment/orchestration/wz_workers.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "src/authorized_assessment/orchestration/wz_routes.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "src/authorized_assessment/analysis/wz_worker_plans.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "contracts/wz_graph_schema.json", "compile": "n/a", "import": "n/a", "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "contracts/wz_worker_result_schema.json", "compile": "n/a", "import": "n/a", "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "tests/test_wz_graph.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "tests/test_wz_worker_plans.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "tests/test_wz_worker_context.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "tests/test_wz_graph_integration.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "tests/test_wz_graph_phase_boundary.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0},
+    {"path": "tests/test_wz_graph_isolation.py", "compile": 0, "import": 0, "contract": 0, "tests": 0, "compatibility": 0, "error_paths": 0}
+  ],
+  "created_at": "2026-09-02T00:00:00+00:00"
+}
